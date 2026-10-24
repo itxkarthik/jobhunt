@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "id": "1849000000000000001",
+      "text": "We're hiring backend interns in Bengaluru! Go + Postgres, 6 months, paid.\nApply: https://t.co/abc",
+      "author_id": "111",
+      "created_at": "2026-10-23T10:00:00.000Z",
+      "entities": {"urls": [{"url": "https://t.co/abc", "expanded_url": "https://jobs.example.in/backend-intern"}]}
+    },
+    {
+      "id": "1849000000000000002",
+      "text": "Hiring a remote SRE intern, worldwide. Details in thread",
+      "author_id": "222",
+      "created_at": "2026-10-22T09:00:00.000Z",
+      "entities": {"urls": [{"url": "https://t.co/def", "expanded_url": "https://x.com/someone/status/1"}]}
+    }
+  ],
+  "includes": {"users": [
+    {"id": "111", "name": "Acme Engineering", "username": "acme_eng"},
+    {"id": "222", "name": "Jane Founder", "username": "janef"}
+  ]},
+  "meta": {"result_count": 2}
+}

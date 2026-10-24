@@ -1,0 +1,44 @@
+{
+  "status": "OK",
+  "request_id": "3d1c1c2e-test",
+  "parameters": {"query": "backend intern in India", "page": 1, "num_pages": 1, "country": "in"},
+  "data": [
+    {
+      "job_id": "Zk9xX2Jhc2U2NA==",
+      "employer_name": "Acme Fintech",
+      "job_publisher": "LinkedIn",
+      "job_employment_type": "Intern",
+      "job_employment_types": ["INTERN"],
+      "job_title": "Backend Engineering Intern (Go)",
+      "job_apply_link": "https://www.linkedin.com/jobs/view/1234567890",
+      "job_description": "Build Go microservices on Kubernetes. Freshers welcome.",
+      "job_is_remote": false,
+      "job_posted_at_datetime_utc": "2026-10-22T06:30:00.000Z",
+      "job_city": "Bengaluru",
+      "job_state": "Karnataka",
+      "job_country": "IN",
+      "job_min_salary": 360000,
+      "job_max_salary": 480000,
+      "job_salary_currency": "INR",
+      "job_salary_period": "YEAR"
+    },
+    {
+      "job_id": 987654,
+      "employer_name": "Remote Labs",
+      "job_publisher": "Indeed",
+      "job_employment_type": "FULLTIME",
+      "job_title": "Junior Platform Engineer",
+      "job_apply_link": "https://in.indeed.com/viewjob?jk=abc",
+      "job_description": "Remote within India.",
+      "job_is_remote": true,
+      "job_posted_at_datetime_utc": "2026-10-20T00:00:00.000Z",
+      "job_city": null,
+      "job_state": null,
+      "job_country": "IN",
+      "job_min_salary": null,
+      "job_max_salary": null,
+      "job_salary_currency": null,
+      "job_salary_period": null
+    }
+  ]
+}
