@@ -1,0 +1,50 @@
+# Keyword lists for the job classifier. Matching is case-insensitive on
+# word boundaries ("go" won't match "google"). Copy this file, edit it, and
+# point `keywords_file` in config.yaml at your copy to override.
+
+job_types:
+  internship: [intern, internship, interns, co-op, coop, summer analyst, apprentice, apprenticeship, trainee, werkstudent, working student]
+  new-grad: [new grad, new graduate, graduate engineer, graduate program, graduate programme, graduate developer, campus hire, university graduate, early career, fresher, freshers, entry level graduate]
+  contract: [contract, contractor, freelance, freelancer, fixed-term, fixed term]
+  part-time: [part-time, part time]
+
+experience:
+  senior: [senior, sr, staff, principal, lead, tech lead, architect, head of, director, vp, manager, distinguished, expert]
+  mid: [mid-level, mid level, intermediate, engineer ii, developer ii, sde ii, sde-2, sde 2, sde2]
+  entry: [junior, jr, entry level, entry-level, associate engineer, associate software engineer, graduate, fresher, engineer i, sde i, sde-1, sde 1, sde1, early career]
+
+work_modes:
+  remote: [remote, fully remote, 100% remote, remote-first, remote first, work from home, wfh, work from anywhere, distributed team]
+  hybrid: [hybrid]
+  onsite: [on-site, onsite, on site, in-office, in office, work from office, wfo]
+
+visa:
+  yes: [visa sponsorship, sponsor visa, sponsor your visa, sponsorship available, will sponsor, relocation support, relocation assistance, relocation package, visa support, work visa support, h-1b sponsorship, h1b sponsorship]
+  no: [no sponsorship, no visa sponsorship, unable to sponsor, cannot sponsor, can't sponsor, not able to sponsor, will not sponsor, without sponsorship, sponsorship is not available, must be authorized to work, no relocation]
+
+# An area is assigned when a title term matches, or when at least
+# `min_description_hits` distinct description terms match.
+min_description_hits: 3
+
+# Titles like "Software Engineer Intern" name no area. They are tagged
+# `generic-swe` and match --area filters for the areas listed here.
+generic_titles: [software engineer, software engineering, software developer, software development, sde, swe, developer, programmer, engineering intern, technology intern, tech intern, it intern, computer science]
+generic_areas: [backend, full-stack]
+
+areas:
+  backend: [backend, back-end, back end, server-side, api, apis, microservices, golang, go, java, spring boot, kotlin, python, django, flask, fastapi, node.js, nodejs, express, rust, c#, .net, ruby on rails, rails, php, laravel, scala, elixir, postgresql, postgres, mysql, redis, kafka, grpc, rest api, restful, graphql, distributed systems, platform engineer]
+  frontend: [frontend, front-end, front end, react, reactjs, vue, vue.js, angular, svelte, next.js, nextjs, typescript, javascript, html, css, tailwind, ui engineer, web developer]
+  full-stack: [full stack, full-stack, fullstack, mern, mean stack]
+  mobile: [mobile, android, ios, swift, swiftui, kotlin multiplatform, flutter, react native, dart, objective-c]
+  ml-ai: [machine learning, ml, ai, artificial intelligence, deep learning, llm, llms, nlp, computer vision, pytorch, tensorflow, genai, generative ai, mlops, ml engineer, applied scientist, rag]
+  data-engineering: [data engineer, data engineering, etl, elt, spark, pyspark, airflow, dbt, data pipeline, data pipelines, snowflake, databricks, bigquery, hadoop, data platform, kafka streams, flink]
+  data-science: [data scientist, data science, data analyst, analytics, statistics, statistical, a/b testing, pandas, business intelligence, tableau, power bi]
+  devops: [devops, sre, site reliability, cloud engineer, infrastructure engineer, kubernetes, k8s, docker, terraform, aws, gcp, azure, ci/cd, ansible, helm, platform engineering, observability, prometheus]
+  systems: [systems engineer, systems programming, operating systems, kernel, linux kernel, distributed systems, storage, databases internals, compilers, compiler, networking, low-latency, c++, rust, infrastructure, file systems, virtualization]
+  hpc-gpu: [hpc, high performance computing, high-performance computing, gpu, cuda, opencl, mpi, openmp, triton, simd, accelerator, rocm, gpu kernels, performance engineer]
+  security: [security, cybersecurity, appsec, application security, penetration, pentest, pentesting, infosec, soc analyst, threat, vulnerability, cryptography, red team, blue team, iam]
+  embedded: [embedded, firmware, rtos, microcontroller, microcontrollers, fpga, verilog, vhdl, embedded c, iot, device driver, device drivers, arm cortex, bare metal, autosar]
+  qa: [qa, quality assurance, test engineer, sdet, test automation, automation testing, selenium, cypress, playwright, manual testing, tester]
+  research: [research scientist, research engineer, researcher, research intern, phd, publications, research]
+  blockchain: [blockchain, web3, solidity, smart contract, smart contracts, ethereum, defi, crypto, cryptocurrency, solana, rust smart contracts]
+  gamedev: [game developer, game development, gameplay, unity, unreal, unreal engine, game engine, game designer, gaming]
