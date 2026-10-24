@@ -1,9 +1,11 @@
 package sources
 
 import (
+	"encoding/json"
 	"html"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -86,4 +88,54 @@ func Float(v float64) *float64 {
 		return nil
 	}
 	return &v
+}
+
+// Truncate cuts s to at most n runes, appending "…" when shortened. Used to
+// keep large ATS descriptions from bloating the cache.
+func Truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n-1]) + "…"
+}
+
+// FlexString unmarshals a JSON string or number into a string; some APIs
+// (RemoteOK, JSearch) aren't consistent about ID types.
+type FlexString string
+
+func (f *FlexString) UnmarshalJSON(b []byte) error {
+	s := strings.TrimSpace(string(b))
+	if s == "null" {
+		*f = ""
+		return nil
+	}
+	if strings.HasPrefix(s, `"`) {
+		var v string
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+		*f = FlexString(v)
+		return nil
+	}
+	*f = FlexString(s)
+	return nil
+}
+
+// FlexFloat unmarshals a JSON number, numeric string, or null into a float64.
+type FlexFloat float64
+
+func (f *FlexFloat) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(strings.TrimSpace(string(b)), `"`)
+	if s == "" || s == "null" {
+		*f = 0
+		return nil
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		*f = 0     // non-numeric salary text: treat as absent
+		return nil //nolint:nilerr
+	}
+	*f = FlexFloat(v)
+	return nil
 }

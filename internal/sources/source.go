@@ -4,6 +4,8 @@ package sources
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -30,15 +32,27 @@ type Linker interface {
 	SearchURL(f model.Filters) string
 }
 
-// MinTTLer lets a source impose a minimum cache TTL, e.g. when its terms ask
-// for infrequent polling.
+// MinTTLer imposes a hard minimum cache TTL because the source's terms ask
+// for infrequent polling. Even --refresh honors it.
 type MinTTLer interface {
 	MinTTL() time.Duration
+}
+
+// DefaultTTLer suggests a cache TTL for heavy or slowly changing sources.
+// Config's per-source ttl overrides it, and --refresh bypasses it.
+type DefaultTTLer interface {
+	DefaultTTL() time.Duration
 }
 
 // RateLimited sets the per-source request rate (default 1 req/s).
 type RateLimited interface {
 	Rate() rate.Limit
+}
+
+// Timeouter lets slow multi-request sources (many company boards) ask for a
+// longer fetch timeout than the global default.
+type Timeouter interface {
+	Timeout() time.Duration
 }
 
 // CacheKeyer lets a source say which parts of the filters affect its request.
@@ -52,3 +66,25 @@ type CacheKeyer interface {
 type ErrNotConfigured struct{ Msg string }
 
 func (e ErrNotConfigured) Error() string { return e.Msg }
+
+// PartialError reports that some sub-requests failed (e.g. a few company
+// boards are down) while others succeeded. Fetch returns it alongside the
+// jobs it did get; the engine treats the source as ok with a warning.
+type PartialError struct {
+	Failed []string // e.g. board slugs
+	Total  int
+	Err    error // first underlying error
+}
+
+func (e *PartialError) Error() string {
+	return fmt.Sprintf("%d/%d failed (%s): %v", len(e.Failed), e.Total, strings.Join(firstN(e.Failed, 5), ", "), e.Err)
+}
+
+func (e *PartialError) Unwrap() error { return e.Err }
+
+func firstN(xs []string, n int) []string {
+	if len(xs) > n {
+		return append(xs[:n:n], "…")
+	}
+	return xs
+}

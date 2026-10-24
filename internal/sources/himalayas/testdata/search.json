@@ -1,0 +1,176 @@
+{
+ "comments": "Search results come 20 to a page. Pass ?page=2, ?page=3 and so on for more; there is no cursor on search. Cursor pagination (nextCursor) is only on /jobs/api, the browse feed. 13/03/2026: The API has been updated to include the companySlug field in the response.",
+ "updatedAt": 1792842614,
+ "offset": 0,
+ "limit": 20,
+ "totalCount": 3,
+ "jobs": [
+  {
+   "title": "Junior Java Developer",
+   "excerpt": "About the jobAccelerate your career with PradeepITPradeepIT is one of the largest, globally recognized IT Consulting firm to connect Indias deeply vetted talent team to global customer.",
+   "companyName": "PradeepIT Consulting Services Pvt Ltd",
+   "companySlug": "pradeepit-consulting-services-pvt-ltd",
+   "companyLogo": "https://cdn-images.himalayas.app/6fab62ojb6wkuftxpvkflmbcqakl",
+   "employmentType": "Full Time",
+   "minSalary": null,
+   "maxSalary": null,
+   "salaryPeriod": "annual",
+   "seniority": [
+    "Entry-level"
+   ],
+   "currency": null,
+   "locationRestrictions": [
+    "India"
+   ],
+   "timezoneRestrictions": [
+    5.5
+   ],
+   "categories": [
+    "Java-Developer",
+    "Backend-Engineer",
+    "J2EE-Developer",
+    "Software-Developer",
+    "Remote-Junior-Java-Developer",
+    "Junior-Full-Stack-Java-Developer",
+    "Junior-Java-Backend-Developer",
+    "Développeur-Java-Junior",
+    "Junior-Developer",
+    "Java-Developer-Intern",
+    "Junior-Software-Developer",
+    "Junior-Java-Backend-Engineer"
+   ],
+   "parentCategories": [
+    "Developer"
+   ],
+   "description": "<h3>About the job</h3><h3>Accelerate your career with PradeepIT</h3><p><strong>PradeepIT is one of the largest, globally recognized IT Consulting firm to connect Indias deeply vetted talent team to global customer</strong>.</p><p>Were headquartered in Bengaluru, Silicon Valley of India. PradeepITs customers include SAP Lab, Bosch, Rolls-Royce, Daikin, Daimler and J&amp;J and hundreds of other Fortune 500 companies and fast-growing startups.</p><p>With continuous hard work and working remotely by choice, PradeepIT is certified as a <strong>Great Place to Work</strong>! Trusted by leading brands and fortune 500 companies from around the world, we have achieved:</p><ul>\n<li>6+ Years of Experien",
+   "pubDate": 1790903626,
+   "expiryDate": 1795958654,
+   "applicationLink": "https://himalayas.app/companies/pradeepit-consulting-services-pvt-ltd/jobs/junior-java-developer?utm_source=api",
+   "guid": "https://himalayas.app/companies/pradeepit-consulting-services-pvt-ltd/jobs/junior-java-developer"
+  },
+  {
+   "title": "Senior Back-End Engineer Intern",
+   "excerpt": "This is an unpaid internship at this time and is suitable for candidates pursuing degree completion that wants to be a Senior Back-End Engineer.",
+   "companyName": "Flowai",
+   "companySlug": "flowai",
+   "companyLogo": "https://cdn-images.himalayas.app/gw4jj975dtmbsibvf4ldga409h1u",
+   "employmentType": "Intern",
+   "minSalary": null,
+   "maxSalary": null,
+   "salaryPeriod": "annual",
+   "seniority": [
+    "Entry-level"
+   ],
+   "currency": "USD",
+   "locationRestrictions": [],
+   "timezoneRestrictions": [
+    -11,
+    -10,
+    -9.5,
+    -9,
+    -8,
+    -7,
+    -6,
+    -5,
+    -4,
+    -3.5,
+    -3,
+    -2,
+    -1,
+    0,
+    1,
+    2,
+    3,
+    3.5,
+    4,
+    4.5,
+    5,
+    5.5,
+    5.75,
+    6,
+    6.5,
+    7,
+    8,
+    8.75,
+    9,
+    9.5,
+    10,
+    10.5,
+    11,
+    12,
+    12.75,
+    13,
+    14
+   ],
+   "categories": [
+    "Backend-Engineer",
+    "Django-Developer",
+    "Python-Developer",
+    "Software-Engineer",
+    "Backend-Engineering-Intern",
+    "Backend-Developer-Intern",
+    "Backend-Development-Intern",
+    "Backend-Development-Internship",
+    "Software-Engineer-Intern"
+   ],
+   "parentCategories": [
+    "Developer"
+   ],
+   "description": "<p><strong>This is an unpaid internship at this time and is suitable for candidates pursuing degree completion that wants to be a Senior Back-End Engineer.Company Overview:</strong></p><p>Flow Global Software Technologies, LLC., operating in the Information Technology (IT) sector, is a cutting-edge high-tech enterprise AI company that engages in the design, engineering, marketing, sales, and 5-star support of a cloud-based enterprise AI platform with patent pending artificial intelligence, deep learning, and other core proprietary technologies awaiting patent approval. Flow Turbo™, the company's first product, is a brand of next-generation SaaS AI sales prospecting platform that is designed ",
+   "pubDate": 1792191527,
+   "expiryDate": 1797375526,
+   "applicationLink": "https://himalayas.app/companies/flowai/jobs/senior-back-end-engineer-intern?utm_source=api",
+   "guid": "https://himalayas.app/companies/flowai/jobs/senior-back-end-engineer-intern"
+  },
+  {
+   "title": "Back-end Developer intern - Python",
+   "excerpt": "This is a remote position. Who are we looking for?",
+   "companyName": "Workforce Development Solutions",
+   "companySlug": "workforce-development-solutions",
+   "companyLogo": "https://cdn-images.himalayas.app/beuruevng0irrn65bmclg6q13fe1",
+   "employmentType": "Intern",
+   "minSalary": null,
+   "maxSalary": null,
+   "salaryPeriod": "annual",
+   "seniority": [
+    "Entry-level"
+   ],
+   "currency": null,
+   "locationRestrictions": [
+    "United States"
+   ],
+   "timezoneRestrictions": [
+    -10,
+    -9,
+    -8,
+    -7,
+    -6,
+    -5,
+    14
+   ],
+   "categories": [
+    "Backend-Engineer",
+    "Backend-Development",
+    "Python-Developer",
+    "Software-Engineering-Intern",
+    "Internship",
+    "Backend-Developer-Intern",
+    "Backend-Development-Intern",
+    "Backend-Development-Internship",
+    "Python-Developer-Intern",
+    "Python-Backend-Developer",
+    "Backend-Engineering-Intern",
+    "Junior-Python-Backend-Engineer",
+    "Python-Backend-Engineer"
+   ],
+   "parentCategories": [
+    "Developer"
+   ],
+   "description": "<h3>This is a remote position.</h3><h3>Who are we looking for?</h3><p>We're on the hunt for passionate individuals who possess an innate curiosity about the world of tech and coding. Perhaps you’ve spent your college years diving deep into Python projects, exploring its intricacies, and marveling at its capabilities. Experience isn't our primary focus; your passion and drive are. We believe that if you have the right mindset and a genuine interest in backend development, together, we can shape that interest into expertise. If you've always been the one to ask \"How does this work?\" or thought \"I can make this better,\" then you're the kind of person we want. Join us, and let's turn that passio",
+   "pubDate": 1791779667,
+   "expiryDate": 1796963667,
+   "applicationLink": "https://himalayas.app/companies/workforce-development-solutions/jobs/back-end-developer-intern-python?utm_source=api",
+   "guid": "https://himalayas.app/companies/workforce-development-solutions/jobs/back-end-developer-intern-python"
+  }
+ ]
+}
