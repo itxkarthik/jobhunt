@@ -1,0 +1,19 @@
+# Build output
+/bin/
+/dist/
+*.test
+*.out
+
+# Local data & secrets — config lives in ~/.config/jobhunt, never in the repo
+*.db
+*.db-wal
+*.db-shm
+config.yaml
+.env
+.env.*
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
