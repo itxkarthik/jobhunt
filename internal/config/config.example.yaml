@@ -1,0 +1,25 @@
+# Copy to ~/.config/jobhunt/config.yaml (or run `jobhunt config init`).
+# API keys can also come from env vars: JOBHUNT_ADZUNA_APP_ID, JOBHUNT_ADZUNA_APP_KEY,
+# JOBHUNT_JSEARCH_API_KEY, JOBHUNT_X_BEARER_TOKEN.
+
+user_agent: "jobhunt/0.1 (+https://github.com/itxkarthik/jobhunt; personal job search)"
+cache_ttl: 1h      # don't refetch a source within this window
+timeout: 20s       # per-source fetch timeout
+# db_path: ~/.local/share/jobhunt/jobhunt.db
+# keywords_file: ~/.config/jobhunt/keywords.yaml
+
+defaults:
+  countries: [IN]
+  # modes: [remote, hybrid, onsite]
+  # types: [internship, new-grad]
+  # areas: [backend, systems]
+  limit: 50
+
+sources:
+  adzuna:
+    enabled: true
+    app_id: ""     # https://developer.adzuna.com/signup
+    app_key: ""
+    max_pages: 2   # 50 results per page
+  remotive:
+    enabled: true  # TTL is forced to >= 6h by Remotive's terms
