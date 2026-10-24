@@ -1,0 +1,87 @@
+# Company job boards queried directly through their ATS's public API.
+# Every slug was checked live on 2026-10-24. Run `jobhunt sources --check-boards`
+# to find stale ones.
+#
+# To customize, copy this file to ~/.config/jobhunt/companies.yaml; that file
+# replaces this list entirely.
+#
+#   ats:       greenhouse | lever | ashby
+#   slug:      the board id in the API URL
+#   countries: where they hire (ISO codes). A board is only fetched when the
+#              search includes one of these, or `remote-global` if remote: true.
+
+companies:
+  # --- India-heavy ---------------------------------------------------------
+  - {name: Paytm,            ats: lever,      slug: paytm,                          countries: [IN]}
+  - {name: Meesho,           ats: lever,      slug: meesho,                         countries: [IN]}
+  - {name: Zeta,             ats: lever,      slug: zeta,                           countries: [IN]}
+  - {name: CRED,             ats: lever,      slug: cred,                           countries: [IN]}
+  - {name: FamPay,           ats: lever,      slug: fampay,                         countries: [IN]}
+  - {name: Mindtickle,       ats: lever,      slug: mindtickle,                     countries: [IN, US]}
+  - {name: Razorpay,         ats: greenhouse, slug: razorpaysoftwareprivatelimited, countries: [IN]}
+  - {name: Groww,            ats: greenhouse, slug: groww,                          countries: [IN]}
+  - {name: InMobi,           ats: greenhouse, slug: inmobi,                         countries: [IN]}
+  - {name: HighRadius,       ats: greenhouse, slug: highradius,                     countries: [IN, US]}
+  - {name: Sigmoid,          ats: greenhouse, slug: sigmoid,                        countries: [IN]}
+  - {name: Netradyne,        ats: greenhouse, slug: netradyne,                      countries: [IN, US]}
+  - {name: HackerRank,       ats: greenhouse, slug: hackerrank,                     countries: [IN, US]}
+  - {name: Druva,            ats: greenhouse, slug: druva,                          countries: [IN, US]}
+  - {name: TrueFoundry,      ats: greenhouse, slug: truefoundry,                    countries: [IN, US]}
+  - {name: Observe.AI,       ats: greenhouse, slug: observeai,                      countries: [IN, US]}
+  - {name: Sarvam AI,        ats: ashby,      slug: sarvam,                         countries: [IN]}
+  - {name: Tekion,           ats: ashby,      slug: tekion,                         countries: [IN, US]}
+  - {name: Atlan,            ats: ashby,      slug: atlan,                          countries: [IN], remote: true}
+  - {name: Composio,         ats: ashby,      slug: composio,                       countries: [IN, US]}
+
+  # --- Global tech with big India offices --------------------------------
+  - {name: Databricks,       ats: greenhouse, slug: databricks,   countries: [IN, US, JP, GB, DE, NL, SG, AU, CA]}
+  - {name: MongoDB,          ats: greenhouse, slug: mongodb,      countries: [IN, US, JP, GB, DE, AU, SG]}
+  - {name: Okta,             ats: greenhouse, slug: okta,         countries: [IN, US, JP, GB, CA, AU]}
+  - {name: Pure Storage,     ats: greenhouse, slug: purestorage,  countries: [IN, US, JP]}
+  - {name: Stripe,           ats: greenhouse, slug: stripe,       countries: [IN, US, JP, GB, DE, SG, AU, CA, AE], remote: true}
+  - {name: Rubrik,           ats: greenhouse, slug: rubrik,       countries: [IN, US, JP]}
+  - {name: GitLab,           ats: greenhouse, slug: gitlab,       countries: [IN, US, JP, GB, DE, NL, CA, AU], remote: true}
+  - {name: Fivetran,         ats: greenhouse, slug: fivetran,     countries: [IN, US, JP, GB, DE]}
+  - {name: Celonis,          ats: greenhouse, slug: celonis,      countries: [IN, US, JP, DE, GB, NL]}
+  - {name: Elastic,          ats: greenhouse, slug: elastic,      countries: [IN, US, JP, GB, DE, NL, CA, AU], remote: true}
+  - {name: Datadog,          ats: greenhouse, slug: datadog,      countries: [IN, US, JP, GB, DE, NL, SG, AU, CA]}
+  - {name: Twilio,           ats: greenhouse, slug: twilio,       countries: [IN, US, JP, GB, DE, CA], remote: true}
+  - {name: Coinbase,         ats: greenhouse, slug: coinbase,     countries: [IN, US, GB, SG, CA], remote: true}
+  - {name: Airbnb,           ats: greenhouse, slug: airbnb,       countries: [IN, US, JP]}
+  - {name: Roblox,           ats: greenhouse, slug: roblox,       countries: [IN, US]}
+  - {name: Figma,            ats: greenhouse, slug: figma,        countries: [IN, US, JP, GB, DE]}
+  - {name: Samsara,          ats: greenhouse, slug: samsara,      countries: [IN, US]}
+  - {name: Grafana Labs,     ats: greenhouse, slug: grafanalabs,  countries: [IN, US, JP], remote: true}
+  - {name: Cockroach Labs,   ats: greenhouse, slug: cockroachlabs, countries: [IN, US]}
+  - {name: Anthropic,        ats: greenhouse, slug: anthropic,    countries: [IN, US, JP, GB]}
+  - {name: Tenstorrent,      ats: greenhouse, slug: tenstorrent,  countries: [IN, US, JP, CA]}
+  - {name: Together AI,      ats: greenhouse, slug: togetherai,   countries: [IN, US, NL]}
+  - {name: Agoda,            ats: greenhouse, slug: agoda,        countries: [IN, JP, SG]}
+  - {name: OpenAI,           ats: ashby,      slug: openai,       countries: [IN, US, JP, GB, SG, AU]}
+  - {name: Notion,           ats: ashby,      slug: notion,       countries: [IN, US, JP]}
+  - {name: ClickHouse,       ats: ashby,      slug: clickhouse,   countries: [IN, US, JP, GB, DE, NL], remote: true}
+  - {name: Cursor,           ats: ashby,      slug: cursor,       countries: [IN, US, JP]}
+  - {name: Cognition,        ats: ashby,      slug: cognition,    countries: [IN, US, JP]}
+  - {name: Harvey,           ats: ashby,      slug: harvey,       countries: [IN, US, GB]}
+  - {name: Cerebras,         ats: ashby,      slug: cerebras,     countries: [IN, US, CA]}
+  - {name: Lambda,           ats: ashby,      slug: lambda,       countries: [IN, US]}
+  - {name: Temporal,         ats: ashby,      slug: temporal,     countries: [IN, US], remote: true}
+
+  # --- Japan -----------------------------------------------------------------
+  - {name: Woven by Toyota,  ats: lever,      slug: woven-by-toyota, countries: [JP, US]}
+  - {name: PayPay,           ats: greenhouse, slug: paypay,          countries: [JP]}
+  - {name: Asana,            ats: greenhouse, slug: asana,           countries: [US, JP, GB]}
+
+  # --- US internship-heavy -------------------------------------------------
+  - {name: Palantir,         ats: lever,      slug: palantir,     countries: [US, JP, GB, DE, AU]}
+  - {name: Spotify,          ats: lever,      slug: spotify,      countries: [US, IN, JP, GB, DE, NL]}
+  - {name: Lyft,             ats: greenhouse, slug: lyft,         countries: [US, CA]}
+  - {name: Robinhood,        ats: greenhouse, slug: robinhood,    countries: [US]}
+  - {name: Pinterest,        ats: greenhouse, slug: pinterest,    countries: [US, JP]}
+  - {name: Affirm,           ats: greenhouse, slug: affirm,       countries: [US, CA], remote: true}
+  - {name: DoorDash,         ats: greenhouse, slug: doordashusa,  countries: [US, IN, CA]}
+  - {name: Cloudflare,       ats: greenhouse, slug: cloudflare,   countries: [US, JP, GB, DE, SG, AU]}
+  - {name: Scale AI,         ats: greenhouse, slug: scaleai,      countries: [US, IN]}
+  - {name: Ramp,             ats: ashby,      slug: ramp,         countries: [US]}
+  - {name: Perplexity,       ats: ashby,      slug: perplexity,   countries: [US, GB, DE]}
+  - {name: Plaid,            ats: ashby,      slug: plaid,        countries: [US, NL]}
