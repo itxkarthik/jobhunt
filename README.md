@@ -2,7 +2,7 @@
 
 Search many legal job sources at once: official APIs, public JSON endpoints and RSS feeds. Results are normalized into one schema and filtered by country, work mode, job type and CS area. Built for finding internships and entry-level roles. The default country is India.
 
-> Status: milestone 1 of 6. Adzuna and Remotive are implemented, with a keyword classifier and CLI table output.
+> Status: milestone 1 of 6. Remotive and Adzuna (opt-in, paid) are implemented, with a keyword classifier and CLI table output.
 
 ## Setup
 
@@ -15,7 +15,7 @@ make build                 # -> bin/jobhunt
 
 | Source | Key | How to get it |
 |---|---|---|
-| Adzuna | `app_id` + `app_key` | Free signup at https://developer.adzuna.com/signup |
+| Adzuna (off by default) | `app_id` + `app_key` | https://developer.adzuna.com/signup. Paid: new keys get 25 trial calls, full access is £8/month. Enable with `sources.adzuna.enabled: true` |
 | Remotive | none | — |
 
 Keys can go in the config file or come from env vars (`JOBHUNT_ADZUNA_APP_ID`, `JOBHUNT_ADZUNA_APP_KEY`). A source with a missing key is skipped with a message; it never fails the search.

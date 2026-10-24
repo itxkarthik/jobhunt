@@ -17,7 +17,7 @@ defaults:
 
 sources:
   adzuna:
-    enabled: true
+    enabled: false # paid: new keys get 25 trial calls, full access is £8/month
     app_id: ""     # https://developer.adzuna.com/signup
     app_key: ""
     max_pages: 2   # 50 results per page
