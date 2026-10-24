@@ -1,0 +1,53 @@
+{
+  "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+  "count": 3,
+  "mean": 612345.5,
+  "results": [
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4911223344",
+      "title": "Backend Developer <strong>Intern</strong> (Golang)",
+      "description": "We are looking for a backend <strong>intern</strong> to build REST APIs in Go with PostgreSQL and Redis&hellip;",
+      "created": "2026-10-21T09:15:00Z",
+      "redirect_url": "https://www.adzuna.in/land/ad/4911223344?se=abc",
+      "salary_min": 240000,
+      "salary_max": 360000,
+      "salary_is_predicted": "0",
+      "contract_time": "full_time",
+      "company": { "__CLASS__": "Adzuna::API::Response::Company", "display_name": "Acme Payments Pvt Ltd" },
+      "location": {
+        "__CLASS__": "Adzuna::API::Response::Location",
+        "display_name": "Bangalore, Karnataka",
+        "area": ["India", "Karnataka", "Bangalore"]
+      },
+      "category": { "__CLASS__": "Adzuna::API::Response::Category", "tag": "it-jobs", "label": "IT Jobs" }
+    },
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4911223345",
+      "title": "Senior Data Engineer",
+      "description": "8+ years building Spark and Airflow pipelines.",
+      "created": "2026-10-20T12:00:00Z",
+      "redirect_url": "https://www.adzuna.in/land/ad/4911223345",
+      "salary_min": 2500000,
+      "salary_max": 2500000,
+      "salary_is_predicted": "1",
+      "contract_type": "permanent",
+      "company": { "display_name": "DataCo" },
+      "location": { "display_name": "Pune, Maharashtra", "area": ["India", "Maharashtra", "Pune"] },
+      "category": { "tag": "it-jobs", "label": "IT Jobs" }
+    },
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4911223346",
+      "title": "QA Contractor",
+      "description": "Six month contract, Selenium.",
+      "created": "2026-10-19T08:00:00Z",
+      "redirect_url": "https://www.adzuna.in/land/ad/4911223346",
+      "contract_type": "contract",
+      "company": { "display_name": "TestHouse" },
+      "location": { "display_name": "India", "area": ["India"] },
+      "category": { "tag": "it-jobs", "label": "IT Jobs" }
+    }
+  ]
+}
