@@ -7,6 +7,7 @@ cache_ttl: 1h      # don't refetch a source within this window
 timeout: 20s       # per-source fetch timeout
 # db_path: ~/.local/share/jobhunt/jobhunt.db
 # keywords_file: ~/.config/jobhunt/keywords.yaml
+# companies_file: ~/.config/jobhunt/companies.yaml   # replaces the built-in board list if present
 
 defaults:
   countries: [IN]
@@ -23,3 +24,29 @@ sources:
     max_pages: 2   # 50 results per page
   remotive:
     enabled: true  # TTL is forced to >= 6h by Remotive's terms
+  remoteok:
+    enabled: true
+  arbeitnow:
+    enabled: true
+    max_pages: 2   # 300 jobs per page; only used for EU/remote searches
+  himalayas:
+    enabled: true
+    max_pages: 5   # 20 jobs per page per country
+  wwr:
+    enabled: true
+  hn:
+    enabled: true
+  greenhouse:
+    enabled: true
+  lever:
+    enabled: true
+  ashby:
+    enabled: true
+  jsearch:
+    enabled: false # freemium RapidAPI; brings in LinkedIn/Indeed via Google Jobs
+    api_key: ""    # https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
+    max_pages: 1
+  x:
+    enabled: false # pay-per-use (~$0.005 per post read)
+    bearer_token: ""
+    max_results: 25

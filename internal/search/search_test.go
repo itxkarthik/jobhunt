@@ -158,7 +158,7 @@ func TestFilter(t *testing.T) {
 		tt.mod(&f)
 		var got []int
 		for i := range jobs {
-			if matches(&jobs[i], f, c, compileTerms(f.Keywords), compileTerms(f.Exclude), now) {
+			if matches(&jobs[i], f, c, classify.NewTermSet(f.Keywords), classify.NewTermSet(f.Exclude), now) {
 				got = append(got, i)
 			}
 		}
@@ -178,4 +178,40 @@ func equalInts(a, b []int) bool {
 		}
 	}
 	return true
+}
+
+type ttlSource struct {
+	fakeSource
+	min, def time.Duration
+}
+
+func (t *ttlSource) MinTTL() time.Duration     { return t.min }
+func (t *ttlSource) DefaultTTL() time.Duration { return t.def }
+
+func TestTTLFor(t *testing.T) {
+	plain := &fakeSource{name: "plain"}
+	terms := &ttlSource{fakeSource: fakeSource{name: "terms"}, min: 6 * time.Hour}
+	heavy := &ttlSource{fakeSource: fakeSource{name: "heavy"}, def: 6 * time.Hour}
+	tests := []struct {
+		name    string
+		src     sources.Source
+		refresh bool
+		cfg     map[string]time.Duration
+		want    time.Duration
+	}{
+		{"global default", plain, false, nil, time.Hour},
+		{"refresh plain", plain, true, nil, 0},
+		{"terms minimum", terms, false, nil, 6 * time.Hour},
+		{"refresh keeps terms minimum", terms, true, nil, 6 * time.Hour},
+		{"config can't go below terms", terms, false, map[string]time.Duration{"terms": time.Minute}, 6 * time.Hour},
+		{"source default", heavy, false, nil, 6 * time.Hour},
+		{"refresh skips source default", heavy, true, nil, 0},
+		{"config overrides default", heavy, false, map[string]time.Duration{"heavy": 2 * time.Hour}, 2 * time.Hour},
+	}
+	for _, tt := range tests {
+		e := &Engine{CacheTTL: time.Hour, Refresh: tt.refresh, SourceTTL: tt.cfg}
+		if got := e.ttlFor(tt.src); got != tt.want {
+			t.Errorf("%s: ttl = %v, want %v", tt.name, got, tt.want)
+		}
+	}
 }

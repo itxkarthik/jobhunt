@@ -17,7 +17,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(newSearchCmd(), newConfigCmd())
+	root.AddCommand(newSearchCmd(), newSourcesCmd(), newConfigCmd())
 	return root
 }
 

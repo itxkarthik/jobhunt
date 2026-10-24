@@ -17,6 +17,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/config"
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/search"
+	"github.com/itxkarthik/jobhunt/internal/sources/links"
 )
 
 // filterFlags holds raw flag values before they're parsed into model.Filters.
@@ -142,6 +143,7 @@ func newSearchCmd() *cobra.Command {
 		ff      filterFlags
 		limit   int
 		refresh bool
+		noLinks bool
 	)
 	cmd := &cobra.Command{
 		Use:   "search",
@@ -166,17 +168,22 @@ func newSearchCmd() *cobra.Command {
 			defer stop()
 			eng := a.Engine()
 			eng.Refresh = refresh
+			fmt.Fprintf(cmd.ErrOrStderr(), "Searching %d sources…\n", len(a.Sources))
 			res, err := eng.Run(ctx, f)
 			if err != nil {
 				return err
 			}
 			printResults(cmd.OutOrStdout(), res, limit, time.Now())
+			if !noLinks {
+				printLinks(cmd.OutOrStdout(), links.For(f))
+			}
 			return nil
 		},
 	}
 	ff.register(cmd)
 	cmd.Flags().IntVarP(&limit, "limit", "n", 0, "max rows to print (default from config: 50; -1 for all)")
-	cmd.Flags().BoolVar(&refresh, "refresh", false, "ignore the cache and refetch every source")
+	cmd.Flags().BoolVar(&refresh, "refresh", false, "refetch sources, except ones whose terms impose a minimum interval")
+	cmd.Flags().BoolVar(&noLinks, "no-links", false, "don't print search links for sites that can't be queried")
 	return cmd
 }
 
@@ -225,6 +232,18 @@ func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
 			fmt.Fprintf(w, "  %-10s open:    %s\n", "", r.Link)
 		}
 	}
+}
+
+func printLinks(w io.Writer, ls []links.Link) {
+	if len(ls) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "\nAlso search (open in browser; these sites don't allow automated access):")
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for _, l := range ls {
+		fmt.Fprintf(tw, "  %s\t%s\n", l.Site, l.URL)
+	}
+	tw.Flush()
 }
 
 func joinAreas(as []model.Area) string {

@@ -1,7 +1,6 @@
 package search
 
 import (
-	"regexp"
 	"strings"
 	"time"
 
@@ -12,8 +11,8 @@ import (
 // Filter returns the jobs matching f. Jobs whose relevant field is unknown
 // are dropped unless f.IncludeUnknown is set.
 func Filter(jobs []model.Job, f model.Filters, c *classify.Classifier, now time.Time) []model.Job {
-	kw := compileTerms(f.Keywords)
-	ex := compileTerms(f.Exclude)
+	kw := classify.NewTermSet(f.Keywords)
+	ex := classify.NewTermSet(f.Exclude)
 	out := jobs[:0:0]
 	for i := range jobs {
 		j := &jobs[i]
@@ -24,7 +23,7 @@ func Filter(jobs []model.Job, f model.Filters, c *classify.Classifier, now time.
 	return out
 }
 
-func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex []*regexp.Regexp, now time.Time) bool {
+func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex *classify.TermSet, now time.Time) bool {
 	unk := f.IncludeUnknown
 
 	if len(f.Countries) > 0 {
@@ -80,12 +79,14 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex []*re
 		}
 	}
 
-	text := strings.ToLower(j.Title + "\n" + j.Description + "\n" + strings.Join(j.Tags, " "))
-	if len(kw) > 0 && !anyMatch(kw, text) {
-		return false
-	}
-	if len(ex) > 0 && anyMatch(ex, strings.ToLower(j.Title+"\n"+j.Description)) {
-		return false
+	if kw.Len() > 0 || ex.Len() > 0 {
+		text := classify.Tokenize(j.Title + "\n" + j.Description)
+		if kw.Len() > 0 && !kw.Any(text) && !kw.Any(classify.Tokenize(strings.Join(j.Tags, " | "))) {
+			return false
+		}
+		if ex.Len() > 0 && ex.Any(text) {
+			return false
+		}
 	}
 
 	if f.PostedWithin > 0 && !j.PostedAt.IsZero() && now.Sub(j.PostedAt) > f.PostedWithin {
@@ -112,27 +113,6 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex []*re
 		}
 	}
 	return true
-}
-
-func compileTerms(terms []string) []*regexp.Regexp {
-	var out []*regexp.Regexp
-	for _, t := range terms {
-		t = strings.ToLower(strings.TrimSpace(t))
-		if t == "" {
-			continue
-		}
-		out = append(out, regexp.MustCompile(`(?:^|[^a-z0-9+#])`+regexp.QuoteMeta(t)+`(?:$|[^a-z0-9+#])`))
-	}
-	return out
-}
-
-func anyMatch(res []*regexp.Regexp, s string) bool {
-	for _, re := range res {
-		if re.MatchString(s) {
-			return true
-		}
-	}
-	return false
 }
 
 func contains(xs []string, x string) bool {

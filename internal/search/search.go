@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -51,6 +52,7 @@ type Engine struct {
 	Store       *store.Store // may be nil (no cache/health)
 	Classifier  *classify.Classifier
 	CacheTTL    time.Duration
+	SourceTTL   map[string]time.Duration // per-source overrides from config
 	Timeout     time.Duration
 	Concurrency int
 	Refresh     bool // bypass cache
@@ -89,9 +91,7 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 	}
 
 	res := &Result{Reports: reports, Total: len(all)}
-	for i := range all {
-		e.Classifier.Classify(&all[i])
-	}
+	classifyAll(e.Classifier, all)
 	res.Jobs = Filter(all, f, e.Classifier, time.Now())
 	sort.SliceStable(res.Jobs, func(i, j int) bool {
 		return res.Jobs[i].PostedAt.After(res.Jobs[j].PostedAt)
@@ -127,11 +127,8 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 	}
 
 	key := cacheKey(src, f)
-	ttl := e.CacheTTL
-	if m, ok := src.(sources.MinTTLer); ok && m.MinTTL() > ttl {
-		ttl = m.MinTTL()
-	}
-	if e.Store != nil && !e.Refresh {
+	ttl := e.ttlFor(src)
+	if e.Store != nil && ttl > 0 {
 		jobs, _, ok, err := e.Store.CachedJobs(ctx, r.Source, key, ttl)
 		if err == nil && ok {
 			r.Status, r.Count = StatusCached, len(jobs)
@@ -143,9 +140,17 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 	if timeout <= 0 {
 		timeout = 20 * time.Second
 	}
+	if t, ok := src.(sources.Timeouter); ok && t.Timeout() > timeout {
+		timeout = t.Timeout()
+	}
 	fctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	jobs, err := src.Fetch(fctx, f)
+	var partial *sources.PartialError
+	if err != nil && len(jobs) > 0 && errors.As(err, &partial) {
+		r.Err = "partial: " + partial.Error()
+		err = nil
+	}
 	if err != nil {
 		r.Status, r.Err = StatusError, errMessage(err, timeout)
 		// Serve stale cache rather than nothing.
@@ -170,6 +175,26 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 	return r, jobs
 }
 
+// ttlFor picks the cache TTL: config per-source > source default > global,
+// raised to the source's terms-imposed minimum. --refresh skips everything
+// but that minimum.
+func (e *Engine) ttlFor(src sources.Source) time.Duration {
+	ttl := e.CacheTTL
+	if d, ok := src.(sources.DefaultTTLer); ok {
+		ttl = d.DefaultTTL()
+	}
+	if t, ok := e.SourceTTL[src.Name()]; ok && t > 0 {
+		ttl = t
+	}
+	if e.Refresh {
+		ttl = 0
+	}
+	if m, ok := src.(sources.MinTTLer); ok && m.MinTTL() > ttl {
+		ttl = m.MinTTL()
+	}
+	return ttl
+}
+
 func errMessage(err error, timeout time.Duration) string {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Sprintf("timed out after %s", timeout)
@@ -187,4 +212,22 @@ func cacheKey(src sources.Source, f model.Filters) string {
 	}
 	sum := sha1.Sum([]byte(raw))
 	return hex.EncodeToString(sum[:8])
+}
+
+// classifyAll classifies jobs in parallel; each job is independent.
+func classifyAll(c *classify.Classifier, jobs []model.Job) {
+	workers := runtime.GOMAXPROCS(0)
+	chunk := (len(jobs) + workers - 1) / workers
+	var wg sync.WaitGroup
+	for start := 0; start < len(jobs); start += chunk {
+		part := jobs[start:min(start+chunk, len(jobs))]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range part {
+				c.Classify(&part[i])
+			}
+		}()
+	}
+	wg.Wait()
 }

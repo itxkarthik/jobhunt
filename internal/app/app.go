@@ -6,14 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"github.com/itxkarthik/jobhunt/internal/classify"
 	"github.com/itxkarthik/jobhunt/internal/config"
 	"github.com/itxkarthik/jobhunt/internal/search"
 	"github.com/itxkarthik/jobhunt/internal/sources"
-	"github.com/itxkarthik/jobhunt/internal/sources/adzuna"
-	"github.com/itxkarthik/jobhunt/internal/sources/remotive"
+	"github.com/itxkarthik/jobhunt/internal/sources/ats"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
 
@@ -21,6 +18,7 @@ type App struct {
 	Config     *config.Config
 	Store      *store.Store
 	Classifier *classify.Classifier
+	Companies  []ats.Company
 	Sources    []sources.Source
 }
 
@@ -39,37 +37,15 @@ func Open() (*App, error) {
 		st.Close()
 		return nil, err
 	}
-	return &App{Config: cfg, Store: st, Classifier: cl, Sources: BuildSources(cfg)}, nil
+	companies, err := ats.LoadCompanies(cfg.CompaniesFile)
+	if err != nil {
+		st.Close()
+		return nil, err
+	}
+	return &App{Config: cfg, Store: st, Classifier: cl, Companies: companies, Sources: BuildSources(cfg, companies)}, nil
 }
 
 func (a *App) Close() error { return a.Store.Close() }
-
-// BuildSources constructs every enabled source with its own HTTP client and
-// rate limiter. Disabled-by-default sources (paid APIs) need enabled: true.
-func BuildSources(cfg *config.Config) []sources.Source {
-	client := func() *sources.Client { return sources.NewClient(cfg.UserAgent, rate.Limit(1)) }
-	var out []sources.Source
-	add := func(name string, defEnabled bool, mk func(sc config.SourceConfig, c *sources.Client) sources.Source) {
-		sc := cfg.Source(name)
-		if !sc.IsEnabled(defEnabled) {
-			return
-		}
-		c := client()
-		src := mk(sc, c)
-		if rl, ok := src.(sources.RateLimited); ok {
-			c.Limiter = rate.NewLimiter(rl.Rate(), 1)
-		}
-		out = append(out, src)
-	}
-	// Adzuna is off by default: new keys only get 25 trial calls, then £8/month.
-	add("adzuna", false, func(sc config.SourceConfig, c *sources.Client) sources.Source {
-		return adzuna.New(sc.AppID, sc.AppKey, sc.MaxPages, c)
-	})
-	add("remotive", true, func(_ config.SourceConfig, c *sources.Client) sources.Source {
-		return remotive.New(c)
-	})
-	return out
-}
 
 // Engine returns a search engine over the app's sources.
 func (a *App) Engine() *search.Engine {
@@ -78,6 +54,7 @@ func (a *App) Engine() *search.Engine {
 		Store:       a.Store,
 		Classifier:  a.Classifier,
 		CacheTTL:    a.Config.CacheTTL,
+		SourceTTL:   a.sourceTTLs(),
 		Timeout:     a.Config.Timeout,
 		Concurrency: 8,
 	}
@@ -99,4 +76,14 @@ func Since(t time.Time, now time.Time) string {
 	default:
 		return strconv.Itoa(int(d.Hours()/24/7)) + "w"
 	}
+}
+
+func (a *App) sourceTTLs() map[string]time.Duration {
+	m := map[string]time.Duration{}
+	for name, sc := range a.Config.Sources {
+		if sc.TTL > 0 {
+			m[name] = sc.TTL
+		}
+	}
+	return m
 }

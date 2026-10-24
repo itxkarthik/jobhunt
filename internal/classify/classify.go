@@ -34,40 +34,40 @@ type Rules struct {
 	GenericAreas       []string            `yaml:"generic_areas"`
 }
 
-type matcher []*regexp.Regexp
+// All rule lists share one lexicon, so each text is scanned once per job
+// and every list just checks which of its terms were marked.
+type matcher []int // term ids in Classifier.lex
 
-func compile(terms []string) matcher {
-	m := make(matcher, 0, len(terms))
-	for _, t := range terms {
-		t = strings.ToLower(strings.TrimSpace(t))
-		if t == "" {
-			continue
-		}
-		// Custom boundaries so terms like "c++" and ".net" work.
-		m = append(m, regexp.MustCompile(`(?:^|[^a-z0-9+#])`+regexp.QuoteMeta(t)+`(?:$|[^a-z0-9+#])`))
-	}
-	return m
-}
+// marks records which lexicon terms occur in one text.
+type marks []bool
 
-// any reports whether any term matches s (already lowercased).
-func (m matcher) any(s string) bool {
-	for _, re := range m {
-		if re.MatchString(s) {
+func (m matcher) any(mk marks) bool {
+	for _, id := range m {
+		if mk[id] {
 			return true
 		}
 	}
 	return false
 }
 
-// hits counts distinct terms matching s.
-func (m matcher) hits(s string) int {
+func (m matcher) hits(mk marks) int {
 	n := 0
-	for _, re := range m {
-		if re.MatchString(s) {
+	for _, id := range m {
+		if mk[id] {
 			n++
 		}
 	}
 	return n
+}
+
+func (c *Classifier) compile(terms []string) matcher {
+	var m matcher
+	for _, t := range terms {
+		if id := c.lex.add(t); id >= 0 {
+			m = append(m, id)
+		}
+	}
+	return m
 }
 
 type Classifier struct {
@@ -80,6 +80,7 @@ type Classifier struct {
 	minDescHits  int
 	generic      matcher
 	GenericAreas []model.Area
+	lex          *TermSet
 }
 
 type areaRule struct {
@@ -117,11 +118,12 @@ func FromYAML(b []byte) (*Classifier, error) {
 		jobTypes:    map[model.JobType]matcher{},
 		experience:  map[model.Experience]matcher{},
 		modes:       map[model.WorkMode]matcher{},
-		visaYes:     compile(r.Visa["yes"]),
-		visaNo:      compile(r.Visa["no"]),
 		minDescHits: r.MinDescriptionHits,
-		generic:     compile(r.GenericTitles),
+		lex:         NewTermSet(nil),
 	}
+	c.visaYes = c.compile(r.Visa["yes"])
+	c.visaNo = c.compile(r.Visa["no"])
+	c.generic = c.compile(r.GenericTitles)
 	if c.minDescHits <= 0 {
 		c.minDescHits = 3
 	}
@@ -130,26 +132,26 @@ func FromYAML(b []byte) (*Classifier, error) {
 		if err != nil {
 			return nil, fmt.Errorf("keywords job_types: %w", err)
 		}
-		c.jobTypes[t] = compile(v)
+		c.jobTypes[t] = c.compile(v)
 	}
 	for k, v := range r.Experience {
 		e, err := model.ParseExperience(k)
 		if err != nil {
 			return nil, fmt.Errorf("keywords experience: %w", err)
 		}
-		c.experience[e] = compile(v)
+		c.experience[e] = c.compile(v)
 	}
 	for k, v := range r.WorkModes {
 		m, err := model.ParseWorkMode(k)
 		if err != nil {
 			return nil, fmt.Errorf("keywords work_modes: %w", err)
 		}
-		c.modes[m] = compile(v)
+		c.modes[m] = c.compile(v)
 	}
 	// Iterate in canonical order so Areas come out deterministic.
 	for _, a := range model.AllAreas {
 		if terms, ok := r.Areas[string(a)]; ok {
-			c.areas = append(c.areas, areaRule{a, compile(terms)})
+			c.areas = append(c.areas, areaRule{a, c.compile(terms)})
 		}
 	}
 	for k := range r.Areas {
@@ -171,18 +173,18 @@ func FromYAML(b []byte) (*Classifier, error) {
 // the source win over keyword guesses, except that an explicit internship or
 // new-grad title overrides a generic "full-time" from the source.
 func (c *Classifier) Classify(j *model.Job) {
-	title := strings.ToLower(j.Title)
-	desc := strings.ToLower(j.Description)
-	loc := strings.ToLower(j.Location)
+	title := c.lex.mark(Tokenize(j.Title))
+	desc := c.lex.mark(Tokenize(j.Description))
+	loc := c.lex.mark(Tokenize(j.Location))
 
 	j.JobType = c.jobType(j.JobType, title)
-	j.Experience = c.experienceLevel(j.Experience, j.JobType, title, desc)
+	j.Experience = c.experienceLevel(j.Experience, j.JobType, title, j.Description)
 	j.WorkMode = c.workMode(j.WorkMode, title, loc, desc)
 	if j.VisaSponsorship == nil {
 		j.VisaSponsorship = c.visa(desc)
 	}
 	if len(j.Areas) == 0 {
-		j.Areas = c.Areas(title, desc)
+		j.Areas = c.areasTok(title, desc)
 		if len(j.Areas) == 0 && c.generic.any(title) && !hasTag(j.Tags, GenericTag) {
 			j.Tags = append(j.Tags, GenericTag)
 		}
@@ -198,7 +200,7 @@ func (c *Classifier) Classify(j *model.Job) {
 	}
 }
 
-func (c *Classifier) jobType(cur model.JobType, title string) model.JobType {
+func (c *Classifier) jobType(cur model.JobType, title marks) model.JobType {
 	// Title signals, most specific first.
 	for _, t := range []model.JobType{model.TypeInternship, model.TypeNewGrad, model.TypeContract, model.TypePartTime} {
 		if c.jobTypes[t].any(title) {
@@ -215,7 +217,7 @@ func (c *Classifier) jobType(cur model.JobType, title string) model.JobType {
 
 var yearsRe = regexp.MustCompile(`(\d{1,2})\s*(?:\+|plus)?\s*(?:-|–|to)?\s*(?:\d{1,2})?\s*\+?\s*(?:years|yrs|year)`)
 
-func (c *Classifier) experienceLevel(cur model.Experience, t model.JobType, title, desc string) model.Experience {
+func (c *Classifier) experienceLevel(cur model.Experience, t model.JobType, title marks, rawDesc string) model.Experience {
 	if cur != "" && cur != model.ExpUnknown {
 		return cur
 	}
@@ -232,6 +234,10 @@ func (c *Classifier) experienceLevel(cur model.Experience, t model.JobType, titl
 	}
 	// Fall back to the smallest "N years" requirement in the description.
 	minYears := -1
+	desc := strings.ToLower(rawDesc)
+	if !strings.Contains(desc, "year") && !strings.Contains(desc, "yrs") {
+		desc = "" // skip the regex on the common case
+	}
 	for _, m := range yearsRe.FindAllStringSubmatch(desc, -1) {
 		n, err := strconv.Atoi(m[1])
 		if err != nil || n > 30 {
@@ -253,17 +259,17 @@ func (c *Classifier) experienceLevel(cur model.Experience, t model.JobType, titl
 	}
 }
 
-func (c *Classifier) workMode(cur model.WorkMode, title, loc, desc string) model.WorkMode {
+func (c *Classifier) workMode(cur model.WorkMode, title, loc, desc marks) model.WorkMode {
 	if cur != "" && cur != model.ModeUnknown {
 		return cur
 	}
-	head := title + " | " + loc
+	head := func(m model.WorkMode) bool { return c.modes[m].any(title) || c.modes[m].any(loc) }
 	switch {
-	case c.modes[model.ModeHybrid].any(head):
+	case head(model.ModeHybrid):
 		return model.ModeHybrid
-	case c.modes[model.ModeRemote].any(head):
+	case head(model.ModeRemote):
 		return model.ModeRemote
-	case c.modes[model.ModeOnsite].any(head):
+	case head(model.ModeOnsite):
 		return model.ModeOnsite
 	case c.modes[model.ModeHybrid].any(desc):
 		return model.ModeHybrid
@@ -279,7 +285,7 @@ func (c *Classifier) workMode(cur model.WorkMode, title, loc, desc string) model
 	return model.ModeUnknown
 }
 
-func (c *Classifier) visa(desc string) *bool {
+func (c *Classifier) visa(desc marks) *bool {
 	// Negative phrases contain the positive ones ("no visa sponsorship"), so check them first.
 	if c.visaNo.any(desc) {
 		f := false
@@ -295,6 +301,10 @@ func (c *Classifier) visa(desc string) *bool {
 // Areas returns all areas whose terms appear in the title, or enough distinct
 // terms in the description.
 func (c *Classifier) Areas(title, desc string) []model.Area {
+	return c.areasTok(c.lex.mark(Tokenize(title)), c.lex.mark(Tokenize(desc)))
+}
+
+func (c *Classifier) areasTok(title, desc marks) []model.Area {
 	var out []model.Area
 	for _, r := range c.areas {
 		if r.m.any(title) || r.m.hits(desc) >= c.minDescHits {

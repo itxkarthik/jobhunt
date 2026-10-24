@@ -23,6 +23,9 @@ type Config struct {
 
 	// KeywordsFile overrides the embedded classifier keyword lists.
 	KeywordsFile string `yaml:"keywords_file"`
+	// CompaniesFile replaces the embedded company board list when it exists
+	// (default ~/.config/jobhunt/companies.yaml).
+	CompaniesFile string `yaml:"companies_file"`
 
 	Defaults Defaults                `yaml:"defaults"`
 	Sources  map[string]SourceConfig `yaml:"sources"`
@@ -130,6 +133,13 @@ func Load() (*Config, error) {
 			return nil, err
 		}
 		cfg.DBPath = filepath.Join(d, "jobhunt.db")
+	}
+	if cfg.CompaniesFile == "" {
+		d, err := Dir()
+		if err != nil {
+			return nil, err
+		}
+		cfg.CompaniesFile = filepath.Join(d, "companies.yaml")
 	}
 	if cfg.UserAgent == "" {
 		cfg.UserAgent = DefaultUserAgent
