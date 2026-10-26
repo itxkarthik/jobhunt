@@ -57,6 +57,7 @@ func (a *App) Engine() *search.Engine {
 		SourceTTL:   a.sourceTTLs(),
 		Timeout:     a.Config.Timeout,
 		Concurrency: 8,
+		Weights:     a.Config.Ranking,
 	}
 }
 

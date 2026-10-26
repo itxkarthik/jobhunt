@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/itxkarthik/jobhunt/internal/rank"
 )
 
 const DefaultUserAgent = "jobhunt/0.1 (+https://github.com/itxkarthik/jobhunt; personal job search)"
@@ -28,6 +30,7 @@ type Config struct {
 	CompaniesFile string `yaml:"companies_file"`
 
 	Defaults Defaults                `yaml:"defaults"`
+	Ranking  rank.Weights            `yaml:"ranking"`
 	Sources  map[string]SourceConfig `yaml:"sources"`
 }
 
@@ -68,6 +71,7 @@ func Default() *Config {
 			Countries: []string{"IN"},
 			Limit:     50,
 		},
+		Ranking: rank.DefaultWeights,
 		Sources: map[string]SourceConfig{},
 	}
 }

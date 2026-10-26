@@ -17,7 +17,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/itxkarthik/jobhunt/internal/classify"
+	"github.com/itxkarthik/jobhunt/internal/dedup"
 	"github.com/itxkarthik/jobhunt/internal/model"
+	"github.com/itxkarthik/jobhunt/internal/rank"
 	"github.com/itxkarthik/jobhunt/internal/sources"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
@@ -56,6 +58,8 @@ type Engine struct {
 	Timeout     time.Duration
 	Concurrency int
 	Refresh     bool // bypass cache
+	Weights     rank.Weights
+	SortBy      string // "score" (default) or "date"
 	// Progress, if set, is called as each source finishes.
 	Progress func(Report)
 }
@@ -92,10 +96,14 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 
 	res := &Result{Reports: reports, Total: len(all)}
 	classifyAll(e.Classifier, all)
-	res.Jobs = Filter(all, f, e.Classifier, time.Now())
-	sort.SliceStable(res.Jobs, func(i, j int) bool {
-		return res.Jobs[i].PostedAt.After(res.Jobs[j].PostedAt)
-	})
+	now := time.Now()
+	res.Jobs = dedup.Merge(Filter(all, f, e.Classifier, now))
+	rk := &rank.Ranker{W: e.Weights, Classifier: e.Classifier, Now: now}
+	kw := classify.NewTermSet(f.Keywords)
+	for i := range res.Jobs {
+		res.Jobs[i].Score = rk.Score(&res.Jobs[i], f, kw)
+	}
+	Sort(res.Jobs, e.SortBy)
 	return res, nil
 }
 
@@ -230,4 +238,15 @@ func classifyAll(c *classify.Classifier, jobs []model.Job) {
 		}()
 	}
 	wg.Wait()
+}
+
+// Sort orders jobs by score (ties: newest first) or by date.
+func Sort(jobs []model.Job, by string) {
+	sort.SliceStable(jobs, func(i, j int) bool {
+		a, b := jobs[i], jobs[j]
+		if by != "date" && a.Score != b.Score {
+			return a.Score > b.Score
+		}
+		return a.PostedAt.After(b.PostedAt)
+	})
 }

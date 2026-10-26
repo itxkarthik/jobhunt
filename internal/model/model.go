@@ -105,6 +105,7 @@ type Job struct {
 	Tags            []string   `json:"tags,omitempty"`
 
 	// Populated after fetching.
+	Key         string    `json:"key,omitempty"` // stable dedup key across sources/runs
 	Sources     []string  `json:"sources,omitempty"`
 	FirstSeenAt time.Time `json:"first_seen_at,omitempty"`
 	Score       float64   `json:"score,omitempty"`

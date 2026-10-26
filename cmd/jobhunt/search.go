@@ -144,6 +144,7 @@ func newSearchCmd() *cobra.Command {
 		limit   int
 		refresh bool
 		noLinks bool
+		sortBy  string
 	)
 	cmd := &cobra.Command{
 		Use:   "search",
@@ -168,6 +169,7 @@ func newSearchCmd() *cobra.Command {
 			defer stop()
 			eng := a.Engine()
 			eng.Refresh = refresh
+			eng.SortBy = sortBy
 			fmt.Fprintf(cmd.ErrOrStderr(), "Searching %d sources…\n", len(a.Sources))
 			res, err := eng.Run(ctx, f)
 			if err != nil {
@@ -183,6 +185,7 @@ func newSearchCmd() *cobra.Command {
 	ff.register(cmd)
 	cmd.Flags().IntVarP(&limit, "limit", "n", 0, "max rows to print (default from config: 50; -1 for all)")
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "refetch sources, except ones whose terms impose a minimum interval")
+	cmd.Flags().StringVar(&sortBy, "sort", "score", "sort by score or date")
 	cmd.Flags().BoolVar(&noLinks, "no-links", false, "don't print search links for sites that can't be queried")
 	return cmd
 }
@@ -197,7 +200,7 @@ func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
 		fmt.Fprintln(w, "No matching jobs.")
 	} else {
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "#\tAGE\tTITLE\tCOMPANY\tLOCATION\tMODE\tTYPE\tAREAS\tSOURCE\tURL")
+		fmt.Fprintln(tw, "#\tSCORE\tKEY\tAGE\tTITLE\tCOMPANY\tLOCATION\tMODE\tTYPE\tAREAS\tSOURCE\tURL")
 		for i, j := range jobs[:shown] {
 			loc := j.City
 			if loc == "" {
@@ -206,8 +209,12 @@ func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
 			if loc == "" {
 				loc = strings.Join(j.Countries, ",")
 			}
-			fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-				i+1, app.Since(j.PostedAt, now), trunc(j.Title, 48), trunc(j.Company, 22), trunc(loc, 22),
+			mark := ""
+			if j.New {
+				mark = "★"
+			}
+			fmt.Fprintf(tw, "%d%s\t%.0f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				i+1, mark, j.Score, j.Key, app.Since(j.PostedAt, now), trunc(j.Title, 48), trunc(j.Company, 22), trunc(loc, 22),
 				j.WorkMode, j.JobType, trunc(joinAreas(j.Areas), 20), strings.Join(j.Sources, ","), j.URL)
 		}
 		tw.Flush()

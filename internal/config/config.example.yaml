@@ -16,6 +16,14 @@ defaults:
   # areas: [backend, systems]
   limit: 50
 
+# Max points per score component (0–100 total).
+ranking:
+  match: 35    # keywords/areas
+  recency: 25  # halves every 7 days
+  level: 25    # internship/new-grad/entry-level
+  fit: 10      # country/mode
+  info: 5      # salary/visa given
+
 sources:
   adzuna:
     enabled: false # paid: new keys get 25 trial calls, full access is £8/month
