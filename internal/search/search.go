@@ -60,6 +60,9 @@ type Engine struct {
 	Refresh     bool // bypass cache
 	Weights     rank.Weights
 	SortBy      string // "score" (default) or "date"
+	ShowHidden  bool   // keep jobs the user hid
+	NewOnly     bool   // keep only jobs never seen in an earlier run
+	NoMarkSeen  bool   // don't record results as seen (dry runs)
 	// Progress, if set, is called as each source finishes.
 	Progress func(Report)
 }
@@ -104,7 +107,42 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		res.Jobs[i].Score = rk.Score(&res.Jobs[i], f, kw)
 	}
 	Sort(res.Jobs, e.SortBy)
+	if e.Store != nil {
+		if err := e.track(ctx, res, now); err != nil {
+			return nil, err
+		}
+	}
 	return res, nil
+}
+
+// track drops hidden jobs, records the rest as seen, and marks new ones.
+func (e *Engine) track(ctx context.Context, res *Result, now time.Time) error {
+	if !e.ShowHidden {
+		hidden, err := e.Store.HiddenKeys(ctx)
+		if err != nil {
+			return err
+		}
+		res.Jobs = keep(res.Jobs, func(j *model.Job) bool { return !hidden[j.Key] })
+	}
+	if !e.NoMarkSeen {
+		if err := e.Store.MarkSeen(ctx, res.Jobs, now); err != nil {
+			return fmt.Errorf("record seen jobs: %w", err)
+		}
+	}
+	if e.NewOnly {
+		res.Jobs = keep(res.Jobs, func(j *model.Job) bool { return j.New })
+	}
+	return nil
+}
+
+func keep(jobs []model.Job, ok func(*model.Job) bool) []model.Job {
+	out := jobs[:0]
+	for i := range jobs {
+		if ok(&jobs[i]) {
+			out = append(out, jobs[i])
+		}
+	}
+	return out
 }
 
 func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters) (r Report, _ []model.Job) {
