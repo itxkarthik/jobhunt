@@ -20,7 +20,7 @@ func newTUICmd() *cobra.Command {
 				return err
 			}
 			defer a.Close()
-			f, err := ff.toFilters(a.Config)
+			f, err := ff.resolve(cmd, a)
 			if err != nil {
 				return err
 			}

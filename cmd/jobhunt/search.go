@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -29,6 +27,7 @@ type filterFlags struct {
 	minSalary                                  float64
 	currency                                   string
 	strictCountry, includeUnknown              bool
+	preset                                     string
 }
 
 func (ff *filterFlags) register(cmd *cobra.Command) {
@@ -46,6 +45,46 @@ func (ff *filterFlags) register(cmd *cobra.Command) {
 	fs.StringVar(&ff.currency, "currency", "", "currency for --min-salary, e.g. INR, USD")
 	fs.BoolVar(&ff.strictCountry, "strict-country", false, "exclude remote jobs that are open worldwide/regionally rather than to the country itself")
 	fs.BoolVar(&ff.includeUnknown, "include-unknown", false, "keep jobs whose country/type/area couldn't be determined")
+	fs.StringVarP(&ff.preset, "preset", "p", "", "start from a saved preset; flags you pass override it")
+}
+
+// resolve builds filters from flags, starting from --preset if given. Only
+// flags set explicitly on the command line override the preset.
+func (ff *filterFlags) resolve(cmd *cobra.Command, a *app.App) (model.Filters, error) {
+	f, err := ff.toFilters(a.Config)
+	if err != nil || ff.preset == "" {
+		return f, err
+	}
+	p, err := a.Store.Preset(cmd.Context(), ff.preset)
+	if err != nil {
+		return f, err
+	}
+	base := p.Filters
+	set := cmd.Flags().Changed
+	overrides := []struct {
+		flag  string
+		apply func()
+	}{
+		{"country", func() { base.Countries = f.Countries }},
+		{"mode", func() { base.Modes = f.Modes }},
+		{"type", func() { base.Types = f.Types }},
+		{"area", func() { base.Areas = f.Areas }},
+		{"keywords", func() { base.Keywords = f.Keywords }},
+		{"exclude", func() { base.Exclude = f.Exclude }},
+		{"experience", func() { base.Experience = f.Experience }},
+		{"posted-within", func() { base.PostedWithin = f.PostedWithin }},
+		{"visa", func() { base.VisaOnly = f.VisaOnly }},
+		{"min-salary", func() { base.MinSalary = f.MinSalary }},
+		{"currency", func() { base.Currency = f.Currency }},
+		{"strict-country", func() { base.StrictCountry = f.StrictCountry }},
+		{"include-unknown", func() { base.IncludeUnknown = f.IncludeUnknown }},
+	}
+	for _, o := range overrides {
+		if set(o.flag) {
+			o.apply()
+		}
+	}
+	return base, nil
 }
 
 func (ff *filterFlags) toFilters(cfg *config.Config) (model.Filters, error) {
@@ -142,36 +181,31 @@ func newSearchCmd() *cobra.Command {
 	var (
 		ff      filterFlags
 		limit   int
-		refresh bool
 		noLinks bool
-		sortBy  string
+		so      searchOpts
 	)
 	cmd := &cobra.Command{
 		Use:   "search",
 		Short: "Search all sources and print matching jobs",
 		Example: `  jobhunt search --country IN --type internship --area backend
   jobhunt search -c JP,remote-global -t new-grad -k Go,Kubernetes --visa
-  jobhunt search -c US -a hpc-gpu -k CUDA -x senior,staff --posted-within 7d`,
+  jobhunt search -c US -a hpc-gpu -k CUDA -x senior,staff --posted-within 7d
+  jobhunt search --preset india-backend --new-only`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			a, err := app.Open()
 			if err != nil {
 				return err
 			}
 			defer a.Close()
-			f, err := ff.toFilters(a.Config)
+			f, err := ff.resolve(cmd, a)
 			if err != nil {
 				return err
 			}
 			if limit == 0 {
 				limit = a.Config.Defaults.Limit
 			}
-			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-			defer stop()
-			eng := a.Engine()
-			eng.Refresh = refresh
-			eng.SortBy = sortBy
 			fmt.Fprintf(cmd.ErrOrStderr(), "Searching %d sources…\n", len(a.Sources))
-			res, err := eng.Run(ctx, f)
+			res, err := so.run(cmd.Context(), a, f)
 			if err != nil {
 				return err
 			}
@@ -184,10 +218,29 @@ func newSearchCmd() *cobra.Command {
 	}
 	ff.register(cmd)
 	cmd.Flags().IntVarP(&limit, "limit", "n", 0, "max rows to print (default from config: 50; -1 for all)")
-	cmd.Flags().BoolVar(&refresh, "refresh", false, "refetch sources, except ones whose terms impose a minimum interval")
-	cmd.Flags().StringVar(&sortBy, "sort", "score", "sort by score or date")
+	so.register(cmd)
 	cmd.Flags().BoolVar(&noLinks, "no-links", false, "don't print search links for sites that can't be queried")
 	return cmd
+}
+
+// searchOpts are engine flags shared by search, export, and watch.
+type searchOpts struct {
+	refresh, newOnly, showHidden bool
+	sortBy                       string
+}
+
+func (o *searchOpts) register(cmd *cobra.Command) {
+	fs := cmd.Flags()
+	fs.BoolVar(&o.refresh, "refresh", false, "refetch sources, except ones whose terms impose a minimum interval")
+	fs.StringVar(&o.sortBy, "sort", "score", "sort by score or date")
+	fs.BoolVar(&o.newOnly, "new-only", false, "only jobs not seen in any earlier search")
+	fs.BoolVar(&o.showHidden, "show-hidden", false, "include jobs you hid")
+}
+
+func (o *searchOpts) run(ctx context.Context, a *app.App, f model.Filters) (*search.Result, error) {
+	eng := a.Engine()
+	eng.Refresh, eng.SortBy, eng.NewOnly, eng.ShowHidden = o.refresh, o.sortBy, o.newOnly, o.showHidden
+	return eng.Run(ctx, f)
 }
 
 func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
@@ -202,13 +255,7 @@ func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "#\tSCORE\tKEY\tAGE\tTITLE\tCOMPANY\tLOCATION\tMODE\tTYPE\tAREAS\tSOURCE\tURL")
 		for i, j := range jobs[:shown] {
-			loc := j.City
-			if loc == "" {
-				loc = j.Location
-			}
-			if loc == "" {
-				loc = strings.Join(j.Countries, ",")
-			}
+			loc := location(&j)
 			mark := ""
 			if j.New {
 				mark = "★"
@@ -270,4 +317,14 @@ func trunc(s string, n int) string {
 		return s
 	}
 	return string(r[:n-1]) + "…"
+}
+
+func location(j *model.Job) string {
+	switch {
+	case j.City != "":
+		return j.City
+	case j.Location != "":
+		return j.Location
+	}
+	return strings.Join(j.Countries, ",")
 }
