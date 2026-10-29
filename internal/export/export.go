@@ -98,7 +98,9 @@ func writeMD(w io.Writer, rows []Row) error {
 	return nil
 }
 
-func md(s string) string { return strings.NewReplacer("|", `\|`, "\n", " ", "[", `\[`, "]", `\]`).Replace(s) }
+func md(s string) string {
+	return strings.NewReplacer("|", `\|`, "\n", " ", "[", `\[`, "]", `\]`).Replace(s)
+}
 
 func loc(j *model.Job) string {
 	switch {
