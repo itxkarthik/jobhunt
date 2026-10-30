@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -116,7 +117,7 @@ type response struct {
 func (s *Source) Fetch(ctx context.Context, f model.Filters) ([]model.Job, error) {
 	q := url.Values{}
 	q.Set("query", Query(f))
-	q.Set("max_results", fmt.Sprint(s.MaxResults))
+	q.Set("max_results", strconv.Itoa(s.MaxResults))
 	q.Set("tweet.fields", "created_at,entities,author_id")
 	q.Set("expansions", "author_id")
 	q.Set("user.fields", "name,username")

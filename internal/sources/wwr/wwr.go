@@ -148,7 +148,7 @@ func parse(b []byte) ([]model.Job, error) {
 		if it.Category != "" {
 			j.Tags = append(j.Tags, it.Category)
 		}
-		for _, sk := range strings.Split(it.Skills, ",") {
+		for sk := range strings.SplitSeq(it.Skills, ",") {
 			if sk = strings.TrimSpace(sk); sk != "" {
 				j.Tags = append(j.Tags, sk)
 			}

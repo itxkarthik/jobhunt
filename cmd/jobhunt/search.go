@@ -146,8 +146,8 @@ func (ff *filterFlags) toFilters(cfg *config.Config) (model.Filters, error) {
 // parseAge accepts Go durations plus a "d" (days) suffix: 24h, 3d, 7d, 30d.
 func parseAge(s string) (time.Duration, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
-	if strings.HasSuffix(s, "d") {
-		n, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
+	if before, ok := strings.CutSuffix(s, "d"); ok {
+		n, err := strconv.Atoi(before)
 		if err != nil || n <= 0 {
 			return 0, fmt.Errorf("bad --posted-within %q", s)
 		}

@@ -3,9 +3,10 @@
 package dedup
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/itxkarthik/jobhunt/internal/classify"
@@ -51,7 +52,7 @@ func Key(j *model.Job) string {
 	if len(j.Countries) > 0 {
 		country = j.Countries[0]
 	}
-	sum := sha1.Sum([]byte(NormCompany(j.Company) + "|" + NormTitle(j.Title) + "|" + country + "|" + strings.ToLower(j.City)))
+	sum := sha256.Sum256([]byte(NormCompany(j.Company) + "|" + NormTitle(j.Title) + "|" + country + "|" + strings.ToLower(j.City)))
 	return hex.EncodeToString(sum[:6])
 }
 
@@ -132,10 +133,8 @@ func compatible(a, b *model.Job) bool {
 		return true
 	}
 	for _, x := range a.Countries {
-		for _, y := range b.Countries {
-			if x == y {
-				return true
-			}
+		if slices.Contains(b.Countries, x) {
+			return true
 		}
 	}
 	return false
@@ -143,10 +142,7 @@ func compatible(a, b *model.Job) bool {
 
 // richness scores how complete a record is.
 func richness(j *model.Job) int {
-	n := len(j.Description)
-	if n > 3000 {
-		n = 3000
-	}
+	n := min(len(j.Description), 3000)
 	if j.SalaryMin != nil || j.SalaryMax != nil {
 		n += 500
 	}

@@ -30,7 +30,8 @@ type Store struct {
 // Use ":memory:" in tests.
 func Open(path string) (*Store, error) {
 	if path != ":memory:" {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		// 0700: the DB holds your tracker notes and history.
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return nil, err
 		}
 	}
@@ -46,8 +47,8 @@ func Open(path string) (*Store, error) {
 		db.SetMaxOpenConns(1) // each connection would get its own empty DB
 	}
 	s := &Store{db: db}
-	if err := s.migrate(); err != nil {
-		db.Close()
+	if err := s.migrate(context.Background()); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 	return s, nil
@@ -56,9 +57,9 @@ func Open(path string) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 // migrate applies migrations/NNN_*.sql in order, tracked via PRAGMA user_version.
-func (s *Store) migrate() error {
+func (s *Store) migrate(ctx context.Context) error {
 	var version int
-	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
 	entries, err := migrations.ReadDir("migrations")
@@ -79,16 +80,17 @@ func (s *Store) migrate() error {
 		if err != nil {
 			return err
 		}
-		tx, err := s.db.Begin()
+		tx, err := s.db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(string(b)); err != nil {
-			tx.Rollback()
+		if _, err := tx.ExecContext(ctx, string(b)); err != nil {
+			_ = tx.Rollback()
 			return fmt.Errorf("migration %s: %w", name, err)
 		}
-		if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", n)); err != nil {
-			tx.Rollback()
+		// PRAGMA can't take a bound parameter; n is our own loop counter.
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", n)); err != nil {
+			_ = tx.Rollback()
 			return err
 		}
 		if err := tx.Commit(); err != nil {
@@ -117,7 +119,7 @@ func (s *Store) CachedJobs(ctx context.Context, source, key string, ttl time.Dur
 	}
 	var jobs []model.Job
 	if err := json.Unmarshal(blob, &jobs); err != nil {
-		return nil, fetched, false, nil // treat a corrupt entry as a miss
+		return nil, fetched, false, nil //nolint:nilerr // a corrupt entry is just a cache miss
 	}
 	return jobs, fetched, true, nil
 }
@@ -160,25 +162,10 @@ type SourceHealth struct {
 
 // Health returns the latest run per source plus success/error stats.
 func (s *Store) Health(ctx context.Context) (map[string]SourceHealth, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT source, run_at, status, count, error, duration_ms FROM source_runs r
-		WHERE id = (SELECT MAX(id) FROM source_runs WHERE source = r.source)`)
+	// Read the latest runs fully before the per-source queries below: an
+	// in-memory DB has a single connection.
+	out, err := s.latestRuns(ctx)
 	if err != nil {
-		return nil, err
-	}
-	out := map[string]SourceHealth{}
-	for rows.Next() {
-		var r SourceRun
-		var at, ms int64
-		if err := rows.Scan(&r.Source, &at, &r.Status, &r.Count, &r.Error, &ms); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		r.RunAt, r.Duration = time.Unix(at, 0), time.Duration(ms)*time.Millisecond
-		out[r.Source] = SourceHealth{Last: r}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	for name, h := range out {
@@ -198,4 +185,25 @@ func (s *Store) Health(ctx context.Context) (map[string]SourceHealth, error) {
 		out[name] = h
 	}
 	return out, nil
+}
+
+func (s *Store) latestRuns(ctx context.Context) (map[string]SourceHealth, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT source, run_at, status, count, error, duration_ms FROM source_runs r
+		WHERE id = (SELECT MAX(id) FROM source_runs WHERE source = r.source)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]SourceHealth{}
+	for rows.Next() {
+		var r SourceRun
+		var at, ms int64
+		if err := rows.Scan(&r.Source, &at, &r.Status, &r.Count, &r.Error, &ms); err != nil {
+			return nil, err
+		}
+		r.RunAt, r.Duration = time.Unix(at, 0), time.Duration(ms)*time.Millisecond
+		out[r.Source] = SourceHealth{Last: r}
+	}
+	return out, rows.Err()
 }

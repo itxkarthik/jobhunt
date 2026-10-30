@@ -6,8 +6,9 @@ package jsearch
 
 import (
 	"context"
-	"fmt"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,7 +67,7 @@ var empTypes = map[model.JobType]string{
 func (s *Source) queries(f model.Filters) []url.Values {
 	base := url.Values{}
 	base.Set("page", "1")
-	base.Set("num_pages", fmt.Sprint(s.NumPages))
+	base.Set("num_pages", strconv.Itoa(s.NumPages))
 	var types []string
 	for _, t := range f.Types {
 		if et, ok := empTypes[t]; ok && !contains(types, et) {
@@ -231,12 +232,7 @@ func nonEmpty(xs ...string) []string {
 }
 
 func contains(xs []string, x string) bool {
-	for _, v := range xs {
-		if v == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(xs, x)
 }
 
 func cloneValues(v url.Values) url.Values {

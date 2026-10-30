@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,7 +57,7 @@ func writeCSV(w io.Writer, rows []Row) error {
 	for _, r := range rows {
 		j := r.Job
 		if err := cw.Write([]string{
-			j.Key, fmt.Sprintf("%.0f", j.Score), r.Status, j.Title, j.Company, loc(&j),
+			j.Key, fmt.Sprintf("%.0f", j.Score), r.Status, cell(j.Title), cell(j.Company), cell(loc(&j)),
 			strings.Join(j.Countries, ";"), string(j.WorkMode), string(j.JobType), string(j.Experience),
 			areas(j.Areas, ";"), num(j.SalaryMin), num(j.SalaryMax), j.Currency, visa(j.VisaSponsorship),
 			date(j.PostedAt), date(j.FirstSeenAt), strings.Join(j.Sources, ";"), j.URL,
@@ -89,13 +90,28 @@ func writeMD(w io.Writer, rows []Row) error {
 	for _, r := range rows {
 		j := r.Job
 		_, err := fmt.Fprintf(w, "| %.0f | %s | [%s](%s) | %s | %s | %s | %s | %s |\n",
-			j.Score, r.Status, md(j.Title), j.URL, md(j.Company), md(loc(&j)), j.JobType, date(j.PostedAt),
+			j.Score, r.Status, md(j.Title), mdURL(j.URL), md(j.Company), md(loc(&j)), j.JobType, date(j.PostedAt),
 			strings.Join(j.Sources, ", "))
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// cell neutralizes spreadsheet formula injection (OWASP "CSV Injection"):
+// a cell starting with = + - @ or a tab/CR is prefixed with a quote so
+// Excel/Sheets treat it as text.
+func cell(s string) string {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		return "'" + s
+	}
+	return s
+}
+
+// mdURL escapes characters that would end a Markdown link target.
+func mdURL(u string) string {
+	return strings.NewReplacer(" ", "%20", "(", "%28", ")", "%29").Replace(u)
 }
 
 func md(s string) string {
@@ -131,7 +147,7 @@ func visa(v *bool) string {
 	if v == nil {
 		return ""
 	}
-	return fmt.Sprint(*v)
+	return strconv.FormatBool(*v)
 }
 
 func date(t time.Time) string {

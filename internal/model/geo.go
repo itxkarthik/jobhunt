@@ -2,6 +2,7 @@ package model
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -34,12 +35,7 @@ var regionMembers = map[string][]string{
 
 // RegionContains reports whether region code r includes country c.
 func RegionContains(r, c string) bool {
-	for _, m := range regionMembers[r] {
-		if m == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(regionMembers[r], c)
 }
 
 // CurrencyFor returns the local currency for a country code.

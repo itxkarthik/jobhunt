@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -39,7 +40,7 @@ type Company struct {
 func LoadCompanies(path string) ([]Company, error) {
 	b := defaultCompanies
 	if path != "" {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G304: the user's own companies file from config
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
 		case err != nil:
@@ -236,12 +237,7 @@ func locate(texts ...string) (countries []string, city string) {
 }
 
 func contains(xs []string, x string) bool {
-	for _, v := range xs {
-		if v == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(xs, x)
 }
 
 const maxDesc = 5000

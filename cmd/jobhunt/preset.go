@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -64,8 +65,7 @@ func newPresetCmd() *cobra.Command {
 			for _, p := range ps {
 				fmt.Fprintf(tw, "%s\t%s\n", p.Name, summary(p.Filters))
 			}
-			tw.Flush()
-			return nil
+			return tw.Flush()
 		},
 	}
 	show := &cobra.Command{
@@ -131,11 +131,12 @@ func summary(f model.Filters) string {
 	if len(parts) == 0 {
 		return "(no filters)"
 	}
-	out := parts[0]
+	var out strings.Builder
+	out.WriteString(parts[0])
 	for _, p := range parts[1:] {
-		out += " · " + p
+		out.WriteString(" · " + p)
 	}
-	return out
+	return out.String()
 }
 
 func strs[T ~string](xs []T) []string {
@@ -147,12 +148,12 @@ func strs[T ~string](xs []T) []string {
 }
 
 func joinStr(xs []string) string {
-	out := ""
+	var out strings.Builder
 	for i, x := range xs {
 		if i > 0 {
-			out += ","
+			out.WriteString(",")
 		}
-		out += x
+		out.WriteString(x)
 	}
-	return out
+	return out.String()
 }

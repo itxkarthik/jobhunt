@@ -58,7 +58,7 @@ func TestGetRetries(t *testing.T) {
 
 func TestStatusErrorRedactsKeys(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(401)
+		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
 	_, err := testClient().Get(context.Background(), srv.URL+"/x?app_id=secret1&app_key=secret2&q=go", nil)

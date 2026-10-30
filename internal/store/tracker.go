@@ -133,6 +133,9 @@ func (s *Store) ResolveKey(ctx context.Context, prefix string) (string, error) {
 		}
 		keys = append(keys, k)
 	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
 	switch len(keys) {
 	case 0:
 		return "", fmt.Errorf("no job with key %q (run a search first)", prefix)
@@ -198,7 +201,8 @@ func (s *Store) TrackedJobs(ctx context.Context, statuses ...Status) ([]Tracked,
 	      FROM tracker t LEFT JOIN jobs j ON j.key = t.key`
 	var args []any
 	if len(statuses) > 0 {
-		q += ` WHERE t.status IN (?` + strings.Repeat(",?", len(statuses)-1) + `)`
+		// Only "?" placeholders are concatenated; values are bound below.
+		q += ` WHERE t.status IN (?` + strings.Repeat(",?", len(statuses)-1) + `)` //nolint:gosec // G202: placeholders only
 		for _, st := range statuses {
 			args = append(args, st)
 		}

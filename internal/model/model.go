@@ -4,6 +4,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -107,19 +108,14 @@ type Job struct {
 	// Populated after fetching.
 	Key         string    `json:"key,omitempty"` // stable dedup key across sources/runs
 	Sources     []string  `json:"sources,omitempty"`
-	FirstSeenAt time.Time `json:"first_seen_at,omitempty"`
+	FirstSeenAt time.Time `json:"first_seen_at"`
 	Score       float64   `json:"score,omitempty"`
 	New         bool      `json:"new,omitempty"`
 }
 
 // HasArea reports whether the job was tagged with a.
 func (j *Job) HasArea(a Area) bool {
-	for _, x := range j.Areas {
-		if x == a {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(j.Areas, a)
 }
 
 // Filters is what the user asked for. Sources use it to build server-side
@@ -142,24 +138,14 @@ type Filters struct {
 }
 
 func (f Filters) WantsType(t JobType) bool {
-	for _, x := range f.Types {
-		if x == t {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.Types, t)
 }
 
 func (f Filters) WantsMode(m WorkMode) bool {
 	if len(f.Modes) == 0 {
 		return true
 	}
-	for _, x := range f.Modes {
-		if x == m {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.Modes, m)
 }
 
 // OnlyRemote is true when the user restricted modes to remote.
@@ -168,12 +154,7 @@ func (f Filters) OnlyRemote() bool {
 }
 
 func (f Filters) WantsCountry(c string) bool {
-	for _, x := range f.Countries {
-		if x == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.Countries, c)
 }
 
 func ParseWorkMode(s string) (WorkMode, error) {

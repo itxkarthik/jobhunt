@@ -5,6 +5,7 @@ package rank
 
 import (
 	"math"
+	"slices"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/classify"
@@ -79,10 +80,7 @@ func (r *Ranker) recency(j *model.Job) float64 {
 	if j.PostedAt.IsZero() {
 		return 0.3
 	}
-	age := r.Now.Sub(j.PostedAt)
-	if age < 0 {
-		age = 0
-	}
+	age := max(r.Now.Sub(j.PostedAt), 0)
 	return math.Pow(0.5, float64(age)/float64(HalfLife))
 }
 
@@ -108,10 +106,8 @@ func fit(j *model.Job, f model.Filters) float64 {
 		return 0.4
 	}
 	for _, c := range f.Countries {
-		for _, x := range j.Countries {
-			if x == c {
-				return 1
-			}
+		if slices.Contains(j.Countries, c) {
+			return 1
 		}
 	}
 	return 0.7 // matched through worldwide/regional remote

@@ -75,8 +75,7 @@ func (c *Client) Get(ctx context.Context, url string, headers map[string]string)
 			break
 		}
 	}
-	var ra *retryAfterError
-	if errors.As(lastErr, &ra) {
+	if ra, ok := errors.AsType[*retryAfterError](lastErr); ok {
 		return nil, ra.StatusError
 	}
 	return nil, lastErr

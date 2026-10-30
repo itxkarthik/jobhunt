@@ -53,8 +53,7 @@ func TestTermSet(t *testing.T) {
 func BenchmarkClassify(b *testing.B) {
 	c := Default()
 	desc := strings.Repeat("We build distributed systems in Go and Kubernetes on AWS with PostgreSQL, Kafka and gRPC. ", 50)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		j := model.Job{Title: "Software Engineer Intern, Backend", Description: desc, Location: "Bengaluru, India"}
 		c.Classify(&j)
 	}

@@ -40,13 +40,13 @@ func Serve(t *testing.T, routes map[string]string) *Server {
 			http.NotFound(w, r)
 			return
 		}
-		b, err := os.ReadFile(file)
+		b, err := os.ReadFile(file) //nolint:gosec // G304: fixture paths come from the test itself
 		if err != nil {
 			t.Errorf("fixture %s: %v", file, err)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Write(b)
+		_, _ = w.Write(b)
 	}))
 	t.Cleanup(s.Close)
 	return s

@@ -5,6 +5,7 @@ package hn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"regexp"
@@ -63,7 +64,7 @@ func (s *Source) Fetch(ctx context.Context, _ model.Filters) ([]model.Job, error
 		}
 	}
 	if id == "" {
-		return nil, fmt.Errorf("no recent \"Who is hiring?\" thread found")
+		return nil, errors.New(`no recent "Who is hiring?" thread found`)
 	}
 	var thread item
 	if err := s.Client.GetJSON(ctx, s.BaseURL+"/items/"+id, nil, &thread); err != nil {

@@ -190,8 +190,8 @@ func (t *ttlSource) DefaultTTL() time.Duration { return t.def }
 
 func TestTTLFor(t *testing.T) {
 	plain := &fakeSource{name: "plain"}
-	terms := &ttlSource{fakeSource: fakeSource{name: "terms"}, min: 6 * time.Hour}
-	heavy := &ttlSource{fakeSource: fakeSource{name: "heavy"}, def: 6 * time.Hour}
+	terms := &ttlSource{name: "terms", min: 6 * time.Hour}
+	heavy := &ttlSource{name: "heavy", def: 6 * time.Hour}
 	tests := []struct {
 		name    string
 		src     sources.Source

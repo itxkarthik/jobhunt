@@ -117,7 +117,7 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(p)
+	b, err := os.ReadFile(p) //nolint:gosec // G304: the user's own config path
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:

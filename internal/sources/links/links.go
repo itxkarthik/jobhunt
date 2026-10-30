@@ -6,6 +6,8 @@ package links
 import (
 	"fmt"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -154,7 +156,7 @@ func indeed(f model.Filters, c string) string {
 		q.Set("jt", "parttime")
 	}
 	if d := int(f.PostedWithin.Hours() / 24); d > 0 {
-		q.Set("fromage", fmt.Sprint(d))
+		q.Set("fromage", strconv.Itoa(d))
 	}
 	return "https://" + h + "/jobs?" + q.Encode()
 }
@@ -259,12 +261,7 @@ func slug(s string) string {
 }
 
 func has(xs []string, x string) bool {
-	for _, v := range xs {
-		if v == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(xs, x)
 }
 
 func dedupe(xs []string) []string {

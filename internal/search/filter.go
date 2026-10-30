@@ -1,6 +1,7 @@
 package search
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -116,10 +117,5 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex *clas
 }
 
 func contains(xs []string, x string) bool {
-	for _, v := range xs {
-		if v == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(xs, x)
 }

@@ -4,7 +4,7 @@ package search
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -98,6 +98,11 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 	}
 
 	res := &Result{Reports: reports, Total: len(all)}
+	// Sources are untrusted: strip terminal escapes and non-http(s) URLs
+	// before anything is printed, exported, or stored.
+	for i := range all {
+		sources.SanitizeJob(&all[i])
+	}
 	classifyAll(e.Classifier, all)
 	now := time.Now()
 	res.Jobs = dedup.Merge(Filter(all, f, e.Classifier, now))
@@ -256,7 +261,7 @@ func cacheKey(src sources.Source, f model.Filters) string {
 		b, _ := json.Marshal(f)
 		raw = string(b)
 	}
-	sum := sha1.Sum([]byte(raw))
+	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:8])
 }
 
@@ -267,13 +272,11 @@ func classifyAll(c *classify.Classifier, jobs []model.Job) {
 	var wg sync.WaitGroup
 	for start := 0; start < len(jobs); start += chunk {
 		part := jobs[start:min(start+chunk, len(jobs))]
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range part {
 				c.Classify(&part[i])
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

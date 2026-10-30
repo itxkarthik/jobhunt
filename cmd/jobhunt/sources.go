@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"text/tabwriter"
 	"time"
 
@@ -52,8 +53,8 @@ func newSourcesCmd() *cobra.Command {
 				note := info.Description
 				if ran {
 					lastRun = app.Since(h.Last.RunAt, now) + " ago"
-					status, count = h.Last.Status, fmt.Sprint(h.Last.Count)
-					errs = fmt.Sprint(h.RecentErrors)
+					status, count = h.Last.Status, strconv.Itoa(h.Last.Count)
+					errs = strconv.Itoa(h.RecentErrors)
 					if !h.LastSuccess.IsZero() {
 						lastOK = app.Since(h.LastSuccess, now) + " ago"
 					}

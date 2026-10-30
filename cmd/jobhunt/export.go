@@ -68,7 +68,7 @@ func newExportCmd() *cobra.Command {
 			if out == "" || out == "-" {
 				return export.Write(cmd.OutOrStdout(), format, rows)
 			}
-			fh, err := os.Create(out)
+			fh, err := os.Create(out) //nolint:gosec // G304: the path the user passed with -o
 			if err != nil {
 				return err
 			}

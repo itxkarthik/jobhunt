@@ -13,7 +13,7 @@ import (
 
 // run executes a command; replaced in tests.
 var run = func(ctx context.Context, name string, args ...string) error {
-	return exec.CommandContext(ctx, name, args...).Run()
+	return exec.CommandContext(ctx, name, args...).Run() //nolint:gosec // G204: name is notify-send/osascript; args are argv, not a shell
 }
 
 // ErrUnsupported means no notifier exists for this platform.

@@ -7,8 +7,8 @@ package himalayas
 
 import (
 	"context"
-	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -130,7 +130,7 @@ func (s *Source) Fetch(ctx context.Context, f model.Filters) ([]model.Job, error
 	failed := 0
 	for _, q := range queries {
 		for page := 1; page <= s.MaxPages; page++ {
-			q.Set("page", fmt.Sprint(page))
+			q.Set("page", strconv.Itoa(page))
 			var resp response
 			if err := s.Client.GetJSON(ctx, s.BaseURL+"?"+q.Encode(), nil, &resp); err != nil {
 				if firstErr == nil {

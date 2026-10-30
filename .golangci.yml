@@ -5,7 +5,24 @@ linters:
     - misspell
     - unconvert
     - gocritic
+    # security & correctness
+    - gosec
+    - bodyclose
+    - noctx
+    - nilerr
+    - rowserrcheck
+    - sqlclosecheck
+    - contextcheck
+    # modern Go
+    - modernize
+    - intrange
+    - copyloopvar
+    - usestdlibvars
+    - perfsprint
   settings:
+    gosec:
+      excludes:
+        - G104 # unhandled errors: errcheck covers this, with the exclusions below
     errcheck:
       exclude-functions:
         - (net/http.ResponseWriter).Write
@@ -22,3 +39,7 @@ linters:
         - (*text/tabwriter.Writer).Flush
     staticcheck:
       checks: ["all", "-QF1001", "-ST1000", "-ST1003"]
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, noctx, perfsprint]

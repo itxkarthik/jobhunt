@@ -5,6 +5,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -630,7 +631,7 @@ func joinAreas(as []model.Area) string {
 
 func splitList(s string) []string {
 	var out []string
-	for _, p := range strings.Split(s, ",") {
+	for p := range strings.SplitSeq(s, ",") {
 		if p = strings.TrimSpace(p); p != "" {
 			out = append(out, p)
 		}
@@ -647,12 +648,7 @@ func trunc(s string, n int) string {
 }
 
 func has[T comparable](xs []T, x T) bool {
-	for _, v := range xs {
-		if v == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(xs, x)
 }
 
 func flipT[T comparable](xs []T, x T) []T {

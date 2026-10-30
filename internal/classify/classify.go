@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -102,7 +103,7 @@ func Load(path string) (*Classifier, error) {
 	if path == "" {
 		return Default(), nil
 	}
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // G304: the user's own keywords file from config
 	if err != nil {
 		return nil, err
 	}
@@ -321,20 +322,13 @@ func (c *Classifier) MatchesArea(j *model.Job, a model.Area) bool {
 		return true
 	}
 	if len(j.Areas) == 0 && hasTag(j.Tags, GenericTag) {
-		for _, g := range c.GenericAreas {
-			if g == a {
-				return true
-			}
+		if slices.Contains(c.GenericAreas, a) {
+			return true
 		}
 	}
 	return false
 }
 
 func hasTag(tags []string, t string) bool {
-	for _, x := range tags {
-		if x == t {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tags, t)
 }
