@@ -2,6 +2,8 @@ BIN      := bin/jobhunt
 PKG      := ./cmd/jobhunt
 GOBIN    := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
 LINT     := $(GOBIN)/golangci-lint
+# Where `make install` puts jobhunt; ~/.local/bin survives Go upgrades.
+PREFIX   ?= $(HOME)/.local/bin
 
 .PHONY: all build test lint fmt vet run clean install
 
@@ -11,7 +13,10 @@ build:
 	go build -trimpath -o $(BIN) $(PKG)
 
 install:
-	go install -trimpath $(PKG)
+	mkdir -p $(PREFIX)
+	go build -trimpath -o $(PREFIX)/jobhunt $(PKG)
+	@echo "installed $(PREFIX)/jobhunt"
+	@command -v jobhunt >/dev/null || echo "note: add $(PREFIX) to your PATH"
 
 test:
 	go test -race -count=1 ./...

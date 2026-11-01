@@ -28,27 +28,29 @@ Needs Go 1.27+ (see `go.mod`) and Linux, macOS or Windows.
 
 ```sh
 git clone https://github.com/itxkarthik/jobhunt && cd jobhunt
-make build                      # → bin/jobhunt   (make install puts it in $GOBIN)
-./bin/jobhunt config init       # writes ~/.config/jobhunt/config.yaml (optional)
+make install                    # → ~/.local/bin/jobhunt  (PREFIX=/other/dir make install)
+jobhunt config init             # writes ~/.config/jobhunt/config.yaml (optional)
 
 # 1. Search
-./bin/jobhunt search --country IN --type internship --area backend
+jobhunt search --country IN --type internship --area backend
 
 # 2. Save that search so you don't retype it
-./bin/jobhunt preset save india-backend -c IN -t internship -a backend
+jobhunt preset save india-backend -c IN -t internship -a backend
 
 # 3. Browse it interactively and save/apply with one key
-./bin/jobhunt tui -p india-backend
+jobhunt tui -p india-backend
 
 # 4. Track applications (the KEY comes from the results table; 4 characters are enough)
-./bin/jobhunt tracker set 53be applied --note "applied via careers page"
-./bin/jobhunt tracker
+jobhunt tracker set 53be applied --note "applied via careers page"
+jobhunt tracker
 
 # 5. Get notified about new matches
-./bin/jobhunt watch -p india-backend --every 6h --min-score 60
+jobhunt watch -p india-backend --every 6h --min-score 60
 ```
 
 None of the free sources needs an API key, so it works straight away.
+
+If you get `command not found: jobhunt`, `~/.local/bin` isn't on your PATH. Add `export PATH="$HOME/.local/bin:$PATH"` to your shell rc, or run `./bin/jobhunt` after `make build`. Re-run `make install` after pulling changes.
 
 ## Reading the output
 
@@ -339,7 +341,7 @@ Read the site's terms and robots.txt first. If they don't allow automated access
 Description=jobhunt watch
 
 [Service]
-ExecStart=%h/go/bin/jobhunt watch --preset india-backend --every 6h --min-score 60
+ExecStart=%h/.local/bin/jobhunt watch --preset india-backend --every 6h --min-score 60
 Restart=on-failure
 
 [Install]
