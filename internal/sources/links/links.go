@@ -52,6 +52,8 @@ func For(f model.Filters) []Link {
 		add("TokyoDev", "https://www.tokyodev.com/jobs")
 		add("Japan Dev", japanDev(f))
 	}
+	add("YC startup jobs", ycJobs(countries))
+	add("Work at a Startup", "https://www.workatastartup.com/jobs")
 	add("Wellfound", wellfound(f, countries[0]))
 	add("Glassdoor", glassdoor(f, countries[0]))
 	add("Google Jobs", googleJobs(f, countries[0]))
@@ -274,4 +276,18 @@ func dedupe(xs []string) []string {
 		}
 	}
 	return out
+}
+
+// ycJobs links Y Combinator's job board (no API; browse only). It has
+// pages per location for India and remote; other countries get the
+// global list.
+func ycJobs(countries []string) string {
+	base := "https://www.ycombinator.com/jobs/role/software-engineer"
+	switch {
+	case has(countries, "IN"):
+		return base + "/india"
+	case has(countries, model.RemoteGlobal):
+		return base + "/remote"
+	}
+	return base
 }

@@ -72,8 +72,18 @@ func TestBoardSelection(t *testing.T) {
 		t.Errorf("JP boards = %v", got)
 	}
 	a := New("ashby", testCompanies, nil, "")
-	if !a.Supports(model.Filters{Countries: []string{model.RemoteGlobal}}) {
-		t.Error("remote-global should select remote-friendly boards")
+	tests := []struct {
+		f    model.Filters
+		want bool
+	}{
+		{model.Filters{Countries: []string{model.RemoteGlobal}}, true},
+		{model.Filters{Countries: []string{"IN"}}, true}, // worldwide-remote jobs count for IN
+		{model.Filters{Countries: []string{"IN"}, StrictCountry: true}, false},
+	}
+	for _, tt := range tests {
+		if got := a.Supports(tt.f); got != tt.want {
+			t.Errorf("remote board, %+v: Supports = %v, want %v", tt.f, got, tt.want)
+		}
 	}
 }
 
@@ -140,5 +150,53 @@ func TestAshby(t *testing.T) {
 	}
 	if j := jobs[1]; j.SalaryMin == nil || *j.SalaryMin != 150000 || j.Currency != "USD" {
 		t.Errorf("job 1 salary = %v %s", j.SalaryMin, j.Currency)
+	}
+}
+
+func TestWorkable(t *testing.T) {
+	cs := []Company{{Name: "Apna", ATS: "workable", Slug: "apna", Countries: []string{"IN"}}}
+	srv := sourcetest.Serve(t, map[string]string{"/apna": "testdata/workable.json"})
+	s := New("workable", cs, sourcetest.Client(), srv.URL)
+	jobs, err := s.Fetch(context.Background(), model.Filters{Countries: []string{"IN"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("got %d jobs", len(jobs))
+	}
+	if q := srv.Requests()[0].Query; len(q["details"]) == 0 {
+		t.Error("must request details=true for descriptions")
+	}
+	if j := jobs[0]; j.ID != "workable:apna:E47E4A2E42" || j.WorkMode != model.ModeRemote || j.JobType != model.TypeFullTime ||
+		!slices.Equal(j.Countries, []string{"IN"}) || j.Experience != model.ExpEntry || j.PostedAt.IsZero() || j.Description == "" {
+		t.Errorf("job 0 = %+v", j)
+	}
+	if j := jobs[1]; j.JobType != model.TypeInternship || j.Experience != model.ExpIntern || j.WorkMode != model.ModeUnknown {
+		t.Errorf("job 1 = %s %s %s", j.JobType, j.Experience, j.WorkMode)
+	}
+}
+
+func TestRecruitee(t *testing.T) {
+	cs := []Company{{Name: "bunq", ATS: "recruitee", Slug: "bunq", Countries: []string{"NL"}}}
+	srv := sourcetest.Serve(t, map[string]string{"/bunq/api/offers/": "testdata/recruitee.json"})
+	s := New("recruitee", cs, sourcetest.Client(), srv.URL)
+	jobs, err := s.Fetch(context.Background(), model.Filters{Countries: []string{"NL"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("got %d jobs", len(jobs))
+	}
+	if j := jobs[0]; j.ID != "recruitee:bunq:2823928" || j.WorkMode != model.ModeHybrid || j.JobType != model.TypeFullTime ||
+		!slices.Contains(j.Countries, "NL") || j.City != "Amsterdam" || j.PostedAt.IsZero() {
+		t.Errorf("job 0 = %+v", j)
+	}
+	j := jobs[1]
+	if j.JobType != model.TypeInternship || j.Experience != model.ExpIntern || j.WorkMode != model.ModeRemote ||
+		j.SalaryMin == nil || *j.SalaryMin != 30000 || j.Currency != "EUR" {
+		t.Errorf("job 1 = %s %s %s %v %s", j.JobType, j.Experience, j.WorkMode, j.SalaryMin, j.Currency)
+	}
+	if got := (recruitee{}).boardURL(cs[0]); got != "https://bunq.recruitee.com/" {
+		t.Errorf("boardURL = %s", got)
 	}
 }

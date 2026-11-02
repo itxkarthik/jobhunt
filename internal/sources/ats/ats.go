@@ -60,7 +60,7 @@ func LoadCompanies(path string) ([]Company, error) {
 			return nil, fmt.Errorf("companies.yaml entry %d: name and slug are required", i+1)
 		}
 		if _, ok := providers[c.ATS]; !ok {
-			return nil, fmt.Errorf("companies.yaml %s: unknown ats %q (want greenhouse, lever, ashby)", c.Name, c.ATS)
+			return nil, fmt.Errorf("companies.yaml %s: unknown ats %q (want %s)", c.Name, c.ATS, strings.Join(ATSNames, ", "))
 		}
 		for j, cc := range c.Countries {
 			code, ok := model.NormalizeCountry(cc)
@@ -83,7 +83,12 @@ var providers = map[string]provider{
 	"greenhouse": greenhouse{base: "https://boards-api.greenhouse.io/v1/boards"},
 	"lever":      lever{base: "https://api.lever.co/v0/postings"},
 	"ashby":      ashby{base: "https://api.ashbyhq.com/posting-api/job-board"},
+	"workable":   workable{base: "https://apply.workable.com/api/v1/widget/accounts"},
+	"recruitee":  recruitee{},
 }
+
+// ATSNames lists the supported ATS providers.
+var ATSNames = []string{"greenhouse", "lever", "ashby", "workable", "recruitee"}
 
 // Source is one ATS across many company boards.
 type Source struct {
@@ -106,6 +111,10 @@ func New(atsName string, all []Company, client *sources.Client, base string) *So
 			p = lever{base: base}
 		case "ashby":
 			p = ashby{base: base}
+		case "workable":
+			p = workable{base: base}
+		case "recruitee":
+			p = recruitee{base: base}
 		}
 	}
 	s := &Source{ATS: atsName, Client: client, Concurrency: 4, prov: p}
@@ -133,7 +142,9 @@ func (s *Source) CacheKey(f model.Filters) string {
 	return strings.Join(slugs, ",")
 }
 
-// boards returns companies hiring in any requested country.
+// boards returns companies hiring in any requested country. Remote-friendly
+// boards are included too unless the search is strict, since their
+// worldwide-remote jobs pass the country filter.
 func (s *Source) boards(f model.Filters) []Company {
 	if len(f.Countries) == 0 {
 		return s.Companies
@@ -141,7 +152,7 @@ func (s *Source) boards(f model.Filters) []Company {
 	var out []Company
 	for _, c := range s.Companies {
 		for _, want := range f.Countries {
-			if (want == model.RemoteGlobal && c.Remote) || contains(c.Countries, want) {
+			if (c.Remote && (want == model.RemoteGlobal || !f.StrictCountry)) || contains(c.Countries, want) {
 				out = append(out, c)
 				break
 			}

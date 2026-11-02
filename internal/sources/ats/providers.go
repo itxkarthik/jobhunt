@@ -335,3 +335,229 @@ func ashbyType(s string) model.JobType {
 }
 
 func (ashby) boardURL(c Company) string { return "https://jobs.ashbyhq.com/" + c.Slug }
+
+// --- Workable: public careers widget API -----------------------------------
+// https://apply.workable.com/api/v1/widget/accounts/{slug}?details=true
+
+type workable struct{ base string }
+
+type workableResponse struct {
+	Jobs []struct {
+		Title          string `json:"title"`
+		Shortcode      string `json:"shortcode"`
+		EmploymentType string `json:"employment_type"`
+		Telecommuting  bool   `json:"telecommuting"`
+		Department     string `json:"department"`
+		URL            string `json:"url"`
+		PublishedOn    string `json:"published_on"`
+		Country        string `json:"country"`
+		City           string `json:"city"`
+		Experience     string `json:"experience"`
+		Function       string `json:"function"`
+		Description    string `json:"description"`
+		Locations      []struct {
+			Country     string `json:"country"`
+			CountryCode string `json:"countryCode"`
+			City        string `json:"city"`
+		} `json:"locations"`
+	} `json:"jobs"`
+}
+
+func (w workable) fetchBoard(ctx context.Context, cl *sources.Client, c Company) ([]model.Job, error) {
+	var resp workableResponse
+	if err := cl.GetJSON(ctx, fmt.Sprintf("%s/%s?details=true", w.base, c.Slug), nil, &resp); err != nil {
+		return nil, err
+	}
+	return w.parse(resp, c), nil
+}
+
+func (workable) parse(resp workableResponse, c Company) []model.Job {
+	jobs := make([]model.Job, 0, len(resp.Jobs))
+	for _, r := range resp.Jobs {
+		var countries, texts []string
+		city := r.City
+		for _, l := range r.Locations {
+			if code := strings.ToUpper(l.CountryCode); len(code) == 2 && !contains(countries, code) {
+				countries = append(countries, code)
+			}
+			if city == "" {
+				city = l.City
+			}
+			texts = append(texts, strings.TrimSpace(l.City+", "+l.Country))
+		}
+		if len(countries) == 0 {
+			countries, city = locate(r.City + ", " + r.Country)
+		}
+		mode := model.ModeUnknown
+		if r.Telecommuting {
+			mode = model.ModeRemote
+		}
+		j := model.Job{
+			ID:          "workable:" + c.Slug + ":" + r.Shortcode,
+			Source:      "workable",
+			Title:       sources.CleanText(r.Title),
+			Company:     c.Name,
+			URL:         r.URL,
+			Countries:   countries,
+			City:        city,
+			Location:    strings.Trim(strings.Join(texts, "; "), ", "),
+			WorkMode:    mode,
+			JobType:     commitment(r.EmploymentType),
+			Experience:  workableLevel(r.Experience),
+			PostedAt:    sources.ParseTime(r.PublishedOn),
+			Description: sources.Truncate(sources.StripHTML(r.Description), maxDesc),
+		}
+		for _, t := range []string{r.Department, r.Function} {
+			if t != "" && !contains(j.Tags, t) {
+				j.Tags = append(j.Tags, t)
+			}
+		}
+		jobs = append(jobs, j)
+	}
+	return jobs
+}
+
+func workableLevel(s string) model.Experience {
+	switch s {
+	case "Internship":
+		return model.ExpIntern
+	case "Entry level", "Associate":
+		return model.ExpEntry
+	case "Mid-Senior level":
+		return model.ExpMid
+	case "Director", "Executive":
+		return model.ExpSenior
+	}
+	return model.ExpUnknown
+}
+
+func (workable) boardURL(c Company) string { return "https://apply.workable.com/" + c.Slug }
+
+// --- Recruitee: public careers site API -------------------------------------
+// https://{slug}.recruitee.com/api/offers/
+
+type recruitee struct{ base string } // "" means the real per-company subdomain
+
+type recruiteeResponse struct {
+	Offers []struct {
+		ID                 int64  `json:"id"`
+		Title              string `json:"title"`
+		CareersURL         string `json:"careers_url"`
+		Location           string `json:"location"`
+		City               string `json:"city"`
+		CountryCode        string `json:"country_code"`
+		Remote             bool   `json:"remote"`
+		Hybrid             bool   `json:"hybrid"`
+		OnSite             bool   `json:"on_site"`
+		EmploymentTypeCode string `json:"employment_type_code"`
+		ExperienceCode     string `json:"experience_code"`
+		Department         string `json:"department"`
+		PublishedAt        string `json:"published_at"`
+		Description        string `json:"description"`
+		Requirements       string `json:"requirements"`
+		Locations          []struct {
+			CountryCode string `json:"country_code"`
+			City        string `json:"city"`
+		} `json:"locations"`
+		Salary struct {
+			Min      sources.FlexFloat `json:"min"`
+			Max      sources.FlexFloat `json:"max"`
+			Period   string            `json:"period"`
+			Currency string            `json:"currency"`
+		} `json:"salary"`
+	} `json:"offers"`
+}
+
+func (r recruitee) offersURL(slug string) string {
+	if r.base != "" {
+		return r.base + "/" + slug + "/api/offers/"
+	}
+	return "https://" + slug + ".recruitee.com/api/offers/"
+}
+
+func (r recruitee) fetchBoard(ctx context.Context, cl *sources.Client, c Company) ([]model.Job, error) {
+	var resp recruiteeResponse
+	if err := cl.GetJSON(ctx, r.offersURL(c.Slug), nil, &resp); err != nil {
+		return nil, err
+	}
+	return r.parse(resp, c), nil
+}
+
+func (recruitee) parse(resp recruiteeResponse, c Company) []model.Job {
+	jobs := make([]model.Job, 0, len(resp.Offers))
+	for _, o := range resp.Offers {
+		var countries []string
+		add := func(cc string) {
+			if cc = strings.ToUpper(cc); len(cc) == 2 && !contains(countries, cc) {
+				countries = append(countries, cc)
+			}
+		}
+		add(o.CountryCode)
+		for _, l := range o.Locations {
+			add(l.CountryCode)
+		}
+		city := o.City
+		if len(countries) == 0 {
+			countries, city = locate(o.Location)
+		}
+		mode := model.ModeUnknown
+		switch {
+		case o.Remote:
+			mode = model.ModeRemote
+		case o.Hybrid:
+			mode = model.ModeHybrid
+		case o.OnSite:
+			mode = model.ModeOnsite
+		}
+		j := model.Job{
+			ID:          fmt.Sprintf("recruitee:%s:%d", c.Slug, o.ID),
+			Source:      "recruitee",
+			Title:       sources.CleanText(o.Title),
+			Company:     c.Name,
+			URL:         o.CareersURL,
+			Countries:   countries,
+			City:        city,
+			Location:    o.Location,
+			WorkMode:    mode,
+			JobType:     commitment(strings.ReplaceAll(o.EmploymentTypeCode, "_", " ")),
+			Experience:  recruiteeLevel(o.ExperienceCode),
+			PostedAt:    recruiteeTime(o.PublishedAt),
+			Description: sources.Truncate(sources.StripHTML(o.Description+"\n"+o.Requirements), maxDesc),
+		}
+		if o.Department != "" {
+			j.Tags = []string{o.Department}
+		}
+		if o.Salary.Period == "year" && (o.Salary.Min > 0 || o.Salary.Max > 0) {
+			j.SalaryMin, j.SalaryMax = sources.Float(float64(o.Salary.Min)), sources.Float(float64(o.Salary.Max))
+			j.Currency = o.Salary.Currency
+		}
+		jobs = append(jobs, j)
+	}
+	return jobs
+}
+
+func recruiteeLevel(s string) model.Experience {
+	switch s {
+	case "student", "internship":
+		return model.ExpIntern
+	case "entry_level", "junior":
+		return model.ExpEntry
+	case "mid_level", "experienced":
+		return model.ExpMid
+	case "senior", "manager", "executive":
+		return model.ExpSenior
+	}
+	return model.ExpUnknown
+}
+
+// recruiteeTime parses "2026-11-11 13:21:40 UTC".
+func recruiteeTime(s string) time.Time {
+	if t, err := time.Parse("2006-01-02 15:04:05 MST", s); err == nil {
+		return t.UTC()
+	}
+	return sources.ParseTime(s)
+}
+
+func (r recruitee) boardURL(c Company) string {
+	return strings.TrimSuffix(r.offersURL(c.Slug), "api/offers/")
+}

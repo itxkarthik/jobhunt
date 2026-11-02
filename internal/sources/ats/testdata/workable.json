@@ -1,0 +1,66 @@
+{
+ "name": "Apna",
+ "description": "<p>Founded in 2019, the Apna mobile app is India\u2019s largest professional networking platform dedicated to helping India\u2019s burgeoning working class to unlock unique professional networking, and skilling opportunities. The app is currently live in 14 cities - Mumbai, Delhi-NCR, Bengaluru, Hyderabad, Pune, Ahmedabad, Jaipur, Ranchi, Kolkata, Surat, Lucknow, Kanpur, Ludhiana, and Chandigarh. </p>\n<p>Having raised $90+ million from marquee investors like Insight Partners, Tiger Global, Lightspeed India, Sequoia Capital, Rocketship.vc and Greenoaks Capital, Apna is on a mission to enable livelihoods for billions in India. With over 10 million users, present in 14 cities and counting, and over 100,000 employers that trust the platform - India has a new destination to discover relevant opportunities.</p>",
+ "jobs": [
+  {
+   "title": "ADMISSION CONSELOR-WFH",
+   "shortcode": "E47E4A2E42",
+   "code": "",
+   "employment_type": "Full-time",
+   "telecommuting": true,
+   "department": "Community",
+   "url": "https://apply.workable.com/j/E47E4A2E42",
+   "shortlink": "https://apply.workable.com/j/E47E4A2E42",
+   "application_url": "https://apply.workable.com/j/E47E4A2E42/apply",
+   "published_on": "2026-10-15",
+   "created_at": "2026-10-15",
+   "country": "India",
+   "city": "",
+   "state": "",
+   "education": "Bachelor's Degree",
+   "experience": "Associate",
+   "function": "Sales",
+   "industry": "Education Management",
+   "locations": [
+    {
+     "country": "India",
+     "countryCode": "IN",
+     "city": "",
+     "region": null,
+     "hidden": false
+    }
+   ],
+   "description": "<p><strong>About the Role:</strong></p><p>We are seeking a dynamic and results-driven experienced Admission Counsellor who excels in a</p><p>fast-paced sales environment. You will play a crucial role in guiding prospective students toward</p><p>informed academic decisions by understanding their aspirations, recommending suitable</p><p>programs, and supporting them throughout the admissions process"
+  },
+  {
+   "title": "Backend Engineering Intern",
+   "shortcode": "5211B21BC2",
+   "code": "",
+   "employment_type": "Internship",
+   "telecommuting": false,
+   "department": "Community",
+   "url": "https://apply.workable.com/j/5211B21BC2",
+   "shortlink": "https://apply.workable.com/j/5211B21BC2",
+   "application_url": "https://apply.workable.com/j/5211B21BC2/apply",
+   "published_on": "2026-09-16",
+   "created_at": "2026-09-16",
+   "country": "India",
+   "city": "Bengaluru",
+   "state": "Karnataka",
+   "education": "Bachelor's Degree",
+   "experience": "Internship",
+   "function": "Sales",
+   "industry": "E-Learning",
+   "locations": [
+    {
+     "country": "India",
+     "countryCode": "IN",
+     "city": "Bengaluru",
+     "region": "Karnataka",
+     "hidden": false
+    }
+   ],
+   "description": "<p>Key Responsibilities: <br>\u25cf Provide personalized academic and career counseling, addressing inquiries on courses, eligibility, admissions, fees, and scholarships. <br>\u25cf Educate prospective students on program features, pedagogy, and career prospects.<br>\u25cf Generate and manage a strong sales pipeline through cold calling and inbound inquiries. <br>\u25cf Convert leads into enrollments while consistent"
+  }
+ ]
+}

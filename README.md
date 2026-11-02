@@ -170,14 +170,16 @@ These work on `search`, `tui`, `export`, `watch` and `preset save`.
 
 | Source | Needs a key? | Notes |
 |---|---|---|
-| Greenhouse, Lever, Ashby | no | about 65 company boards (Stripe, Razorpay, Postman, Rubrik, Mercari…) in `internal/sources/ats/companies.yaml`. Only boards hiring in your countries are queried |
+| Greenhouse, Lever, Ashby, Workable, Recruitee | no | about 90 company boards in `internal/sources/ats/companies.yaml`: big tech (Stripe, Databricks, Rubrik…), Indian startups (Razorpay, CRED, Groww, Sarvam AI, DevRev, Glance, SpotDraft, Pocket FM…) and remote-first startups (Supabase, PostHog, Linear, Vercel, Zapier…). Only boards hiring in your countries are fetched, plus remote-first boards unless you pass `--strict-country` |
 | HN "Who is Hiring" | no | the latest monthly thread, via the Algolia API |
 | Himalayas | no | remote jobs; the application link is used unchanged, as its terms require |
 | RemoteOK, Remotive, We Work Remotely, Arbeitnow | no | remote and EU jobs, always linked back to the source. Remotive is cached for at least 6h (its terms) |
 | JSearch (RapidAPI) | yes, `JOBHUNT_JSEARCH_API_KEY` | **opt-in**, freemium. Brings in LinkedIn and Indeed listings through Google Jobs |
 | X recent search | yes, `JOBHUNT_X_BEARER_TOKEN` | **opt-in**, pay-per-use (~$0.005 per post read) |
 | Adzuna | yes, `JOBHUNT_ADZUNA_APP_ID` / `_APP_KEY` | **opt-in**, paid after the trial |
-| LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Wellfound, Cutshort, Instahyre, TokyoDev, Japan Dev, Google Jobs, X | – | **links only**, never fetched |
+| LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Wellfound, YC startup jobs, Work at a Startup, Cutshort, Instahyre, TokyoDev, Japan Dev, Google Jobs, X | – | **links only**, never fetched |
+
+**Not included, on purpose:** jobhunt doesn't scrape LinkedIn or X, because both sites' terms forbid it. Their listings come in legally through JSearch (LinkedIn via Google Jobs) and the official X API. SmartRecruiters is skipped because its robots.txt disallows all crawlers.
 
 To turn on an opt-in source:
 1. Set `sources.<name>.enabled: true` in the config.
@@ -210,7 +212,7 @@ sources:
 ```
 
 You can customise two lists by copying them and pointing the config at your copy:
-- **Your own target companies:** copy `internal/sources/ats/companies.yaml`. Each entry gives a name, an ATS (greenhouse, lever or ashby), the board slug and the hiring countries. Run `jobhunt sources --check-boards` afterwards to confirm the slugs work.
+- **Your own target companies:** copy `internal/sources/ats/companies.yaml`. Each entry gives a name, an ATS (greenhouse, lever, ashby, workable or recruitee), the board slug and the hiring countries. The slug is the company's ID in its careers-page URL, e.g. `jobs.ashbyhq.com/<slug>`, `jobs.lever.co/<slug>`, `boards.greenhouse.io/<slug>`, `apply.workable.com/<slug>` or `<slug>.recruitee.com`. Run `jobhunt sources --check-boards` afterwards to confirm the slugs work.
 - **Better classification:** copy `internal/classify/keywords.yaml`, which holds the keyword rules for job types, experience, work modes, visa and areas.
 
 ## How it works

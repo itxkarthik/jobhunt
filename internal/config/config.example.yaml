@@ -50,6 +50,10 @@ sources:
     enabled: true
   ashby:
     enabled: true
+  workable:
+    enabled: true
+  recruitee:
+    enabled: true
   jsearch:
     enabled: false # freemium RapidAPI; brings in LinkedIn/Indeed via Google Jobs
     api_key: ""    # https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch

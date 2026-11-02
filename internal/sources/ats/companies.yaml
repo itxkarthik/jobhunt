@@ -1,11 +1,11 @@
 # Company job boards queried directly through their ATS's public API.
-# Every slug was checked live on 2026-10-24. Run `jobhunt sources --check-boards`
+# Every slug was checked live on 2026-10-24 (startups added 2026-11-13). Run `jobhunt sources --check-boards`
 # to find stale ones.
 #
 # To customize, copy this file to ~/.config/jobhunt/companies.yaml; that file
 # replaces this list entirely.
 #
-#   ats:       greenhouse | lever | ashby
+#   ats:       greenhouse | lever | ashby | workable | recruitee
 #   slug:      the board id in the API URL
 #   countries: where they hire (ISO codes). A board is only fetched when the
 #              search includes one of these, or `remote-global` if remote: true.
@@ -85,3 +85,37 @@ companies:
   - {name: Ramp,             ats: ashby,      slug: ramp,         countries: [US]}
   - {name: Perplexity,       ats: ashby,      slug: perplexity,   countries: [US, GB, DE]}
   - {name: Plaid,            ats: ashby,      slug: plaid,        countries: [US, NL]}
+
+  # --- Startups, India ------------------------------------------------------
+  - {name: Glance,           ats: greenhouse, slug: glance,                         countries: [IN]}
+  - {name: DevRev,           ats: greenhouse, slug: devrev,                         countries: [IN, US]}
+  - {name: SpotDraft,        ats: ashby,      slug: spotdraft,                      countries: [IN, US]}
+  - {name: Pocket FM,        ats: lever,      slug: pocketfm,                       countries: [IN]}
+  - {name: Turing,           ats: greenhouse, slug: turing,                         countries: [IN, US], remote: true}
+  - {name: Starburst,        ats: greenhouse, slug: starburst,                      countries: [IN, US], remote: true}
+  - {name: Anyscale,         ats: ashby,      slug: anyscale,                       countries: [US, IN]}
+
+  # --- Startups, remote-first (fetched for any non-strict search) -----------
+  - {name: Supabase,         ats: ashby,      slug: supabase,                       countries: [US], remote: true}
+  - {name: PostHog,          ats: ashby,      slug: posthog,                        countries: [US, GB], remote: true}
+  - {name: Zapier,           ats: ashby,      slug: zapier,                         countries: [US], remote: true}
+  - {name: Linear,           ats: ashby,      slug: linear,                         countries: [US], remote: true}
+  - {name: Resend,           ats: ashby,      slug: resend,                         countries: [US], remote: true}
+  - {name: Railway,          ats: ashby,      slug: railway,                        countries: [US], remote: true}
+  - {name: Airbyte,          ats: ashby,      slug: airbyte,                        countries: [US], remote: true}
+  - {name: Tailscale,        ats: greenhouse, slug: tailscale,                      countries: [US, CA], remote: true}
+  - {name: Vercel,           ats: greenhouse, slug: vercel,                         countries: [US], remote: true}
+  - {name: PlanetScale,      ats: greenhouse, slug: planetscale,                    countries: [US], remote: true}
+
+  # --- Startups, US ---------------------------------------------------------
+  - {name: Sentry,           ats: ashby,      slug: sentry,                         countries: [US, CA]}
+  - {name: Replit,           ats: ashby,      slug: replit,                         countries: [US]}
+  - {name: Modal,            ats: ashby,      slug: modal,                          countries: [US]}
+  - {name: Render,           ats: ashby,      slug: render,                         countries: [US]}
+  - {name: Mintlify,         ats: ashby,      slug: mintlify,                       countries: [US]}
+  - {name: Warp,             ats: ashby,      slug: warp,                           countries: [US]}
+  - {name: Pinecone,         ats: ashby,      slug: pinecone,                       countries: [US]}
+  - {name: Intercom,         ats: greenhouse, slug: intercom,                       countries: [GB, US]}
+
+  # --- Startups, Europe -----------------------------------------------------
+  - {name: bunq,             ats: recruitee,  slug: bunq,                           countries: [NL]}

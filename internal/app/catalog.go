@@ -38,6 +38,12 @@ var Catalog = []SourceInfo{
 	{"ashby", "Company boards on Ashby (companies.yaml)", true, "", func(_ *config.Config, _ config.SourceConfig, c *sources.Client, cs []ats.Company) sources.Source {
 		return ats.New("ashby", cs, c, "")
 	}},
+	{"workable", "Company boards on Workable (companies.yaml)", true, "", func(_ *config.Config, _ config.SourceConfig, c *sources.Client, cs []ats.Company) sources.Source {
+		return ats.New("workable", cs, c, "")
+	}},
+	{"recruitee", "Company boards on Recruitee (companies.yaml)", true, "", func(_ *config.Config, _ config.SourceConfig, c *sources.Client, cs []ats.Company) sources.Source {
+		return ats.New("recruitee", cs, c, "")
+	}},
 	{"hn", "Hacker News \"Who is hiring?\" (latest thread)", true, "", func(_ *config.Config, _ config.SourceConfig, c *sources.Client, _ []ats.Company) sources.Source {
 		return hn.New(c)
 	}},
