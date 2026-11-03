@@ -65,7 +65,7 @@ var Catalog = []SourceInfo{
 	{"adzuna", "Adzuna API (paid: 25 trial calls, then £8/mo)", false, "app_id + app_key", func(_ *config.Config, sc config.SourceConfig, c *sources.Client, _ []ats.Company) sources.Source {
 		return adzuna.New(sc.AppID, sc.AppKey, sc.MaxPages, c)
 	}},
-	{"jsearch", "JSearch / Google Jobs incl. LinkedIn & Indeed (freemium)", false, "api_key", func(_ *config.Config, sc config.SourceConfig, c *sources.Client, _ []ats.Company) sources.Source {
+	{"jsearch", "JSearch / Google Jobs incl. LinkedIn & Indeed (OpenWeb Ninja or RapidAPI key)", false, "api_key", func(_ *config.Config, sc config.SourceConfig, c *sources.Client, _ []ats.Company) sources.Source {
 		return jsearch.New(sc.APIKey, sc.MaxPages, c)
 	}},
 	{"x", "X recent-search API (pay-per-use)", false, "bearer_token", func(_ *config.Config, sc config.SourceConfig, c *sources.Client, _ []ats.Company) sources.Source {

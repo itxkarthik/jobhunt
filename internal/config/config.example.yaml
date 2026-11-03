@@ -55,8 +55,9 @@ sources:
   recruitee:
     enabled: true
   jsearch:
-    enabled: false # freemium RapidAPI; brings in LinkedIn/Indeed via Google Jobs
-    api_key: ""    # https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
+    enabled: false # freemium; brings in LinkedIn/Indeed via Google Jobs
+    api_key: ""    # OpenWeb Ninja key (ak_…, https://www.openwebninja.com) or RapidAPI key
+    # ttl: 24h     # 1 request per country per refresh; raise to save a small free quota
     max_pages: 1
   x:
     enabled: false # pay-per-use (~$0.005 per post read)

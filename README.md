@@ -174,7 +174,7 @@ These work on `search`, `tui`, `export`, `watch` and `preset save`.
 | HN "Who is Hiring" | no | the latest monthly thread, via the Algolia API |
 | Himalayas | no | remote jobs; the application link is used unchanged, as its terms require |
 | RemoteOK, Remotive, We Work Remotely, Arbeitnow | no | remote and EU jobs, always linked back to the source. Remotive is cached for at least 6h (its terms) |
-| JSearch (RapidAPI) | yes, `JOBHUNT_JSEARCH_API_KEY` | **opt-in**, freemium. Brings in LinkedIn and Indeed listings through Google Jobs |
+| JSearch | yes, `JOBHUNT_JSEARCH_API_KEY` | **opt-in**, freemium. Brings in LinkedIn and Indeed listings through Google Jobs. Takes a key from [OpenWeb Ninja](https://www.openwebninja.com) (`ak_…`, used directly) or from RapidAPI; jobhunt detects which. 1 request per country per search; set `sources.jsearch.ttl: 24h` to stretch a free quota |
 | X recent search | yes, `JOBHUNT_X_BEARER_TOKEN` | **opt-in**, pay-per-use (~$0.005 per post read) |
 | Adzuna | yes, `JOBHUNT_ADZUNA_APP_ID` / `_APP_KEY` | **opt-in**, paid after the trial |
 | LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Wellfound, YC startup jobs, Work at a Startup, Cutshort, Instahyre, TokyoDev, Japan Dev, Google Jobs, X | – | **links only**, never fetched |

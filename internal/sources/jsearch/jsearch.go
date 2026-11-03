@@ -1,7 +1,10 @@
-// Package jsearch queries the JSearch API on RapidAPI
-// (https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch), which returns
-// Google for Jobs results — including LinkedIn, Indeed, and Glassdoor
-// listings — without scraping those sites. Freemium; off by default.
+// Package jsearch queries the JSearch API, which returns Google for Jobs
+// results — including LinkedIn, Indeed, and Glassdoor listings — without
+// scraping those sites. Freemium; off by default.
+//
+// It works with either kind of key: an OpenWeb Ninja key ("ak_…", sent
+// directly to api.openwebninja.com) or a RapidAPI key (sent through the
+// RapidAPI gateway). Both return the same response.
 package jsearch
 
 import (
@@ -19,13 +22,17 @@ import (
 )
 
 const (
-	DefaultBaseURL = "https://jsearch.p.rapidapi.com/search"
-	host           = "jsearch.p.rapidapi.com"
+	RapidAPIBaseURL     = "https://jsearch.p.rapidapi.com/search"
+	OpenWebNinjaBaseURL = "https://api.openwebninja.com/jsearch/search"
+	rapidAPIHost        = "jsearch.p.rapidapi.com"
+	// openWebNinjaPrefix marks keys issued by OpenWeb Ninja itself.
+	openWebNinjaPrefix = "ak_"
 )
 
 type Source struct {
 	BaseURL  string
 	APIKey   string
+	Direct   bool // OpenWeb Ninja key: x-api-key header instead of RapidAPI's
 	NumPages int
 	Client   *sources.Client
 }
@@ -34,7 +41,18 @@ func New(apiKey string, numPages int, client *sources.Client) *Source {
 	if numPages <= 0 {
 		numPages = 1 // each page costs one request against the free quota
 	}
-	return &Source{BaseURL: DefaultBaseURL, APIKey: apiKey, NumPages: numPages, Client: client}
+	s := &Source{BaseURL: RapidAPIBaseURL, APIKey: apiKey, NumPages: numPages, Client: client}
+	if strings.HasPrefix(apiKey, openWebNinjaPrefix) {
+		s.BaseURL, s.Direct = OpenWebNinjaBaseURL, true
+	}
+	return s
+}
+
+func (s *Source) headers() map[string]string {
+	if s.Direct {
+		return map[string]string{"x-api-key": s.APIKey}
+	}
+	return map[string]string{"X-RapidAPI-Key": s.APIKey, "X-RapidAPI-Host": rapidAPIHost}
 }
 
 func (s *Source) Name() string                { return "jsearch" }
@@ -51,7 +69,7 @@ func (s *Source) CacheKey(f model.Filters) string {
 
 func (s *Source) Ready() error {
 	if s.APIKey == "" {
-		return sources.ErrNotConfigured{Msg: "missing jsearch api_key (RapidAPI; set JOBHUNT_JSEARCH_API_KEY)"}
+		return sources.ErrNotConfigured{Msg: "missing jsearch api_key (OpenWeb Ninja or RapidAPI; set JOBHUNT_JSEARCH_API_KEY)"}
 	}
 	return nil
 }
@@ -131,6 +149,7 @@ type response struct {
 		Description    string             `json:"job_description"`
 		IsRemote       bool               `json:"job_is_remote"`
 		PostedAtUTC    string             `json:"job_posted_at_datetime_utc"`
+		PostedAtUnix   int64              `json:"job_posted_at_timestamp"`
 		City           string             `json:"job_city"`
 		State          string             `json:"job_state"`
 		Country        string             `json:"job_country"`
@@ -142,7 +161,7 @@ type response struct {
 }
 
 func (s *Source) Fetch(ctx context.Context, f model.Filters) ([]model.Job, error) {
-	headers := map[string]string{"X-RapidAPI-Key": s.APIKey, "X-RapidAPI-Host": host}
+	headers := s.headers()
 	var all []model.Job
 	seen := map[string]bool{}
 	queries := s.queries(f)
@@ -187,7 +206,7 @@ func parse(resp response) []model.Job {
 			WorkMode:    model.ModeUnknown,
 			JobType:     empType(r.EmploymentType),
 			Experience:  model.ExpUnknown,
-			PostedAt:    sources.ParseTime(r.PostedAtUTC),
+			PostedAt:    postedAt(r.PostedAtUTC, r.PostedAtUnix),
 			Description: sources.Truncate(r.Description, 6000),
 		}
 		if r.IsRemote {
@@ -249,4 +268,16 @@ func (s *Source) SearchURL(f model.Filters) string {
 		q += " " + sources.CountryName(f.Countries[0])
 	}
 	return "https://www.google.com/search?ibp=htl;jobs&q=" + url.QueryEscape(q)
+}
+
+// postedAt prefers the datetime string and falls back to the Unix
+// timestamp, which JSearch sometimes sends alone.
+func postedAt(utc string, unix int64) time.Time {
+	if t := sources.ParseTime(utc); !t.IsZero() {
+		return t
+	}
+	if unix > 0 {
+		return time.Unix(unix, 0).UTC()
+	}
+	return time.Time{}
 }
