@@ -355,3 +355,11 @@ make install
 systemctl --user enable --now jobhunt-watch
 journalctl --user -u jobhunt-watch -f
 ```
+
+## Contributing
+
+Contributions are welcome: new legal sources, company boards and classifier rules. See [CONTRIBUTING.md](CONTRIBUTING.md). AI coding agents should read [AGENTS.md](AGENTS.md).
+
+## License
+
+[MIT](LICENSE) © 2026 itxkarthik
