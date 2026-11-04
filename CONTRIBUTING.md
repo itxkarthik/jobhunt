@@ -54,10 +54,17 @@ Only add boards that list real jobs for the company itself. Agencies that repost
 
 ### Add a job source
 
-The steps are in the README under **Adding a source**. In short:
-1. Create `internal/sources/<name>/` implementing `sources.Source`, plus any of the optional interfaces it needs (`Readier`, `Linker`, `RateLimited`, `MinTTLer`, `DefaultTTLer`, `Timeouter`, `CacheKeyer`).
-2. Use the shared `*sources.Client` for every HTTP request.
-3. Add a fixture and a table-driven test.
+1. Create `internal/sources/<name>/` with a type that implements:
+   ```go
+   type Source interface {
+       Name() string
+       Supports(f model.Filters) bool
+       Fetch(ctx context.Context, f model.Filters) ([]model.Job, error)
+   }
+   ```
+   Add any optional interfaces it needs: `Readier` (missing key), `Linker` (browser fallback), `RateLimited`, `MinTTLer` / `DefaultTTLer` (cache rules), `Timeouter`, `CacheKeyer`. Return `*sources.PartialError` when only some pages fail.
+2. Use the shared `*sources.Client` for every HTTP request. It sets the User-Agent, rate limiting, a body size limit and retries with backoff on 429/5xx.
+3. Save a real response in `testdata/` and write a table-driven test with `sourcetest.Serve`.
 4. Register it in `internal/app/catalog.go` and `internal/config/config.example.yaml`.
 5. Paid or key-based sources must be **off by default** and report a missing key via `Ready()`.
 
