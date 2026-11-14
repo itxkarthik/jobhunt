@@ -15,6 +15,7 @@ jobhunt is a single Go binary for students and early-career engineers looking fo
 - **New-job tracking.** Marks jobs you haven't seen before with ★; `--new-only` shows just those.
 - **Application tracker.** saved → applied → OA → interview → offer / rejected, with notes and history.
 - **Watch mode.** Re-runs a search on a schedule and sends a desktop notification when new matches appear.
+- **Headless mode.** `jobhunt feed` streams versioned NDJSON events for queues, databases and agents, with at-least-once cursors and a signed webhook.
 - **Legal by design.** Uses only public APIs, ATS job-board APIs and RSS feeds, and respects their terms and rate limits. Sites that forbid automation (LinkedIn, Indeed, Naukri, Internshala, Glassdoor) get pre-filled browser links instead.
 
 ## Install
@@ -114,6 +115,21 @@ Available on `search`, `tui`, `export`, `watch` and `preset save`.
 | `h` | hide job |
 | `r` | refetch, bypassing the cache |
 | `?` / `q` | help / quit |
+
+## Headless mode
+
+`jobhunt feed` runs a search and writes one JSON event per line to stdout, with logs on stderr, so you can build pipelines and agent systems on top of it. Each run emits a `source` event per source, then a `job` event per selected job (best score first), then a `run` summary. The format is versioned and documented in [`docs/feed.schema.json`](docs/feed.schema.json).
+
+```sh
+jobhunt feed -p india-backend --new-only | jq -c 'select(.type=="job") | .job | {key, score, title, url}'
+jobhunt feed -p india-backend --cursor agent --min-score 60 | ./agent.py     # each job delivered once
+jobhunt feed -p india-backend --cursor db --every 6h | ./load-into-db.sh     # long-running
+```
+
+- **`--cursor NAME`** gives each consumer at-least-once delivery. A run emits the jobs first seen since that consumer's last successful run, and the cursor only advances after the batch is delivered. Dedupe on `job.key`.
+- **`--since 24h`** (or a date or RFC 3339 time) replays jobs first seen since then, without state.
+- **Webhook:** set `JOBHUNT_WEBHOOK_URL` (or `--webhook`) to also POST each batch as `application/x-ndjson`. Failures are retried with backoff.
+- **Signing:** set `JOBHUNT_WEBHOOK_SECRET` (16+ characters) to sign requests. Receivers should compute `"sha256=" + hex(HMAC_SHA256(secret, "<X-Jobhunt-Timestamp>.<body>"))`, compare it to `X-Jobhunt-Signature` in constant time, and reject stale timestamps.
 
 ## Sources
 
