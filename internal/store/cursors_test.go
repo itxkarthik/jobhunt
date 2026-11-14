@@ -38,9 +38,9 @@ func TestFeedDeliveries(t *testing.T) {
 		wantPending   []string
 	}{
 		{"new cursor is empty", func() error { return nil }, nil, nil},
-		{"batch goes out", func() error { return s.MarkPending(ctx, "agent", []string{"a", "b"}, t0) }, nil, []string{"a", "b"}},
+		{"batch goes out", func() error { return s.MarkPending(ctx, "agent", jobs, t0) }, nil, []string{"a", "b"}},
 		{"a accepted", func() error { return s.MarkDelivered(ctx, "agent", []string{"a"}, t0) }, []string{"a"}, []string{"b"}},
-		{"resending a keeps it delivered", func() error { return s.MarkPending(ctx, "agent", []string{"a"}, t0) }, []string{"a"}, []string{"b"}},
+		{"resending a keeps it delivered", func() error { return s.MarkPending(ctx, "agent", jobs[:1], t0) }, []string{"a"}, []string{"b"}},
 		{"b accepted", func() error { return s.MarkDelivered(ctx, "agent", []string{"b"}, t0) }, []string{"a", "b"}, nil},
 	}
 	for _, st := range steps {
@@ -57,23 +57,67 @@ func TestFeedDeliveries(t *testing.T) {
 	}
 }
 
-func TestPendingJobKeepsStoredRecord(t *testing.T) {
+// Regression: another search rewrites the shared jobs row with its own
+// score; a pending job must keep the record selected for this consumer.
+func TestPendingKeepsConsumerSnapshot(t *testing.T) {
 	ctx := context.Background()
 	s := openMem(t)
 	t0 := time.Unix(1_800_000_000, 0)
-	job := model.Job{Key: "a", Title: "Backend Intern", URL: "https://example.com/a", Score: 77}
+	job := model.Job{Key: "a", Title: "Backend Intern", URL: "https://example.com/a", Score: 90, FirstSeenAt: t0, New: true}
 	if err := s.MarkSeen(ctx, []model.Job{job}, t0); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MarkPending(ctx, "agent", []string{"a"}, t0); err != nil {
+	if err := s.MarkPending(ctx, "agent", []model.Job{job}, t0); err != nil {
+		t.Fatal(err)
+	}
+	other := job
+	other.Score, other.Title = 10, "rewritten by another search"
+	if err := s.MarkSeen(ctx, []model.Job{other}, t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	_, p, err := s.FeedState(ctx, "agent")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p) != 1 || p[0].Title != job.Title || p[0].URL != job.URL || p[0].Score != 77 || !p[0].FirstSeenAt.Equal(t0) {
-		t.Errorf("pending = %+v, want the stored record of %q", p, job.Key)
+	if len(p) != 1 || p[0].Score != 90 || p[0].Title != job.Title || p[0].New || !p[0].FirstSeenAt.Equal(t0) {
+		t.Errorf("pending = %+v, want the snapshot taken for this consumer (score 90, not new)", p)
+	}
+}
+
+// Rows from before migration 005 have no snapshot and fall back to the
+// shared record.
+func TestPendingWithoutSnapshot(t *testing.T) {
+	ctx := context.Background()
+	s := openMem(t)
+	t0 := time.Unix(1_800_000_000, 0)
+	if err := s.MarkSeen(ctx, []model.Job{{Key: "a", Title: "A", Score: 50}}, t0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`INSERT INTO feed_deliveries (cursor, key, state, updated_at) VALUES ('agent', 'a', 'pending', 1),
+		 ('agent', 'orphan', 'pending', 2)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, p := pendingKeys(t, s, "agent"); !slices.Equal(p, []string{"a"}) {
+		t.Errorf("pending = %v, want [a] (orphan rows without any record are skipped)", p)
+	}
+}
+
+func TestDeliveredClearsSnapshot(t *testing.T) {
+	ctx := context.Background()
+	s := openMem(t)
+	if err := s.MarkPending(ctx, "agent", []model.Job{{Key: "a", Description: "long text"}}, time.Unix(1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkDelivered(ctx, "agent", []string{"a"}, time.Unix(2, 0)); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM feed_deliveries WHERE job IS NOT NULL`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("%d delivered rows still hold a snapshot", n)
 	}
 }
 
@@ -115,7 +159,7 @@ func TestValidCursorName(t *testing.T) {
 		}
 	}
 	s := openMem(t)
-	if err := s.MarkPending(context.Background(), "Bad Name", []string{"a"}, time.Now()); err == nil {
+	if err := s.MarkPending(context.Background(), "Bad Name", []model.Job{{Key: "a"}}, time.Now()); err == nil {
 		t.Error("MarkPending accepted an invalid name")
 	}
 }

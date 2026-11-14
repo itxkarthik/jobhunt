@@ -314,3 +314,40 @@ func TestFeedExclusiveFlags(t *testing.T) {
 		}
 	}
 }
+
+// Regression: an unrelated search that rescores a pending job (and the
+// posting then leaving its source) must not stop the consumer's retry.
+func TestFeedPendingSurvivesOtherSearches(t *testing.T) {
+	var fail atomic.Bool
+	fail.Store(true)
+	hook := failingWebhook(t, &fail)
+	t0 := time.Unix(1_800_000_000, 0)
+	st := openStore(t)
+	runs := &fakeRuns{
+		st:   st,
+		runs: [][]model.Job{{job("a", 90)}, {job("b", 80)}},
+		at:   []time.Time{t0, t0.Add(2 * time.Hour)},
+	}
+	fd, _ := newFeeder(t, runs, "agent", hook)
+	fd.opts.MinScore = 60
+	if err := fd.once(context.Background()); err == nil {
+		t.Fatal("want delivery failure")
+	}
+	// A TUI search with other filters rewrites the shared record of a.
+	if err := st.MarkSeen(context.Background(), []model.Job{job("a", 10)}, t0.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	fail.Store(false)
+	fd, out := newFeeder(t, runs, "agent", hook)
+	fd.opts.MinScore = 60
+	if err := fd.once(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := emitted(t, out.Bytes()); !slices.Equal(got, []string{"a", "b"}) {
+		t.Fatalf("emitted %v, want [a b]", got)
+	}
+	if !strings.Contains(out.String(), `"key":"a"`) || !strings.Contains(out.String(), `"score":90`) {
+		t.Errorf("a was not resent with the score it was selected with:\n%s", out.String())
+	}
+}

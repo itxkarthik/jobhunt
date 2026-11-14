@@ -150,7 +150,7 @@ func webhookFor(flagURL string, a *app.App, log io.Writer) (*feed.Webhook, error
 // cursorStore is the part of *store.Store the feeder needs.
 type cursorStore interface {
 	FeedState(ctx context.Context, cursor string) (delivered map[string]bool, pending []model.Job, err error)
-	MarkPending(ctx context.Context, cursor string, keys []string, now time.Time) error
+	MarkPending(ctx context.Context, cursor string, jobs []model.Job, now time.Time) error
 	MarkDelivered(ctx context.Context, cursor string, keys []string, now time.Time) error
 }
 
@@ -189,8 +189,8 @@ func (fd *feeder) once(ctx context.Context) error {
 	keys := jobKeys(events)
 	if fd.cursor != "" {
 		// Record the batch before sending it, so a crash or failed delivery
-		// leaves these jobs pending and the next run resends them.
-		if err := fd.cursors.MarkPending(ctx, fd.cursor, keys, fd.now()); err != nil {
+		// leaves these jobs pending and the next run resends them as selected now.
+		if err := fd.cursors.MarkPending(ctx, fd.cursor, records(keys, res.Jobs, opts.Pending), fd.now()); err != nil {
 			return err
 		}
 	}
@@ -223,6 +223,23 @@ func (fd *feeder) once(ctx context.Context) error {
 	}
 	fmt.Fprintln(fd.log, line)
 	return nil
+}
+
+// records returns the full record behind each emitted key (the events may
+// omit descriptions): the current result if present, else the pending snapshot.
+func records(keys []string, current, pending []model.Job) []model.Job {
+	byKey := make(map[string]model.Job, len(current)+len(pending))
+	for _, j := range pending {
+		byKey[j.Key] = j
+	}
+	for _, j := range current {
+		byKey[j.Key] = j
+	}
+	out := make([]model.Job, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, byKey[k])
+	}
+	return out
 }
 
 func jobKeys(events []feed.Event) []string {

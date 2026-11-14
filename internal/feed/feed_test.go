@@ -72,10 +72,15 @@ func TestBuildSelection(t *testing.T) {
 		{"delivered keys are skipped", Options{Delivered: map[string]bool{"aaaa1111": true}}, []string{"bbbb2222", "cccc3333"}},
 		{"pending gone from source comes first", Options{Pending: []model.Job{{Key: "gone", Score: 50}}},
 			[]string{"gone", "aaaa1111", "bbbb2222", "cccc3333"}},
-		{"pending still in results is sent once", Options{Pending: []model.Job{{Key: "bbbb2222", Title: "stale"}}},
-			[]string{"aaaa1111", "bbbb2222", "cccc3333"}},
-		{"pending respects min score", Options{MinScore: 60, Pending: []model.Job{{Key: "gone", Score: 50}}},
-			[]string{"aaaa1111", "bbbb2222"}},
+		{"pending still in results is sent once, first", Options{Pending: []model.Job{{Key: "bbbb2222", Title: "stale"}}},
+			[]string{"bbbb2222", "aaaa1111", "cccc3333"}},
+		// Pending jobs were already selected; re-filtering could strand them.
+		{"pending ignores min score", Options{MinScore: 60, Pending: []model.Job{{Key: "gone", Score: 50}}},
+			[]string{"gone", "aaaa1111", "bbbb2222"}},
+		{"pending in results ignores a lower fresh score", Options{MinScore: 60, Pending: []model.Job{{Key: "cccc3333", Score: 95}}},
+			[]string{"cccc3333", "aaaa1111", "bbbb2222"}},
+		{"pending ignores since", Options{Since: runAt.Add(time.Hour), Pending: []model.Job{{Key: "gone"}}},
+			[]string{"gone"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
