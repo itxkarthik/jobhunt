@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ type schemaObject struct {
 	Required   []string                   `json:"required"`
 	Properties map[string]json.RawMessage `json:"properties"`
 	Enum       []string                   `json:"enum"`
+	Pattern    string                     `json:"pattern"`
 	Const      any                        `json:"const"`
 }
 
@@ -163,6 +165,29 @@ func TestGoldenEventsSatisfySchema(t *testing.T) {
 			if _, ok := payload[k]; !ok {
 				t.Errorf("line %d: %s.%s missing", i+1, typ, k)
 			}
+		}
+	}
+}
+
+// SanitizeJob blanks unsafe URLs without dropping the job, so the schema
+// must accept an empty url but nothing that isn't http(s).
+func TestSchemaURLPattern(t *testing.T) {
+	re := regexp.MustCompile(prop(t, loadSchema(t).Defs["job"], "url").Pattern)
+	tests := []struct {
+		url string
+		ok  bool
+	}{
+		{"", true},
+		{"https://example.com/jobs/1", true},
+		{"http://example.com", true},
+		{"javascript:alert(1)", false},
+		{"ftp://example.com", false},
+		{"https://", false},
+		{" https://example.com", false},
+	}
+	for _, tt := range tests {
+		if got := re.MatchString(tt.url); got != tt.ok {
+			t.Errorf("url %q: match = %v, want %v", tt.url, got, tt.ok)
 		}
 	}
 }

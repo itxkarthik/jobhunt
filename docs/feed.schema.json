@@ -54,7 +54,7 @@
         "sources": { "type": "array", "items": { "type": "string" }, "description": "Every source this job was found on." },
         "title": { "type": "string" },
         "company": { "type": "string" },
-        "url": { "type": "string", "format": "uri", "pattern": "^https?://", "description": "Always http(s)." },
+        "url": { "type": "string", "pattern": "^(https?://.+)?$", "description": "An http(s) link, or empty when the source gave no safe one (non-http(s) links are removed)." },
         "countries": { "type": "array", "items": { "type": "string", "pattern": "^([A-Z]{2}|remote-global|region:[a-z-]+)$" }, "description": "ISO 3166-1 alpha-2 codes, remote-global, or region:<name>." },
         "city": { "type": "string" },
         "location": { "type": "string", "description": "Raw location text from the source." },
