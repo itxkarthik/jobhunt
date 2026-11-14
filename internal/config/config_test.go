@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoadFileAndEnv(t *testing.T) {
@@ -46,5 +48,49 @@ func TestMissingFileUsesDefaults(t *testing.T) {
 	}
 	if cfg.CacheTTL != time.Hour || cfg.UserAgent != DefaultUserAgent {
 		t.Errorf("defaults not applied: %+v", cfg)
+	}
+}
+
+func TestFeedConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		file                string
+		envURL, envSecret   string
+		wantURL, wantSecret string
+	}{
+		{"from file", "feed:\n  webhook_url: https://a.example/h\n  webhook_secret: file-secret-0123456\n", "", "",
+			"https://a.example/h", "file-secret-0123456"},
+		{"env overrides file", "feed:\n  webhook_url: https://a.example/h\n  webhook_secret: file-secret-0123456\n",
+			"https://b.example/h", "env-secret-0123456789", "https://b.example/h", "env-secret-0123456789"},
+		{"env only", "", "https://b.example/h", "env-secret-0123456789", "https://b.example/h", "env-secret-0123456789"},
+		{"none", "", "", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			p := filepath.Join(dir, "config.yaml")
+			if err := os.WriteFile(p, []byte(tt.file), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("JOBHUNT_CONFIG", p)
+			t.Setenv("XDG_DATA_HOME", dir)
+			t.Setenv("JOBHUNT_WEBHOOK_URL", tt.envURL)
+			t.Setenv("JOBHUNT_WEBHOOK_SECRET", tt.envSecret)
+			cfg, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Feed.WebhookURL != tt.wantURL || cfg.Feed.WebhookSecret != tt.wantSecret {
+				t.Errorf("feed = url %q, secret set=%v; want %q, secret set=%v",
+					cfg.Feed.WebhookURL, cfg.Feed.WebhookSecret != "", tt.wantURL, tt.wantSecret != "")
+			}
+		})
+	}
+}
+
+func TestExampleConfigParses(t *testing.T) {
+	var cfg Config
+	if err := yaml.Unmarshal(Example, &cfg); err != nil {
+		t.Fatalf("config.example.yaml: %v", err)
 	}
 }

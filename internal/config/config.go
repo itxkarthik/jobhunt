@@ -32,6 +32,15 @@ type Config struct {
 	Defaults Defaults                `yaml:"defaults"`
 	Ranking  rank.Weights            `yaml:"ranking"`
 	Sources  map[string]SourceConfig `yaml:"sources"`
+	Feed     Feed                    `yaml:"feed"`
+}
+
+// Feed configures `jobhunt feed`. Both values are secrets in practice: many
+// webhook URLs embed a token, so keep them here or in env vars, not in
+// shell history.
+type Feed struct {
+	WebhookURL    string `yaml:"webhook_url,omitempty"`    // or JOBHUNT_WEBHOOK_URL
+	WebhookSecret string `yaml:"webhook_secret,omitempty"` // or JOBHUNT_WEBHOOK_SECRET; HMAC signing key
 }
 
 // Defaults are applied when the matching CLI flag is not given.
@@ -165,6 +174,12 @@ func applyEnv(cfg *Config) {
 	set("adzuna", func(s *SourceConfig, v string) { s.AppKey = v }, "JOBHUNT_ADZUNA_APP_KEY")
 	set("jsearch", func(s *SourceConfig, v string) { s.APIKey = v }, "JOBHUNT_JSEARCH_API_KEY")
 	set("x", func(s *SourceConfig, v string) { s.BearerToken = v }, "JOBHUNT_X_BEARER_TOKEN")
+	if v := os.Getenv("JOBHUNT_WEBHOOK_URL"); v != "" {
+		cfg.Feed.WebhookURL = v
+	}
+	if v := os.Getenv("JOBHUNT_WEBHOOK_SECRET"); v != "" {
+		cfg.Feed.WebhookSecret = v
+	}
 }
 
 // Source returns the config block for name (zero value if absent).
