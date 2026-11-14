@@ -13,6 +13,7 @@ import (
 
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/feed"
+	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/search"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
@@ -58,8 +59,9 @@ stderr, so stdout can be piped straight into a queue, a database loader or
 an agent. The event format is documented in docs/feed.schema.json.
 
 --cursor NAME gives a consumer at-least-once delivery: each run emits the
-jobs first seen since that consumer's last successful run, and the cursor
-only advances once stdout and the webhook (if any) have accepted the batch.
+matching jobs that consumer hasn't received yet. A batch counts as received
+once stdout and the webhook (if any) accept it; until then its jobs stay
+pending and are resent, even if a posting has since left its source.
 
 --webhook (or feed.webhook_url / JOBHUNT_WEBHOOK_URL) also POSTs each batch.
 Set JOBHUNT_WEBHOOK_SECRET to sign requests with HMAC-SHA256.`,
@@ -98,6 +100,7 @@ Set JOBHUNT_WEBHOOK_SECRET to sign requests with HMAC-SHA256.`,
 				cursor:  fl.cursor,
 				opts:    feed.Options{MinScore: fl.minScore, Since: since, NoDescription: fl.noDescription},
 				newID:   rand.Text,
+				now:     time.Now,
 			}
 			if fl.every == 0 {
 				return fd.once(cmd.Context())
@@ -113,11 +116,14 @@ Set JOBHUNT_WEBHOOK_SECRET to sign requests with HMAC-SHA256.`,
 	fs := cmd.Flags()
 	fs.Float64Var(&fl.minScore, "min-score", 0, "only emit jobs scoring at least this (0-100)")
 	fs.StringVar(&fl.since, "since", "", "only jobs first seen at or after this: RFC 3339 time, date (2026-11-14) or age (24h, 7d)")
-	fs.StringVar(&fl.cursor, "cursor", "", "named consumer position for at-least-once delivery (e.g. agent)")
+	fs.StringVar(&fl.cursor, "cursor", "", "named consumer for at-least-once delivery: emit only jobs it hasn't received (e.g. agent)")
 	fs.DurationVar(&fl.every, "every", 0, "keep running and emit a batch every interval (min 15m); default: run once")
 	fs.StringVar(&fl.webhook, "webhook", "", "also POST each batch to this http(s) URL (prefer JOBHUNT_WEBHOOK_URL if it holds a token)")
 	fs.BoolVar(&fl.noDescription, "no-description", false, "omit job descriptions from events")
+	// A cursor already means "jobs this consumer hasn't received", and
+	// --new-only would drop pending jobs that an earlier run marked seen.
 	cmd.MarkFlagsMutuallyExclusive("since", "cursor")
+	cmd.MarkFlagsMutuallyExclusive("new-only", "cursor")
 	return cmd
 }
 
@@ -143,11 +149,12 @@ func webhookFor(flagURL string, a *app.App, log io.Writer) (*feed.Webhook, error
 
 // cursorStore is the part of *store.Store the feeder needs.
 type cursorStore interface {
-	Cursor(ctx context.Context, name string) (time.Time, bool, error)
-	AdvanceCursor(ctx context.Context, name string, t time.Time) error
+	FeedState(ctx context.Context, cursor string) (delivered map[string]bool, pending []model.Job, err error)
+	MarkPending(ctx context.Context, cursor string, keys []string, now time.Time) error
+	MarkDelivered(ctx context.Context, cursor string, keys []string, now time.Time) error
 }
 
-// feeder runs one batch: search, select, write, deliver, advance cursor.
+// feeder runs one batch: search, select, write, deliver, record delivery.
 type feeder struct {
 	search  func(context.Context) (*search.Result, error)
 	cursors cursorStore
@@ -157,19 +164,16 @@ type feeder struct {
 	cursor  string        // empty: stateless
 	opts    feed.Options
 	newID   func() string
+	now     func() time.Time
 }
 
 func (fd *feeder) once(ctx context.Context) error {
 	opts := fd.opts
 	if fd.cursor != "" {
-		t, ok, err := fd.cursors.Cursor(ctx, fd.cursor)
+		var err error
+		opts.Delivered, opts.Pending, err = fd.cursors.FeedState(ctx, fd.cursor)
 		if err != nil {
 			return err
-		}
-		if ok {
-			// first_seen has one-second precision, and the cursor is the
-			// last delivered run's time, so pending jobs start a second later.
-			opts.Since = t.Add(time.Second)
 		}
 	}
 	res, err := fd.search(ctx)
@@ -182,27 +186,35 @@ func (fd *feeder) once(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("encode events: %w", err)
 	}
+	keys := jobKeys(events)
+	if fd.cursor != "" {
+		// Record the batch before sending it, so a crash or failed delivery
+		// leaves these jobs pending and the next run resends them.
+		if err := fd.cursors.MarkPending(ctx, fd.cursor, keys, fd.now()); err != nil {
+			return err
+		}
+	}
 	if _, err := fd.out.Write(body); err != nil {
 		return fmt.Errorf("write events: %w", err)
 	}
-	run := events[len(events)-1].Run
 	var notes []string
 	if fd.webhook != nil {
 		if err := fd.webhook.Send(ctx, runID, body); err != nil {
 			if fd.cursor != "" {
-				err = fmt.Errorf("%w (cursor %s not advanced; the next run resends these jobs)", err, fd.cursor)
+				err = fmt.Errorf("%w (%d jobs stay pending for cursor %s; the next run resends them)", err, len(keys), fd.cursor)
 			}
 			return err
 		}
 		notes = append(notes, "webhook delivered")
 	}
 	if fd.cursor != "" {
-		if err := fd.cursors.AdvanceCursor(ctx, fd.cursor, res.RunAt); err != nil {
+		if err := fd.cursors.MarkDelivered(ctx, fd.cursor, keys, fd.now()); err != nil {
 			return err
 		}
-		notes = append(notes, "cursor "+fd.cursor+" advanced")
+		notes = append(notes, "cursor "+fd.cursor+" updated")
 	}
-	line := fmt.Sprintf("%s  feed run %s: %d of %d matching jobs emitted", stamp(time.Now()), runID, run.Emitted, run.Matched)
+	run := events[len(events)-1].Run
+	line := fmt.Sprintf("%s  feed run %s: %d jobs emitted (%d matching)", stamp(fd.now()), runID, run.Emitted, run.Matched)
 	if run.SourceErrors > 0 {
 		line += fmt.Sprintf(", %d source errors", run.SourceErrors)
 	}
@@ -211,6 +223,16 @@ func (fd *feeder) once(ctx context.Context) error {
 	}
 	fmt.Fprintln(fd.log, line)
 	return nil
+}
+
+func jobKeys(events []feed.Event) []string {
+	var keys []string
+	for _, e := range events {
+		if e.Type == feed.TypeJob {
+			keys = append(keys, e.Job.Key)
+		}
+	}
+	return keys
 }
 
 // parseSince accepts an RFC 3339 time, a date (local midnight), or an age

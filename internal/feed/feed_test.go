@@ -69,6 +69,13 @@ func TestBuildSelection(t *testing.T) {
 		{"since", Options{Since: runAt}, []string{"aaaa1111", "cccc3333"}},
 		{"since and min score", Options{Since: runAt, MinScore: 50}, []string{"aaaa1111"}},
 		{"since after everything", Options{Since: runAt.Add(time.Second)}, nil},
+		{"delivered keys are skipped", Options{Delivered: map[string]bool{"aaaa1111": true}}, []string{"bbbb2222", "cccc3333"}},
+		{"pending gone from source comes first", Options{Pending: []model.Job{{Key: "gone", Score: 50}}},
+			[]string{"gone", "aaaa1111", "bbbb2222", "cccc3333"}},
+		{"pending still in results is sent once", Options{Pending: []model.Job{{Key: "bbbb2222", Title: "stale"}}},
+			[]string{"aaaa1111", "bbbb2222", "cccc3333"}},
+		{"pending respects min score", Options{MinScore: 60, Pending: []model.Job{{Key: "gone", Score: 50}}},
+			[]string{"aaaa1111", "bbbb2222"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -167,5 +174,14 @@ func TestEncodeGolden(t *testing.T) {
 	}
 	if !bytes.Equal(got, want) {
 		t.Errorf("encoding changed; this is the public v%d contract.\ngot:\n%s\nwant:\n%s\n(run with -update if intended)", Version, got, want)
+	}
+}
+
+func TestBuildPendingUsesFreshRecord(t *testing.T) {
+	events := Build(result(), "run1", Options{Pending: []model.Job{{Key: "bbbb2222", Title: "stale"}}})
+	for _, e := range events {
+		if e.Type == TypeJob && e.Job.Key == "bbbb2222" && e.Job.Title != "SDE Intern" {
+			t.Errorf("pending job sent with stored title %q, want the fresh record", e.Job.Title)
+		}
 	}
 }

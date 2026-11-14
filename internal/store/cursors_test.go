@@ -2,38 +2,94 @@ package store
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/itxkarthik/jobhunt/internal/model"
 )
 
-func TestCursor(t *testing.T) {
+func pendingKeys(t *testing.T, s *Store, cursor string) (delivered, pending []string) {
+	t.Helper()
+	d, p, err := s.FeedState(context.Background(), cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, j := range p {
+		pending = append(pending, j.Key)
+	}
+	return slices.Sorted(maps.Keys(d)), pending
+}
+
+func TestFeedDeliveries(t *testing.T) {
 	ctx := context.Background()
 	s := openMem(t)
-
-	if _, ok, err := s.Cursor(ctx, "agent"); err != nil || ok {
-		t.Fatalf("new cursor: ok=%v err=%v, want missing", ok, err)
+	t0 := time.Unix(1_800_000_000, 0)
+	jobs := []model.Job{{Key: "a", Title: "A", Score: 90}, {Key: "b", Title: "B", Score: 80}}
+	if err := s.MarkSeen(ctx, jobs, t0); err != nil {
+		t.Fatal(err)
 	}
-	t1 := time.Unix(1_800_000_000, 0)
+
 	steps := []struct {
-		name    string
-		advance time.Time
-		want    time.Time
+		name          string
+		do            func() error
+		wantDelivered []string
+		wantPending   []string
 	}{
-		{"create", t1, t1},
-		{"forward", t1.Add(time.Hour), t1.Add(time.Hour)},
-		{"never backwards", t1, t1.Add(time.Hour)},
+		{"new cursor is empty", func() error { return nil }, nil, nil},
+		{"batch goes out", func() error { return s.MarkPending(ctx, "agent", []string{"a", "b"}, t0) }, nil, []string{"a", "b"}},
+		{"a accepted", func() error { return s.MarkDelivered(ctx, "agent", []string{"a"}, t0) }, []string{"a"}, []string{"b"}},
+		{"resending a keeps it delivered", func() error { return s.MarkPending(ctx, "agent", []string{"a"}, t0) }, []string{"a"}, []string{"b"}},
+		{"b accepted", func() error { return s.MarkDelivered(ctx, "agent", []string{"b"}, t0) }, []string{"a", "b"}, nil},
 	}
 	for _, st := range steps {
-		if err := s.AdvanceCursor(ctx, "agent", st.advance); err != nil {
+		if err := st.do(); err != nil {
 			t.Fatalf("%s: %v", st.name, err)
 		}
-		got, ok, err := s.Cursor(ctx, "agent")
-		if err != nil || !ok || !got.Equal(st.want) {
-			t.Fatalf("%s: cursor = %v ok=%v err=%v, want %v", st.name, got, ok, err, st.want)
+		d, p := pendingKeys(t, s, "agent")
+		if !slices.Equal(d, st.wantDelivered) || !slices.Equal(p, st.wantPending) {
+			t.Errorf("%s: delivered=%v pending=%v, want %v %v", st.name, d, p, st.wantDelivered, st.wantPending)
 		}
 	}
-	if _, ok, _ := s.Cursor(ctx, "db"); ok {
-		t.Error("cursors must be independent per name")
+	if d, p := pendingKeys(t, s, "db"); d != nil || p != nil {
+		t.Errorf("cursors must be independent: db has delivered=%v pending=%v", d, p)
+	}
+}
+
+func TestPendingJobKeepsStoredRecord(t *testing.T) {
+	ctx := context.Background()
+	s := openMem(t)
+	t0 := time.Unix(1_800_000_000, 0)
+	job := model.Job{Key: "a", Title: "Backend Intern", URL: "https://example.com/a", Score: 77}
+	if err := s.MarkSeen(ctx, []model.Job{job}, t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkPending(ctx, "agent", []string{"a"}, t0); err != nil {
+		t.Fatal(err)
+	}
+	_, p, err := s.FeedState(ctx, "agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p) != 1 || p[0].Title != job.Title || p[0].URL != job.URL || p[0].Score != 77 || !p[0].FirstSeenAt.Equal(t0) {
+		t.Errorf("pending = %+v, want the stored record of %q", p, job.Key)
+	}
+}
+
+func TestDeliveryRetention(t *testing.T) {
+	ctx := context.Background()
+	s := openMem(t)
+	t0 := time.Unix(1_800_000_000, 0)
+	if err := s.MarkDelivered(ctx, "agent", []string{"old"}, t0); err != nil {
+		t.Fatal(err)
+	}
+	later := t0.Add(deliveryRetention + time.Hour)
+	if err := s.MarkDelivered(ctx, "agent", []string{"new"}, later); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := pendingKeys(t, s, "agent"); !slices.Equal(d, []string{"new"}) {
+		t.Errorf("delivered = %v, want [new] after retention", d)
 	}
 }
 
@@ -59,7 +115,7 @@ func TestValidCursorName(t *testing.T) {
 		}
 	}
 	s := openMem(t)
-	if err := s.AdvanceCursor(context.Background(), "Bad Name", time.Now()); err == nil {
-		t.Error("AdvanceCursor accepted an invalid name")
+	if err := s.MarkPending(context.Background(), "Bad Name", []string{"a"}, time.Now()); err == nil {
+		t.Error("MarkPending accepted an invalid name")
 	}
 }

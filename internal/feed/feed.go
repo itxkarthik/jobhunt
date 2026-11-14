@@ -63,10 +63,18 @@ type Options struct {
 	Since time.Time
 	// NoDescription omits job descriptions to keep events small.
 	NoDescription bool
+
+	// Delivered holds keys the consumer already has; they're left out.
+	Delivered map[string]bool
+	// Pending jobs went out in an earlier batch that wasn't accepted. They
+	// are emitted first, even if they've since left the source; a pending
+	// job that's still in the results uses the fresh record instead.
+	Pending []model.Job
 }
 
 // Build converts one search result into a batch of events: every source,
-// then the selected jobs in result order, then the run summary.
+// then pending redeliveries, then the selected jobs in result order, then
+// the run summary.
 func Build(res *search.Result, runID string, opts Options) []Event {
 	at := utc(res.RunAt)
 	ev := func(t Type) Event { return Event{V: Version, Type: t, RunID: runID, At: at} }
@@ -84,10 +92,9 @@ func Build(res *search.Result, runID string, opts Options) []Event {
 		}
 		events = append(events, e)
 	}
-	for i := range res.Jobs {
-		j := res.Jobs[i] // copy: Build must not modify the result
+	emit := func(j model.Job) { // j is a copy: Build must not modify the result
 		if !opts.keep(&j) {
-			continue
+			return
 		}
 		if opts.NoDescription {
 			j.Description = ""
@@ -97,6 +104,20 @@ func Build(res *search.Result, runID string, opts Options) []Event {
 		e.Job = &j
 		events = append(events, e)
 		run.Emitted++
+	}
+	current := make(map[string]bool, len(res.Jobs))
+	for _, j := range res.Jobs {
+		current[j.Key] = true
+	}
+	for _, j := range opts.Pending {
+		if !current[j.Key] {
+			emit(j)
+		}
+	}
+	for _, j := range res.Jobs {
+		if !opts.Delivered[j.Key] {
+			emit(j)
+		}
 	}
 	e := ev(TypeRun)
 	e.Run = run

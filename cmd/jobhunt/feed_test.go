@@ -64,7 +64,7 @@ func newFeeder(t *testing.T, runs *fakeRuns, cursor string, hook *feed.Webhook) 
 	var out bytes.Buffer
 	return &feeder{
 		search: runs.search, cursors: runs.st, out: &out, log: &bytes.Buffer{},
-		webhook: hook, cursor: cursor, newID: func() string { return "run" },
+		webhook: hook, cursor: cursor, newID: func() string { return "run" }, now: time.Now,
 	}, &out
 }
 
@@ -144,8 +144,8 @@ func TestFeedWebhookFailureKeepsCursor(t *testing.T) {
 
 	fd, out := newFeeder(t, runs, "n8n", hook)
 	err = fd.once(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "not advanced") {
-		t.Fatalf("err = %v, want delivery failure that keeps the cursor", err)
+	if err == nil || !strings.Contains(err.Error(), "stay pending") {
+		t.Fatalf("err = %v, want delivery failure that keeps the jobs pending", err)
 	}
 	if got := emitted(t, out.Bytes()); !slices.Equal(got, []string{"a"}) {
 		t.Fatalf("stdout = %v, want [a] even when the webhook fails", got)
@@ -169,6 +169,70 @@ func TestFeedWebhookFailureKeepsCursor(t *testing.T) {
 	}
 	if calls.Load() != 3 {
 		t.Errorf("webhook calls = %d, want 3", calls.Load())
+	}
+}
+
+// failingWebhook returns a webhook whose receiver answers 400 while fail is set.
+func failingWebhook(t *testing.T, fail *atomic.Bool) *feed.Webhook {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	hook, err := feed.NewWebhook(srv.URL, nil, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return hook
+}
+
+// Regression: a job first seen in the same second as the last delivered
+// run must still be delivered (a timestamp cursor skipped it).
+func TestFeedCursorSameSecond(t *testing.T) {
+	t0 := time.Unix(1_800_000_000, 0)
+	runs := &fakeRuns{
+		st:   openStore(t),
+		runs: [][]model.Job{{job("a", 90)}, {job("a", 90), job("b", 80)}},
+		at:   []time.Time{t0, t0}, // both runs finish within the same second
+	}
+	for i, want := range [][]string{{"a"}, {"b"}} {
+		fd, out := newFeeder(t, runs, "agent", nil)
+		if err := fd.once(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if got := emitted(t, out.Bytes()); !slices.Equal(got, want) {
+			t.Errorf("run %d emitted %v, want %v", i, got, want)
+		}
+	}
+}
+
+// Regression: a job from a failed batch must be delivered later even if
+// the posting has left its source by then.
+func TestFeedPendingSurvivesSourceRemoval(t *testing.T) {
+	var fail atomic.Bool
+	fail.Store(true)
+	hook := failingWebhook(t, &fail)
+	t0 := time.Unix(1_800_000_000, 0)
+	runs := &fakeRuns{
+		st:   openStore(t),
+		runs: [][]model.Job{{job("a", 90)}, {job("b", 80)}, {job("b", 80)}}, // a is gone after run 1
+		at:   []time.Time{t0, t0.Add(time.Hour), t0.Add(2 * time.Hour)},
+	}
+	fd, _ := newFeeder(t, runs, "agent", hook)
+	if err := fd.once(context.Background()); err == nil {
+		t.Fatal("want delivery failure")
+	}
+	fail.Store(false)
+	for i, want := range [][]string{{"a", "b"}, nil} {
+		fd, out := newFeeder(t, runs, "agent", hook)
+		if err := fd.once(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if got := emitted(t, out.Bytes()); !slices.Equal(got, want) {
+			t.Errorf("run %d after recovery emitted %v, want %v", i, got, want)
+		}
 	}
 }
 
@@ -236,12 +300,17 @@ func TestFeedFlagsValidate(t *testing.T) {
 	}
 }
 
-func TestFeedSinceAndCursorExclusive(t *testing.T) {
-	cmd := newFeedCmd()
-	cmd.SetArgs([]string{"--since", "24h", "--cursor", "agent"})
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&bytes.Buffer{})
-	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "none of the others can be") {
-		t.Fatalf("err = %v, want mutually exclusive flag error", err)
+func TestFeedExclusiveFlags(t *testing.T) {
+	for _, args := range [][]string{
+		{"--since", "24h", "--cursor", "agent"},
+		{"--new-only", "--cursor", "agent"}, // --new-only would drop pending jobs already marked seen
+	} {
+		cmd := newFeedCmd()
+		cmd.SetArgs(args)
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "none of the others can be") {
+			t.Errorf("%v: err = %v, want mutually exclusive flag error", args, err)
+		}
 	}
 }

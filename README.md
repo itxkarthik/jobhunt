@@ -126,7 +126,7 @@ jobhunt feed -p india-backend --cursor agent --min-score 60 | ./agent.py     # e
 jobhunt feed -p india-backend --cursor db --every 6h | ./load-into-db.sh     # long-running
 ```
 
-- **`--cursor NAME`** gives each consumer at-least-once delivery. A run emits the jobs first seen since that consumer's last successful run, and the cursor only advances after the batch is delivered. Dedupe on `job.key`.
+- **`--cursor NAME`** gives each consumer at-least-once delivery. A run emits the matching jobs that consumer hasn't received yet. Until stdout and the webhook accept a batch, its jobs stay pending and are resent, even if a posting has left its source. Dedupe on `job.key`.
 - **`--since 24h`** (or a date or RFC 3339 time) replays jobs first seen since then, without state.
 - **Webhook:** set `JOBHUNT_WEBHOOK_URL` (or `--webhook`) to also POST each batch as `application/x-ndjson`. Failures are retried with backoff.
 - **Signing:** set `JOBHUNT_WEBHOOK_SECRET` (16+ characters) to sign requests. Receivers should compute `"sha256=" + hex(HMAC_SHA256(secret, "<X-Jobhunt-Timestamp>.<body>"))`, compare it to `X-Jobhunt-Signature` in constant time, and reject stale timestamps.
