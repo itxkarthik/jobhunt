@@ -46,7 +46,8 @@ type Report struct {
 type Result struct {
 	Jobs    []model.Job
 	Reports []Report
-	Total   int // jobs fetched across sources before filtering
+	Total   int       // jobs fetched across sources before filtering
+	RunAt   time.Time // when results were processed; new jobs' FirstSeenAt
 }
 
 type Engine struct {
@@ -105,6 +106,7 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 	}
 	classifyAll(e.Classifier, all)
 	now := time.Now()
+	res.RunAt = now
 	res.Jobs = dedup.Merge(Filter(all, f, e.Classifier, now))
 	rk := &rank.Ranker{W: e.Weights, Classifier: e.Classifier, Now: now}
 	kw := classify.NewTermSet(f.Keywords)
