@@ -131,12 +131,14 @@ func (c *Client) do(ctx context.Context, url string, headers map[string]string) 
 	}
 	se := &StatusError{Code: resp.StatusCode, URL: redact(url), Body: snippet}
 	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
-		return nil, true, &retryAfterError{StatusError: se, after: parseRetryAfter(resp.Header.Get("Retry-After"))}
+		return nil, true, &retryAfterError{StatusError: se, after: ParseRetryAfter(resp.Header.Get("Retry-After"))}
 	}
 	return nil, false, se
 }
 
-func parseRetryAfter(v string) time.Duration {
+// ParseRetryAfter reads a Retry-After header (seconds or an HTTP date).
+// It returns 0 when the header is missing or invalid.
+func ParseRetryAfter(v string) time.Duration {
 	if v == "" {
 		return 0
 	}

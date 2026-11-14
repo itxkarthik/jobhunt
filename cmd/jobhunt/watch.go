@@ -31,8 +31,8 @@ It runs in the foreground; see the README for a systemd user service.`,
 		Example: `  jobhunt watch --preset india-backend --every 6h
   jobhunt watch -p india-backend --min-score 60 --once   # one check, e.g. from cron`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if every < 15*time.Minute {
-				return fmt.Errorf("--every %s is too often; use at least 15m (sources rate-limit and cache)", every)
+			if err := checkInterval("every", every); err != nil {
+				return err
 			}
 			a, err := app.Open()
 			if err != nil {
@@ -57,23 +57,10 @@ It runs in the foreground; see the README for a systemd user service.`,
 				return res.Jobs, nil
 			}
 			fmt.Fprintf(w, "watching %s every %s (min score %.0f) — Ctrl+C to stop\n", summary(f), every, minScore)
-			ctx := cmd.Context()
-			for {
-				if err := watchOnce(ctx, w, search, minScore, send); err != nil {
-					if ctx.Err() != nil {
-						return nil
-					}
-					fmt.Fprintf(w, "%s  error: %v\n", time.Now().Format("2006-01-02 15:04"), err)
-				}
-				if once {
-					return nil
-				}
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(every):
-				}
-			}
+			repeat(cmd.Context(), every, once,
+				func(ctx context.Context) error { return watchOnce(ctx, w, search, minScore, send) },
+				func(err error) { fmt.Fprintf(w, "%s  error: %v\n", time.Now().Format("2006-01-02 15:04"), err) })
+			return nil
 		},
 	}
 	ff.register(cmd)

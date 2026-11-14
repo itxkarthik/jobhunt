@@ -101,14 +101,14 @@ type Job struct {
 	SalaryMax       *float64   `json:"salary_max,omitempty"`
 	Currency        string     `json:"currency,omitempty"`
 	VisaSponsorship *bool      `json:"visa_sponsorship,omitempty"`
-	PostedAt        time.Time  `json:"posted_at"`
+	PostedAt        time.Time  `json:"posted_at,omitzero"`
 	Description     string     `json:"description,omitempty"`
 	Tags            []string   `json:"tags,omitempty"`
 
 	// Populated after fetching.
-	Key         string    `json:"key,omitempty"` // stable dedup key across sources/runs
+	Key         string    `json:"key"` // stable dedup key across sources/runs
 	Sources     []string  `json:"sources,omitempty"`
-	FirstSeenAt time.Time `json:"first_seen_at"`
+	FirstSeenAt time.Time `json:"first_seen_at,omitzero"`
 	Score       float64   `json:"score,omitempty"`
 	New         bool      `json:"new,omitempty"`
 }

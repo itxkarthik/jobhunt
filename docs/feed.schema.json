@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/itxkarthik/jobhunt/blob/main/docs/feed.schema.json",
+  "title": "jobhunt feed event (v1)",
+  "description": "One line of `jobhunt feed` NDJSON output, or of a webhook batch. A run is a sequence of `source` events, then `job` events (best score first), then one `run` event that completes the batch. Consumers should ignore fields they don't know: new fields may be added within v1; removing or changing one bumps `v`.",
+  "type": "object",
+  "required": ["v", "type", "run_id", "at"],
+  "properties": {
+    "v": { "const": 1, "description": "Schema version." },
+    "type": { "enum": ["source", "job", "run"] },
+    "run_id": { "type": "string", "minLength": 1, "description": "Shared by every event of one run; also sent as the X-Jobhunt-Delivery webhook header." },
+    "at": { "type": "string", "format": "date-time", "description": "When the run's results were processed (UTC)." },
+    "source": { "$ref": "#/$defs/source" },
+    "job": { "$ref": "#/$defs/job" },
+    "run": { "$ref": "#/$defs/run" }
+  },
+  "oneOf": [
+    { "properties": { "type": { "const": "source" } }, "required": ["source"], "not": { "anyOf": [{ "required": ["job"] }, { "required": ["run"] }] } },
+    { "properties": { "type": { "const": "job" } }, "required": ["job"], "not": { "anyOf": [{ "required": ["source"] }, { "required": ["run"] }] } },
+    { "properties": { "type": { "const": "run" } }, "required": ["run"], "not": { "anyOf": [{ "required": ["source"] }, { "required": ["job"] }] } }
+  ],
+  "$defs": {
+    "source": {
+      "type": "object",
+      "description": "What one source did during the run.",
+      "required": ["name", "status", "count", "duration_ms"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "enum": ["ok", "cached", "skipped", "error"] },
+        "count": { "type": "integer", "minimum": 0, "description": "Jobs returned by the source before filtering." },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "error": { "type": "string", "description": "Why the source was skipped or failed." }
+      }
+    },
+    "run": {
+      "type": "object",
+      "description": "Summary; always the last event of a run.",
+      "required": ["fetched", "matched", "emitted", "source_errors"],
+      "properties": {
+        "fetched": { "type": "integer", "minimum": 0, "description": "Jobs from all sources before filtering." },
+        "matched": { "type": "integer", "minimum": 0, "description": "Jobs matching the filters, after dedup." },
+        "emitted": { "type": "integer", "minimum": 0, "description": "Job events in this batch." },
+        "source_errors": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "job": {
+      "type": "object",
+      "description": "A deduplicated, classified and scored job. Text fields come from the open internet and have been stripped of control and bidi characters, but are still untrusted: escape them before rendering as HTML.",
+      "required": ["id", "source", "title", "company", "url", "work_mode", "job_type", "experience", "key"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "description": "Stable ID across sources and runs. Dedupe and upsert on this." },
+        "id": { "type": "string", "description": "\"<source>:<native id>\" of the primary record." },
+        "source": { "type": "string", "description": "Source of the primary record." },
+        "sources": { "type": "array", "items": { "type": "string" }, "description": "Every source this job was found on." },
+        "title": { "type": "string" },
+        "company": { "type": "string" },
+        "url": { "type": "string", "pattern": "^(https?://.+)?$", "description": "An http(s) link, or empty when the source gave no safe one (non-http(s) links are removed)." },
+        "countries": { "type": "array", "items": { "type": "string", "pattern": "^([A-Z]{2}|remote-global|region:[a-z-]+)$" }, "description": "ISO 3166-1 alpha-2 codes, remote-global, or region:<name>." },
+        "city": { "type": "string" },
+        "location": { "type": "string", "description": "Raw location text from the source." },
+        "work_mode": { "enum": ["remote", "onsite", "hybrid", "unknown"] },
+        "job_type": { "enum": ["internship", "full-time", "part-time", "contract", "new-grad", "unknown"] },
+        "experience": { "enum": ["intern", "entry", "mid", "senior", "unknown"] },
+        "areas": { "type": "array", "items": { "$ref": "#/$defs/area" } },
+        "salary_min": { "type": "number" },
+        "salary_max": { "type": "number" },
+        "currency": { "type": "string", "description": "ISO 4217 code for salary_min/salary_max." },
+        "visa_sponsorship": { "type": "boolean", "description": "Absent when the posting doesn't say." },
+        "posted_at": { "type": "string", "format": "date-time", "description": "Absent when the source gives no date." },
+        "first_seen_at": { "type": "string", "format": "date-time", "description": "When jobhunt first saw this job in any search." },
+        "description": { "type": "string", "description": "Plain text; absent with --no-description." },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "score": { "type": "number", "minimum": 0, "maximum": 100, "description": "Fit for this search; absent means 0." },
+        "new": { "type": "boolean", "description": "First seen in this run." }
+      }
+    },
+    "area": {
+      "enum": ["backend", "frontend", "full-stack", "mobile", "ml-ai", "data-engineering", "data-science", "devops",
+        "systems", "hpc-gpu", "security", "embedded", "qa", "research", "blockchain", "gamedev"]
+    }
+  }
+}
