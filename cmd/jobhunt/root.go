@@ -18,7 +18,7 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.AddCommand(newSearchCmd(), newTUICmd(), newTrackerCmd(), newPresetCmd(), newExportCmd(),
-		newWatchCmd(), newSourcesCmd(), newConfigCmd())
+		newWatchCmd(), newFeedCmd(), newSourcesCmd(), newConfigCmd())
 	root.AddCommand(newHideCmds()...)
 	return root
 }
