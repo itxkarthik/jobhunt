@@ -10,6 +10,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
+	s.apiRoutes(mux)
 	if s.opts.Static != nil {
 		mux.Handle("GET /", http.FileServerFS(s.opts.Static))
 	} else {

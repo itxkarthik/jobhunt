@@ -111,6 +111,12 @@ func (s *Store) Job(ctx context.Context, key string) (*model.Job, error) {
 	return &j, nil
 }
 
+// Key lookup errors, so callers (e.g. the HTTP API) can tell them apart.
+var (
+	ErrNoJob        = errors.New("no job with that key")
+	ErrAmbiguousKey = errors.New("ambiguous key")
+)
+
 // ResolveKey expands a key prefix (as printed in the KEY column) to a full
 // key, erroring if it's unknown or ambiguous.
 func (s *Store) ResolveKey(ctx context.Context, prefix string) (string, error) {
@@ -138,11 +144,11 @@ func (s *Store) ResolveKey(ctx context.Context, prefix string) (string, error) {
 	}
 	switch len(keys) {
 	case 0:
-		return "", fmt.Errorf("no job with key %q (run a search first)", prefix)
+		return "", fmt.Errorf("%w %q (run a search first)", ErrNoJob, prefix)
 	case 1:
 		return keys[0], nil
 	default:
-		return "", fmt.Errorf("key %q is ambiguous: %s", prefix, strings.Join(keys, ", "))
+		return "", fmt.Errorf("%w %q: %s", ErrAmbiguousKey, prefix, strings.Join(keys, ", "))
 	}
 }
 
