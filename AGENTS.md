@@ -26,10 +26,11 @@ Before you say a change is done, run `make test`, `make lint`, `gofmt -l .` and 
 ## Layout
 
 ```
-cmd/jobhunt/        Cobra commands: search, tui, tracker, preset, export, watch, feed, hide, sources, config
+cmd/jobhunt/        Cobra commands: search, tui, tracker, preset, export, watch, feed, serve, hide, sources, config
 internal/model/     Job, Filters, enums; geo.go = country/region/location parsing
 internal/config/    config.yaml + JOBHUNT_* env overrides; config.example.yaml is embedded
-internal/app/       wiring; catalog.go is the registry of every source
+internal/app/       wiring; catalog.go is the registry of every source; filters.go = FilterInput
+                    parsing shared by CLI flags and the API
 internal/sources/   Source interface + optional interfaces, Client (httpx.go), SanitizeJob, text helpers
   <name>/           one package per source, each with testdata/ fixtures
   ats/              Greenhouse, Lever, Ashby, Workable, Recruitee + companies.yaml
@@ -43,6 +44,7 @@ internal/rank/      Weights + Ranker
 internal/store/     SQLite; migrations/NNN_*.sql applied in order via PRAGMA user_version
 internal/tui/       Bubble Tea v2 model (tui.go)
 internal/feed/      headless v1 NDJSON events, signed webhook sink (docs/feed.schema.json)
+internal/server/    `jobhunt serve`: security middleware, REST API, SSE (docs/api.md)
 internal/export/    csv/json/md writers
 internal/notify/    notify-send / osascript
 internal/browser/   open http(s) URLs
@@ -54,7 +56,7 @@ internal/browser/   open http(s) URLs
    - Never add a scraper for LinkedIn, Indeed, Naukri, Internshala, Glassdoor, X or any site whose terms or `robots.txt` forbid automated access. Add a link in `internal/sources/links` instead.
    - Check `robots.txt` and terms before adding any source, and note them in the package doc comment.
 2. **Never commit or print secrets.**
-   - Keys live in `~/.config/jobhunt/config.yaml` or env vars: `JOBHUNT_JSEARCH_API_KEY`, `JOBHUNT_X_BEARER_TOKEN`, `JOBHUNT_ADZUNA_APP_ID`, `JOBHUNT_ADZUNA_APP_KEY`.
+   - Keys live in `~/.config/jobhunt/config.yaml` or env vars: `JOBHUNT_JSEARCH_API_KEY`, `JOBHUNT_X_BEARER_TOKEN`, `JOBHUNT_ADZUNA_APP_ID`, `JOBHUNT_ADZUNA_APP_KEY`, `JOBHUNT_WEBHOOK_URL`, `JOBHUNT_WEBHOOK_SECRET`, `JOBHUNT_SERVE_TOKEN`.
    - Don't echo key values in commands or output; redact them.
    - Don't put keys on a command line where a header file or env var works instead.
 3. **Paid or quota-limited sources stay opt-in.** That means `enabled: false` in the example config, and `Ready()` returns an error without a key. Don't make extra live requests to them while testing; each one spends the user's quota.
@@ -62,7 +64,13 @@ internal/browser/   open http(s) URLs
 5. **Untrusted text.** All fetched jobs go through `sources.SanitizeJob` in `search.Engine.Run` before anything is printed, exported or stored. Keep it that way. URLs must stay `http(s)`-only.
 6. **Database.** Schema changes need a **new** migration file; never edit an applied one. Changing `dedup.Key` invalidates users' tracker and hidden keys, so don't do it casually.
 7. **The feed event format is a public contract.** `docs/feed.schema.json`, `feed.Version` and `internal/feed/testdata/batch.ndjson` change together, and `TestSchemaMatchesTypes` keeps them in sync with the Go types. Adding a field is fine. Removing, renaming or retyping one, including on `model.Job`, needs a `feed.Version` bump. Webhook errors must never print the URL path or query (they often hold tokens), and secrets come only from config or env.
-8. **Don't touch the user's environment** (`~/.bashrc`, `~/.config/jobhunt/config.yaml`, `~/.local/share/jobhunt/`) unless asked.
+8. **The local server stays locked down.** In `internal/server`, keep all of these:
+   - loopback by default, plus the Host allowlist (it stops DNS rebinding);
+   - the bearer token on every `/api` route (never from the query string), compared in constant time;
+   - `http.CrossOriginProtection`, JSON-only request bodies and the CSP and security headers;
+   - generic 500 responses that never include internal errors.
+   New endpoints go through `s.handle` and `decode`, and get tests for 401/403. Job text is untrusted: never put it in HTML without escaping.
+9. **Don't touch the user's environment** (`~/.bashrc`, `~/.config/jobhunt/config.yaml`, `~/.local/share/jobhunt/`) unless asked.
 
 ## Conventions
 

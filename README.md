@@ -16,6 +16,7 @@ jobhunt is a single Go binary for students and early-career engineers looking fo
 - **Application tracker.** saved → applied → OA → interview → offer / rejected, with notes and history.
 - **Watch mode.** Re-runs a search on a schedule and sends a desktop notification when new matches appear.
 - **Headless mode.** `jobhunt feed` streams versioned NDJSON events for queues, databases and agents, with at-least-once cursors and a signed webhook.
+- **Local API.** `jobhunt serve` exposes search, tracker, presets and live progress as a token-protected JSON API on localhost.
 - **Legal by design.** Uses only public APIs, ATS job-board APIs and RSS feeds, and respects their terms and rate limits. Sites that forbid automation (LinkedIn, Indeed, Naukri, Internshala, Glassdoor) get pre-filled browser links instead.
 
 ## Install
@@ -130,6 +131,18 @@ jobhunt feed -p india-backend --cursor db --every 6h | ./load-into-db.sh     # l
 - **`--since 24h`** (or a date or RFC 3339 time) replays jobs first seen since then, without state.
 - **Webhook:** set `JOBHUNT_WEBHOOK_URL` (or `--webhook`) to also POST each batch as `application/x-ndjson`. Failures are retried with backoff.
 - **Signing:** set `JOBHUNT_WEBHOOK_SECRET` (16+ characters) to sign requests. Receivers should compute `"sha256=" + hex(HMAC_SHA256(secret, "<X-Jobhunt-Timestamp>.<body>"))`, compare it to `X-Jobhunt-Signature` in constant time, and reject stale timestamps.
+
+## Local API
+
+`jobhunt serve` runs a JSON API on `127.0.0.1:7777`. It covers search (with a live Server-Sent Events stream), the tracker, hiding, presets and source health. The web UI is built on this API, and you can build on it too.
+
+```sh
+jobhunt serve      # prints the URL and a bearer token
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"types":["internship"],"areas":["backend"],"limit":5}' http://127.0.0.1:7777/api/search
+```
+
+The server listens on loopback only and requires the token on every `/api` request. It also rejects foreign `Host` headers and cross-origin writes. Every endpoint is documented in [`docs/api.md`](docs/api.md).
 
 ## Sources
 
