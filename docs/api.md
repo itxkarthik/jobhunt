@@ -78,7 +78,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | `GET /api/presets/{name}` | One preset |
 | `PUT /api/presets/{name}` | Save filters under a name: letters, digits, `.`, `_` and `-`, up to 64 characters |
 | `DELETE /api/presets/{name}` | Delete it (`204`) |
-| `GET /api/sources` | Each source's `enabled` and `ready` state, `not_ready` (for example which key is missing; never the key itself), last run, last success and recent errors |
+| `GET /api/sources` | Every known source, including disabled ones: `description`, `credential` (the config field it needs, never its value), `enabled` and `ready` state, `not_ready` (for example which key is missing), last run, last success and recent errors |
 
 Tracker statuses are `saved`, `applied`, `oa`, `interview`, `offer` and `rejected`.
 

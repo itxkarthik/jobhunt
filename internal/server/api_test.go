@@ -52,6 +52,11 @@ func apiServer(t *testing.T) (*Server, *store.Store, *recorder) {
 			}}, nil
 		}
 		o.Sources = []sources.Source{fakeSource{"greenhouse", nil}, fakeSource{"jsearch", errors.New("missing jsearch api_key")}}
+		o.Catalog = []SourceDesc{
+			{Name: "greenhouse", Description: "Company boards on Greenhouse"},
+			{Name: "jsearch", Description: "JSearch", Credential: "api_key"},
+			{Name: "adzuna", Description: "Adzuna API", Credential: "app_id + app_key"}, // disabled, never run
+		}
 	})
 	if err := st.MarkSeen(context.Background(), slices.Clone(testJobs), t0); err != nil {
 		t.Fatal(err)
@@ -326,6 +331,13 @@ func TestSources(t *testing.T) {
 	}
 	if r := byName["remotive"]; r.Enabled || r.Last == nil || r.RecentErrors != 1 {
 		t.Errorf("remotive = %+v", r)
+	}
+	// Regression: disabled sources that never ran must still be listed.
+	if a, ok := byName["adzuna"]; !ok || a.Enabled || a.Ready || a.Credential != "app_id + app_key" || a.Description == "" || a.Last != nil {
+		t.Errorf("adzuna = %+v (listed %v)", a, ok)
+	}
+	if g := byName["greenhouse"]; g.Description == "" || g.Credential != "" {
+		t.Errorf("greenhouse description/credential = %q/%q", g.Description, g.Credential)
 	}
 	if !slices.IsSortedFunc(out, func(a, b sourceStatus) int { return strings.Compare(a.Name, b.Name) }) {
 		t.Error("sources not sorted by name")

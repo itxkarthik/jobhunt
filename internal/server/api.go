@@ -92,6 +92,8 @@ type lastRun struct {
 
 type sourceStatus struct {
 	Name         string    `json:"name"`
+	Description  string    `json:"description,omitempty"`
+	Credential   string    `json:"credential,omitempty"` // config field it needs, never its value
 	Enabled      bool      `json:"enabled"`
 	Ready        bool      `json:"ready"`
 	NotReady     string    `json:"not_ready,omitempty"` // e.g. which key is missing; never the key
@@ -436,14 +438,21 @@ func (s *Server) sourcesList(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	byName := map[string]*sourceStatus{}
+	for _, d := range s.opts.Catalog {
+		byName[d.Name] = &sourceStatus{Name: d.Name, Description: d.Description, Credential: d.Credential}
+	}
 	for _, src := range s.opts.Sources {
-		st := &sourceStatus{Name: src.Name(), Enabled: true, Ready: true}
+		st, ok := byName[src.Name()]
+		if !ok {
+			st = &sourceStatus{Name: src.Name()}
+			byName[st.Name] = st
+		}
+		st.Enabled, st.Ready = true, true
 		if rd, ok := src.(sources.Readier); ok {
 			if err := rd.Ready(); err != nil {
 				st.Ready, st.NotReady = false, err.Error()
 			}
 		}
-		byName[st.Name] = st
 	}
 	for name, h := range health {
 		st, ok := byName[name]

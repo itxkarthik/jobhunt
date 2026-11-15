@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/itxkarthik/jobhunt/internal/app"
 )
 
 func TestServeHosts(t *testing.T) {
@@ -53,6 +55,18 @@ func TestBaseURL(t *testing.T) {
 		}
 		if got := baseURL(a); got != want {
 			t.Errorf("baseURL(%s) = %s, want %s", addr, got, want)
+		}
+	}
+}
+
+func TestCatalogListsEverySource(t *testing.T) {
+	got := catalog()
+	if len(got) != len(app.Catalog) {
+		t.Fatalf("catalog has %d sources, want %d", len(got), len(app.Catalog))
+	}
+	for i, info := range app.Catalog {
+		if d := got[i]; d.Name != info.Name || d.Description != info.Description || d.Credential != info.Key {
+			t.Errorf("catalog[%d] = %+v, want %s", i, d, info.Name)
 		}
 	}
 }

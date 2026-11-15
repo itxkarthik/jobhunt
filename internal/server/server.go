@@ -59,11 +59,19 @@ type Options struct {
 	Store    *store.Store
 	Search   SearchFunc
 	Sources  []sources.Source // enabled sources, for readiness in /api/sources
+	Catalog  []SourceDesc     // every known source, so disabled ones are listed too
 	Defaults config.Defaults  // applied to empty filter fields, as in the CLI
 	Token    string           // bearer token for /api; at least MinTokenLen
 	Hosts    []string         // extra allowed Host names besides loopback
 	Static   fs.FS            // web UI files; nil serves a short notice at /
 	Logger   *slog.Logger
+}
+
+// SourceDesc describes a source whether or not it's enabled.
+type SourceDesc struct {
+	Name        string
+	Description string
+	Credential  string // config field it needs, e.g. "api_key"; "" if none
 }
 
 // Server serves the API and the web UI.

@@ -58,6 +58,7 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 				Store:    a.Store,
 				Search:   engineSearch(a),
 				Sources:  a.Sources,
+				Catalog:  catalog(),
 				Defaults: a.Config.Defaults,
 				Token:    token,
 				Hosts:    hosts,
@@ -144,4 +145,13 @@ func engineSearch(a *app.App) server.SearchFunc {
 		eng.Progress = progress
 		return eng.Run(ctx, f)
 	}
+}
+
+// catalog describes every known source for /api/sources.
+func catalog() []server.SourceDesc {
+	out := make([]server.SourceDesc, 0, len(app.Catalog))
+	for _, info := range app.Catalog {
+		out = append(out, server.SourceDesc{Name: info.Name, Description: info.Description, Credential: info.Key})
+	}
+	return out
 }
