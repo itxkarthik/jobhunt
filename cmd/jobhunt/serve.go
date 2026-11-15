@@ -7,6 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -69,7 +71,7 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 			if err != nil {
 				return err
 			}
-			base := "http://" + ln.Addr().String()
+			base := baseURL(ln.Addr())
 			printServeBanner(out, base, token, fixed)
 			if open {
 				// The token rides in the URL fragment, which browsers never
@@ -88,24 +90,39 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 	return cmd
 }
 
-// serveHosts returns the extra Host names to accept. Listening beyond
-// loopback is allowed but loud, since the API exposes your tracker notes.
+// serveHosts returns the extra Host names to accept: --allow-host plus the
+// address being listened on, so the URL in the banner always works (e.g.
+// --addr 127.0.0.2:7777). Listening beyond loopback is allowed but loud,
+// since the API exposes your tracker notes.
 func serveHosts(addr string, extra []string, log io.Writer) ([]string, error) {
-	if server.IsLoopback(addr) {
-		return extra, nil
-	}
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, fmt.Errorf("bad --addr %q: %w", addr, err)
 	}
-	fmt.Fprintf(log, "warning: listening on %s, beyond loopback; anyone on your network with the token can use the API\n", addr)
-	if ip := net.ParseIP(host); ip != nil && !ip.IsUnspecified() {
-		return append(extra, host), nil
+	hosts := slices.Clone(extra)
+	ip := net.ParseIP(host)
+	unspecified := host == "" || (ip != nil && ip.IsUnspecified())
+	if !unspecified {
+		hosts = append(hosts, host)
 	}
-	if len(extra) == 0 {
+	if server.IsLoopback(addr) {
+		return hosts, nil
+	}
+	fmt.Fprintf(log, "warning: listening on %s, beyond loopback; anyone on your network with the token can use the API\n", addr)
+	if unspecified && len(extra) == 0 {
 		fmt.Fprintln(log, "note: only localhost Host headers are accepted; add --allow-host <name-or-ip> for other clients")
 	}
-	return extra, nil
+	return hosts, nil
+}
+
+// baseURL is the URL to print for a listener. A wildcard listener is
+// reachable (and allowed) via loopback.
+func baseURL(a net.Addr) string {
+	tcp, ok := a.(*net.TCPAddr)
+	if ok && tcp.IP.IsUnspecified() {
+		return "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(tcp.Port))
+	}
+	return "http://" + a.String()
 }
 
 func printServeBanner(w io.Writer, base, token string, fixed bool) {
