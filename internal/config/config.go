@@ -33,6 +33,14 @@ type Config struct {
 	Ranking  rank.Weights            `yaml:"ranking"`
 	Sources  map[string]SourceConfig `yaml:"sources"`
 	Feed     Feed                    `yaml:"feed"`
+	Serve    Serve                   `yaml:"serve"`
+}
+
+// Serve configures `jobhunt serve`.
+type Serve struct {
+	// Token fixes the API bearer token (or JOBHUNT_SERVE_TOKEN), e.g. for an
+	// agent that talks to the API. Empty means a new random token per run.
+	Token string `yaml:"token,omitempty"`
 }
 
 // Feed configures `jobhunt feed`. Both values are secrets in practice: many
@@ -179,6 +187,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("JOBHUNT_WEBHOOK_SECRET"); v != "" {
 		cfg.Feed.WebhookSecret = v
+	}
+	if v := os.Getenv("JOBHUNT_SERVE_TOKEN"); v != "" {
+		cfg.Serve.Token = v
 	}
 }
 

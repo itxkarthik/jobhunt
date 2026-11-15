@@ -265,7 +265,7 @@ func parseSince(s string, now time.Time) (time.Time, error) {
 	if t, err := time.ParseInLocation(time.DateOnly, s, now.Location()); err == nil {
 		return t, nil
 	}
-	if d, err := parseAge(s); err == nil {
+	if d, err := app.ParseAge(s); err == nil {
 		return now.Add(-d), nil
 	}
 	return time.Time{}, fmt.Errorf("bad --since %q (use 2026-11-14T09:00:00+05:30, 2026-11-14, 24h or 7d)", s)

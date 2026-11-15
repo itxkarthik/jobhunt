@@ -63,6 +63,9 @@ type Options struct {
 	Since time.Time
 	// NoDescription omits job descriptions to keep events small.
 	NoDescription bool
+	// Limit caps the job events (0 = all). The run event's matched count
+	// still reports every match.
+	Limit int
 
 	// Delivered holds keys the consumer already has; they're left out.
 	Delivered map[string]bool
@@ -87,13 +90,14 @@ func Build(res *search.Result, runID string, opts Options) []Event {
 			run.SourceErrors++
 		}
 		e := ev(TypeSource)
-		e.Source = &SourceEvent{
-			Name: r.Source, Status: r.Status, Count: r.Count,
-			DurationMS: r.Duration.Milliseconds(), Error: r.Err,
-		}
+		src := SourceOf(r)
+		e.Source = &src
 		events = append(events, e)
 	}
 	emit := func(j model.Job) { // j is a copy: Build must not modify the result
+		if opts.Limit > 0 && run.Emitted >= opts.Limit {
+			return
+		}
 		if opts.NoDescription {
 			j.Description = ""
 		}
@@ -125,6 +129,14 @@ func Build(res *search.Result, runID string, opts Options) []Event {
 	e := ev(TypeRun)
 	e.Run = run
 	return append(events, e)
+}
+
+// SourceOf describes what one source did, as in a source event.
+func SourceOf(r search.Report) SourceEvent {
+	return SourceEvent{
+		Name: r.Source, Status: r.Status, Count: r.Count,
+		DurationMS: r.Duration.Milliseconds(), Error: r.Err,
+	}
 }
 
 // utc normalises event timestamps; the zero time stays zero so it's omitted.

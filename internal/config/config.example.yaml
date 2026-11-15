@@ -1,6 +1,7 @@
 # Copy to ~/.config/jobhunt/config.yaml (or run `jobhunt config init`).
 # API keys can also come from env vars: JOBHUNT_ADZUNA_APP_ID, JOBHUNT_ADZUNA_APP_KEY,
-# JOBHUNT_JSEARCH_API_KEY, JOBHUNT_X_BEARER_TOKEN, JOBHUNT_WEBHOOK_URL, JOBHUNT_WEBHOOK_SECRET.
+# JOBHUNT_JSEARCH_API_KEY, JOBHUNT_X_BEARER_TOKEN, JOBHUNT_WEBHOOK_URL, JOBHUNT_WEBHOOK_SECRET,
+# JOBHUNT_SERVE_TOKEN.
 
 user_agent: "jobhunt/0.1 (+https://github.com/itxkarthik/jobhunt; personal job search)"
 cache_ttl: 1h      # don't refetch a source within this window
@@ -69,3 +70,9 @@ sources:
 feed:
   # webhook_url: "https://example.com/hooks/jobhunt"
   # webhook_secret: ""   # >= 16 chars; signs requests (X-Jobhunt-Signature)
+
+# Local web UI and API: `jobhunt serve`. Every /api request needs the bearer
+# token. By default a random one is generated and printed at startup; set
+# one here or in JOBHUNT_SERVE_TOKEN (>= 16 chars) for a stable token.
+serve:
+  # token: ""
