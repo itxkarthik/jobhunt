@@ -107,7 +107,7 @@ curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
 
 ### `GET /api/events`
 
-This runs the same search as `POST /api/search`, but streams it as `text/event-stream`. The query parameters use the same names as the JSON fields. Lists can be comma-separated or repeated, e.g. `?countries=IN,US&areas=backend&areas=devops&posted_within=7d&refresh=true`.
+This runs the same search as `POST /api/search`, but streams it as `text/event-stream`. The query parameters use the same names as the JSON fields, including `limit` (the run event's `matched` still counts every match). Lists can be comma-separated or repeated, e.g. `?countries=IN,US&areas=backend&areas=devops&posted_within=7d&refresh=true`.
 
 Each event's name is its feed type, and its `data` is the same v1 JSON as a [`jobhunt feed`](feed.schema.json) line:
 

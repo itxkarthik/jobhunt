@@ -98,7 +98,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 				}
 				return nil
 			}
-			for _, e := range feed.Build(out.res, runID, feed.Options{}) {
+			for _, e := range feed.Build(out.res, runID, feed.Options{Limit: req.Limit}) {
 				if e.Type != feed.TypeSource && !send(e) { // sources were streamed already
 					return nil
 				}
@@ -150,6 +150,12 @@ func searchRequestOf(q url.Values) (searchRequest, error) {
 				return req, badRequest("%s must be true or false", name)
 			}
 			*bools[name] = b
+		case name == "limit":
+			n, err := strconv.Atoi(last)
+			if err != nil {
+				return req, badRequest("limit must be a whole number")
+			}
+			req.Limit = n
 		case name == "min_salary":
 			n, err := strconv.ParseFloat(last, 64)
 			if err != nil {

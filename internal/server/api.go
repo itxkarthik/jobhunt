@@ -150,9 +150,6 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if req.Limit < 0 {
-		return badRequest("limit must be 0 (all) or more")
-	}
 	res, err := s.runSearch(r.Context(), f, o, nil)
 	if err != nil {
 		return err
@@ -185,6 +182,9 @@ func (s *Server) parseSearch(req searchRequest) (model.Filters, SearchOptions, e
 	}
 	if req.Sort != "" && req.Sort != "score" && req.Sort != "date" {
 		return f, SearchOptions{}, badRequest("sort must be score or date")
+	}
+	if req.Limit < 0 {
+		return f, SearchOptions{}, badRequest("limit must be 0 (all) or more")
 	}
 	return f, SearchOptions{Refresh: req.Refresh, NewOnly: req.NewOnly, ShowHidden: req.ShowHidden, Sort: req.Sort}, nil
 }

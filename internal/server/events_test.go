@@ -143,6 +143,34 @@ func TestEventsStream(t *testing.T) {
 	}
 }
 
+// Regression: the stream must accept limit like POST /api/search.
+func TestEventsLimit(t *testing.T) {
+	srv := streamServer(t, func(context.Context, model.Filters, SearchOptions, func(search.Report)) (*search.Result, error) {
+		return &search.Result{RunAt: t0, Jobs: slices.Clone(testJobs)}, nil
+	})
+	st := openStream(t, context.Background(), srv, "limit=2")
+	if st.status != http.StatusOK {
+		t.Fatalf("status %d", st.status)
+	}
+	var jobs int
+	var run *feed.RunEvent
+	for _, e := range readSSE(t, st.body) {
+		var ev feed.Event
+		if err := json.Unmarshal([]byte(e.data), &ev); err != nil {
+			t.Fatal(err)
+		}
+		if ev.Job != nil {
+			jobs++
+		}
+		if ev.Run != nil {
+			run = ev.Run
+		}
+	}
+	if jobs != 2 || run == nil || run.Emitted != 2 || run.Matched != len(testJobs) {
+		t.Errorf("jobs %d, run %+v; want 2 emitted of %d matched", jobs, run, len(testJobs))
+	}
+}
+
 func TestEventsClientDisconnectCancelsSearch(t *testing.T) {
 	started, cancelled := make(chan struct{}), make(chan struct{})
 	srv := streamServer(t, func(ctx context.Context, _ model.Filters, _ SearchOptions, _ func(search.Report)) (*search.Result, error) {
@@ -174,7 +202,7 @@ func TestEventsSearchError(t *testing.T) {
 
 func TestEventsRejectsBadQueryBeforeStreaming(t *testing.T) {
 	s, _ := newTestServer(t, nil)
-	for _, q := range []string{"colour=blue", "visa=maybe", "countries=Atlantis", "min_salary=lots", "min_salary=NaN", "min_salary=Inf", "min_salary=-1", "sort=random"} {
+	for _, q := range []string{"colour=blue", "visa=maybe", "countries=Atlantis", "min_salary=lots", "min_salary=NaN", "min_salary=Inf", "min_salary=-1", "sort=random", "limit=-1", "limit=five"} {
 		w := serve(s, req(http.MethodGet, "/api/events?"+q, ""))
 		if w.Code != http.StatusBadRequest || w.Header().Get("Content-Type") == "text/event-stream" {
 			t.Errorf("%s: status %d, type %q", q, w.Code, w.Header().Get("Content-Type"))
