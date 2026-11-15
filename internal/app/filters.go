@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -58,8 +59,9 @@ func ParseFilters(d config.Defaults, in FilterInput) (model.Filters, error) {
 			return f, err
 		}
 	}
-	if in.MinSalary < 0 {
-		return f, fmt.Errorf("min salary %v is negative", in.MinSalary)
+	// NaN would silently disable the filter and +Inf would drop every job.
+	if in.MinSalary < 0 || math.IsNaN(in.MinSalary) || math.IsInf(in.MinSalary, 0) {
+		return f, fmt.Errorf("min salary %v must be a finite number, 0 or more", in.MinSalary)
 	}
 	f.VisaOnly, f.MinSalary = in.Visa, in.MinSalary
 	f.Currency = strings.ToUpper(strings.TrimSpace(in.Currency))

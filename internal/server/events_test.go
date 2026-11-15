@@ -174,7 +174,7 @@ func TestEventsSearchError(t *testing.T) {
 
 func TestEventsRejectsBadQueryBeforeStreaming(t *testing.T) {
 	s, _ := newTestServer(t, nil)
-	for _, q := range []string{"colour=blue", "visa=maybe", "countries=Atlantis", "min_salary=lots", "sort=random"} {
+	for _, q := range []string{"colour=blue", "visa=maybe", "countries=Atlantis", "min_salary=lots", "min_salary=NaN", "min_salary=Inf", "min_salary=-1", "sort=random"} {
 		w := serve(s, req(http.MethodGet, "/api/events?"+q, ""))
 		if w.Code != http.StatusBadRequest || w.Header().Get("Content-Type") == "text/event-stream" {
 			t.Errorf("%s: status %d, type %q", q, w.Code, w.Header().Get("Content-Type"))

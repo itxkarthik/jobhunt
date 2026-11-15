@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math"
 	"reflect"
 	"slices"
 	"testing"
@@ -41,6 +42,8 @@ func TestParseFilters(t *testing.T) {
 		{"unknown experience", FilterInput{Experience: []string{"wizard"}}, nil, true},
 		{"bad age", FilterInput{PostedWithin: "soon"}, nil, true},
 		{"negative salary", FilterInput{MinSalary: -1}, nil, true},
+		{"NaN salary", FilterInput{MinSalary: math.NaN()}, nil, true},
+		{"infinite salary", FilterInput{MinSalary: math.Inf(1)}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
