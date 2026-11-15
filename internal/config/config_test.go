@@ -94,3 +94,15 @@ func TestExampleConfigParses(t *testing.T) {
 		t.Fatalf("config.example.yaml: %v", err)
 	}
 }
+
+func TestServeTokenFromEnv(t *testing.T) {
+	t.Setenv("JOBHUNT_CONFIG", filepath.Join(t.TempDir(), "nope.yaml"))
+	t.Setenv("JOBHUNT_SERVE_TOKEN", "env-token-0123456789")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Serve.Token != "env-token-0123456789" {
+		t.Error("JOBHUNT_SERVE_TOKEN not applied")
+	}
+}
