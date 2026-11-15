@@ -103,6 +103,7 @@ type sourceStatus struct {
 func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/meta", s.handle(s.meta))
 	mux.HandleFunc("POST /api/search", s.handle(s.search))
+	mux.HandleFunc("GET /api/events", s.handle(s.events))
 	mux.HandleFunc("GET /api/jobs/{key}", s.handle(s.job))
 	mux.HandleFunc("POST /api/jobs/{key}/hide", s.handle(s.hide(true)))
 	mux.HandleFunc("DELETE /api/jobs/{key}/hide", s.handle(s.hide(false)))
