@@ -34,10 +34,13 @@ import (
 const MinTokenLen = 16
 
 const (
-	maxBody      = 1 << 20 // request bodies are small JSON documents
-	csp          = "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-	shutdownWait = 5 * time.Second
+	maxBody = 1 << 20 // request bodies are small JSON documents
+	csp     = "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 )
+
+// shutdownWait is how long in-flight requests get before connections are
+// closed; a variable so tests can shorten it.
+var shutdownWait = 5 * time.Second
 
 // SearchOptions are the engine options a search request may set.
 type SearchOptions struct {
@@ -127,7 +130,14 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	sctx, stop := context.WithTimeout(context.WithoutCancel(ctx), shutdownWait)
 	defer stop()
 	if err := srv.Shutdown(sctx); err != nil {
-		return fmt.Errorf("shutdown: %w", err)
+		// Something is still running (e.g. a write to a client that stopped
+		// reading). Close the connections rather than hang on exit.
+		_ = srv.Close()
+		if serr := <-errc; !errors.Is(serr, http.ErrServerClosed) {
+			return serr
+		}
+		s.log.Warn("forced shutdown: requests were still running", "err", err)
+		return nil
 	}
 	if err := <-errc; !errors.Is(err, http.ErrServerClosed) {
 		return err

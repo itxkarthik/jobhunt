@@ -15,7 +15,15 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/search"
 )
 
-const keepalive = 15 * time.Second
+// Stream timing; variables so tests can shorten them.
+var (
+	keepalive = 15 * time.Second
+	// streamWriteWait bounds each write to the stream. The server-wide
+	// write timeout can't apply to a stream, but without a per-write
+	// deadline a client that stops reading would block the handler in a
+	// socket write, where request cancellation can't reach it.
+	streamWriteWait = 30 * time.Second
+)
 
 // events streams a search as Server-Sent Events. Each SSE event is named
 // after its v1 feed type and carries the same JSON as a `jobhunt feed`
@@ -33,10 +41,10 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	rc := http.NewResponseController(w)
-	_ = rc.SetWriteDeadline(time.Time{}) // the stream may outlive the server's write timeout
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("X-Accel-Buffering", "no") // don't let a reverse proxy buffer the stream
+	extend(rc)
 	w.WriteHeader(http.StatusOK)
 	if err := rc.Flush(); err != nil {
 		return nil // can't stream to this client
@@ -78,6 +86,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 				return nil
 			}
 		case <-tick.C:
+			extend(rc)
 			if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil || rc.Flush() != nil {
 				return nil
 			}
@@ -115,10 +124,17 @@ func writeEvent(w io.Writer, rc *http.ResponseController, name string, v any) er
 	if err != nil {
 		return err
 	}
+	extend(rc)
 	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", name, b); err != nil {
 		return err
 	}
 	return rc.Flush()
+}
+
+// extend gives the next stream write a fresh deadline. Writers that don't
+// support deadlines (e.g. test recorders) simply don't get one.
+func extend(rc *http.ResponseController) {
+	_ = rc.SetWriteDeadline(time.Now().Add(streamWriteWait))
 }
 
 // searchRequestOf reads a search from query parameters, named like the

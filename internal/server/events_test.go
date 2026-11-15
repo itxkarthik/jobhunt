@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -225,5 +226,42 @@ func TestSearchRequestOf(t *testing.T) {
 	if !slices.Equal(in.Countries, []string{"IN", "US", "JP"}) || !slices.Equal(in.Keywords, []string{"Go"}) ||
 		!in.Visa || !req.NewOnly || req.Refresh || in.MinSalary != 500000 || req.Sort != "date" || in.PostedWithin != "3d" {
 		t.Errorf("request = %+v", req)
+	}
+}
+
+// Regression: a client that stops reading must not leave the handler
+// blocked in a socket write forever.
+func TestEventsSlowReaderDoesNotHang(t *testing.T) {
+	old := streamWriteWait
+	streamWriteWait = 200 * time.Millisecond
+	t.Cleanup(func() { streamWriteWait = old })
+
+	big := strings.Repeat("x", 8<<10)
+	s, _ := newTestServer(t, func(o *Options) {
+		o.Search = func(context.Context, model.Filters, SearchOptions, func(search.Report)) (*search.Result, error) {
+			jobs := make([]model.Job, 3000) // ~24 MB: far more than socket buffers hold
+			for i := range jobs {
+				jobs[i] = model.Job{Key: "k" + strconv.Itoa(i), Title: "Intern", Description: big}
+			}
+			return &search.Result{RunAt: t0, Jobs: jobs}, nil
+		}
+	})
+	returned := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.Handler().ServeHTTP(w, r)
+		if r.URL.Path == "/api/events" {
+			close(returned)
+		}
+	}))
+	defer srv.Close()
+
+	st := openStream(t, context.Background(), srv, "") // and never read the body
+	if st.status != http.StatusOK {
+		t.Fatalf("status %d", st.status)
+	}
+	select {
+	case <-returned:
+	case <-time.After(10 * time.Second):
+		t.Fatal("handler still blocked writing to a client that stopped reading")
 	}
 }

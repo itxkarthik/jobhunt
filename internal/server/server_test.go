@@ -286,3 +286,48 @@ func TestWrongMethodIsJSON405(t *testing.T) {
 		t.Fatalf("got %d Allow=%q %s", w.Code, w.Header().Get("Allow"), w.Body)
 	}
 }
+
+// A request that ignores cancellation must not stop the server exiting:
+// after shutdownWait the connections are closed.
+func TestServeForcesShutdown(t *testing.T) {
+	old := shutdownWait
+	shutdownWait = 200 * time.Millisecond
+	t.Cleanup(func() { shutdownWait = old })
+
+	started, release := make(chan struct{}), make(chan struct{})
+	defer close(release)
+	s, _ := newTestServer(t, func(o *Options) {
+		o.Search = func(context.Context, model.Filters, SearchOptions, func(search.Report)) (*search.Result, error) {
+			close(started)
+			<-release // deliberately ignores ctx
+			return &search.Result{}, nil
+		}
+	})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Serve(ctx, ln) }()
+
+	go func() {
+		r, _ := http.NewRequestWithContext(context.Background(), http.MethodPost,
+			"http://"+ln.Addr().String()+"/api/search", strings.NewReader("{}"))
+		r.Header.Set("Authorization", "Bearer "+testToken)
+		r.Header.Set("Content-Type", "application/json")
+		if resp, err := http.DefaultClient.Do(r); err == nil {
+			resp.Body.Close()
+		}
+	}()
+	<-started
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Serve = %v, want nil after a forced shutdown", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve hung on a request that ignores cancellation")
+	}
+}
