@@ -106,6 +106,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/meta", s.handle(s.meta))
 	mux.HandleFunc("POST /api/search", s.handle(s.search))
 	mux.HandleFunc("GET /api/events", s.handle(s.events))
+	mux.HandleFunc("GET /api/links", s.handle(s.links))
 	mux.HandleFunc("GET /api/jobs/{key}", s.handle(s.job))
 	mux.HandleFunc("POST /api/jobs/{key}/hide", s.handle(s.hide(true)))
 	mux.HandleFunc("DELETE /api/jobs/{key}/hide", s.handle(s.hide(false)))
@@ -165,16 +166,38 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) error {
 	}
 	out := searchResponse{
 		RunAt: res.RunAt.UTC(), Fetched: res.Total, Matched: len(res.Jobs),
-		Jobs: jobs, Sources: make([]sourceOut, 0, len(res.Reports)), Links: []linkOut{},
+		Jobs: jobs, Sources: make([]sourceOut, 0, len(res.Reports)),
 	}
 	for _, rp := range res.Reports {
 		out.Sources = append(out.Sources, sourceOut{feed.SourceOf(rp), rp.Link})
 	}
-	for _, l := range links.For(f) {
-		out.Links = append(out.Links, linkOut{l.Site, l.URL})
-	}
+	out.Links = linksFor(f)
 	writeJSON(w, http.StatusOK, out)
 	return nil
+}
+
+// links returns the pre-filled searches on sites jobhunt can't query for
+// the filters in the query string (named as for GET /api/events), without
+// running a search. Stream clients use it alongside /api/events.
+func (s *Server) links(w http.ResponseWriter, r *http.Request) error {
+	req, err := searchRequestOf(r.URL.Query())
+	if err != nil {
+		return err
+	}
+	f, _, err := s.parseSearch(req)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, linksFor(f))
+	return nil
+}
+
+func linksFor(f model.Filters) []linkOut {
+	out := []linkOut{}
+	for _, l := range links.For(f) {
+		out = append(out, linkOut{l.Site, l.URL})
+	}
+	return out
 }
 
 func (s *Server) parseSearch(req searchRequest) (model.Filters, SearchOptions, error) {
@@ -313,7 +336,12 @@ func (s *Server) trackerSet(w http.ResponseWriter, r *http.Request) error {
 	if err := s.opts.Store.SetStatus(r.Context(), key, st, note); err != nil {
 		return err
 	}
-	rows, err := s.opts.Store.TrackedJobs(r.Context(), st)
+	return s.writeTracked(r.Context(), w, key)
+}
+
+// writeTracked answers with key's tracker row.
+func (s *Server) writeTracked(ctx context.Context, w http.ResponseWriter, key string) error {
+	rows, err := s.opts.Store.TrackedJobs(ctx)
 	if err != nil {
 		return err
 	}

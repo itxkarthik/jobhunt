@@ -366,3 +366,33 @@ func TestMeta(t *testing.T) {
 		t.Errorf("defaults = %+v", m.Defaults)
 	}
 }
+
+func TestLinks(t *testing.T) {
+	s, _, rec := apiServer(t)
+	var out []linkOut
+	if code := call(t, s, http.MethodGet, "/api/links?countries=IN&types=internship&keywords=Go", "", &out); code != http.StatusOK {
+		t.Fatalf("status %d", code)
+	}
+	sites := map[string]bool{}
+	for _, l := range out {
+		sites[l.Site] = true
+		if !strings.HasPrefix(l.URL, "https://") {
+			t.Errorf("%s link %q isn't https", l.Site, l.URL)
+		}
+	}
+	if !sites["LinkedIn"] || len(out) < 3 {
+		t.Errorf("links = %+v", out)
+	}
+	if rec.calls.Load() != 0 {
+		t.Error("/api/links ran a search")
+	}
+	for _, q := range []string{"countries=Atlantis", "colour=blue", "visa=maybe"} {
+		if code := call(t, s, http.MethodGet, "/api/links?"+q, "", nil); code != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", q, code)
+		}
+	}
+	// Empty filters take the config defaults, like a search would.
+	if code := call(t, s, http.MethodGet, "/api/links", "", &out); code != http.StatusOK || len(out) == 0 {
+		t.Errorf("default links: %d, %+v", code, out)
+	}
+}

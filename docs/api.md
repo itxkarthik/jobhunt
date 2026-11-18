@@ -67,6 +67,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | `GET /api/meta` | API and feed versions, default filters, allowed values for each option |
 | `POST /api/search` | Run a search: filters plus `refresh`, `new_only`, `show_hidden`, `sort` (`score` or `date`) and `limit` (0 means all) |
 | `GET /api/events?…` | The same search, streamed as Server-Sent Events (see below) |
+| `GET /api/links?…` | Pre-filled searches on sites jobhunt can't query, for the filters in the query string (same names as `/api/events`). Runs no search. |
 | `GET /api/jobs/{key}` | One job, plus its tracker `status` if tracked |
 | `POST /api/jobs/{key}/hide` | Hide a job from future results (`204`) |
 | `DELETE /api/jobs/{key}/hide` | Unhide it (`204`) |
@@ -127,3 +128,4 @@ data: {"v":1,"type":"run","run_id":"…","at":"…","run":{"fetched":12097,"matc
 - **Keepalive:** comment lines (`: keepalive`) keep idle connections open.
 - **Cancellation:** closing the connection cancels the search.
 - **Browser clients:** `EventSource` can't send the `Authorization` header, so read the stream with `fetch()` instead.
+- **Extras:** the stream carries feed events only. For the "also search" links, call `GET /api/links` with the same query. For tracker statuses, use `GET /api/tracker`.
