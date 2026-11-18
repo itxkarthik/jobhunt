@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
 	"github.com/itxkarthik/jobhunt/internal/sources/sourcetest"
 	"github.com/itxkarthik/jobhunt/internal/store"
@@ -49,5 +51,29 @@ func TestImportEDGAR(t *testing.T) {
 	sum, err = ImportEDGAR(ctx, st, im, o, false)
 	if err != nil || len(sum.Added)+len(sum.Updated) != 0 || len(srv.Requests()) != before {
 		t.Errorf("repeat run: %+v, %v, %d new requests", sum, err, len(srv.Requests())-before)
+	}
+
+	// Broader filters read the same day again and find the biotech filing.
+	o.Industries = []string{"any"}
+	sum, err = ImportEDGAR(ctx, st, im, o, false)
+	if err != nil || !slices.Contains(sum.Added, "Kettle Biosciences, Inc.") {
+		t.Errorf("broader run: %+v, %v", sum, err)
+	}
+}
+
+func TestSaveCompaniesStorageError(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := &ImportSummary{}
+	if err := saveCompanies(ctx, st, []model.Company{{Name: ""}}, sum); err != nil || len(sum.Skipped) != 1 {
+		t.Errorf("invalid record: %v, %+v", err, sum)
+	}
+	st.Close()
+	sum = &ImportSummary{}
+	if err := saveCompanies(ctx, st, []model.Company{{Name: "Acme"}}, sum); err == nil || len(sum.Skipped) != 0 {
+		t.Errorf("storage error was not returned: %v, %+v", err, sum)
 	}
 }

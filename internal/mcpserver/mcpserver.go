@@ -114,6 +114,9 @@ func (h *handlers) public(tool string, err error) error {
 	if ue, ok := errors.AsType[userError](err); ok {
 		return ue.error
 	}
+	if ie, ok := errors.AsType[*app.InvalidError](err); ok {
+		return ie
+	}
 	if errors.Is(err, store.ErrNoCompany) || errors.Is(err, store.ErrNoJob) || errors.Is(err, store.ErrAmbiguousKey) || errors.Is(err, store.ErrNotTracked) {
 		return err
 	}
@@ -191,7 +194,9 @@ func (h *handlers) searchJobs(ctx context.Context, _ *mcp.CallToolRequest, in Se
 	}
 	out.Matched, out.Fetched = len(res.Jobs), res.Total
 	for _, r := range res.Reports {
-		out.Sources = append(out.Sources, feed.SourceOf(r))
+		ev := feed.SourceOf(r)
+		ev.Error = sources.RedactURLs(ev.Error) // a source's error may quote its request URL
+		out.Sources = append(out.Sources, ev)
 	}
 	out.Jobs = []JobBrief{}
 	for i := range res.Jobs[:min(in.Limit, len(res.Jobs))] {
@@ -379,9 +384,11 @@ func (h *handlers) save(ctx context.Context, tool string, c model.Company, rm co
 		}
 		c.Name = old.Name
 	}
-	probe := c
-	if err := company.Clean(&probe); err != nil {
-		return nil, CompanyOutput{}, invalid("%v", err)
+	if len(c.Boards) > 0 { // check boards only for a valid update
+		probe := c
+		if err := company.Clean(&probe); err != nil {
+			return nil, CompanyOutput{}, invalid("%v", err)
+		}
 	}
 	if err := app.AddBoards(ctx, h.o.App.Store, c, h.o.CheckBoard); err != nil {
 		if be, ok := errors.AsType[*app.BoardError](err); ok {
@@ -472,27 +479,21 @@ type NoteInput struct {
 
 func (h *handlers) addNote(ctx context.Context, _ *mcp.CallToolRequest, in NoteInput) (*mcp.CallToolResult, CompanyOutput, error) {
 	note := strings.TrimSpace(sources.SafeText(in.Note, true))
-	if note == "" || utf8.RuneCountInString(note) > maxNote {
-		return nil, CompanyOutput{}, invalid("note must be 1-%d characters", maxNote)
+	if note == "" || len(note) > maxNote {
+		return nil, CompanyOutput{}, invalid("note must be 1-%d bytes", maxNote)
 	}
 	if in.SourceURL != "" {
-		if sources.SafeURL(in.SourceURL) == "" {
+		u := sources.SafeURL(in.SourceURL)
+		if u == "" {
 			return nil, CompanyOutput{}, invalid("source_url must be an http(s) URL")
 		}
-		note += " (" + strings.TrimSpace(in.SourceURL) + ")"
+		note += " (" + u + ")"
 	}
-	old, err := app.FindCompany(ctx, h.o.App.Store, in.Company)
+	got, err := app.AppendNote(ctx, h.o.App.Store, in.Company, note, "agent", time.Now())
 	if err != nil {
 		return nil, CompanyOutput{}, h.public("add_note", err)
 	}
-	notes := time.Now().UTC().Format(time.DateOnly) + ": " + note
-	if old.Notes != "" {
-		notes = old.Notes + "\n" + notes
-	}
-	if utf8.RuneCountInString(notes) > company.MaxNotes {
-		return nil, CompanyOutput{}, invalid("the company's notes are full (%d characters); replace them with upsert_company notes", company.MaxNotes)
-	}
-	return h.save(ctx, "add_note", model.Company{Name: old.Name, Notes: notes, Sources: []string{"agent"}}, company.Removal{}, false)
+	return nil, CompanyOutput{Company: got}, nil
 }
 
 // ---- list_sources
@@ -537,7 +538,7 @@ func (h *handlers) listSources(ctx context.Context, _ *mcp.CallToolRequest, _ st
 		}
 		if hl, ok := health[info.Name]; ok {
 			src := feed.SourceOf(search.Report{Source: info.Name, Status: search.Status(hl.Last.Status), Count: hl.Last.Count, Err: hl.Last.Error})
-			si.LastRun, si.LastStatus, si.LastCount, si.LastError = hl.Last.RunAt.UTC().Format(time.RFC3339), string(src.Status), src.Count, src.Error
+			si.LastRun, si.LastStatus, si.LastCount, si.LastError = hl.Last.RunAt.UTC().Format(time.RFC3339), string(src.Status), src.Count, sources.RedactURLs(src.Error)
 		}
 		out.Sources = append(out.Sources, si)
 	}

@@ -3,7 +3,10 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,5 +105,40 @@ func TestCompanies(t *testing.T) {
 	}
 	if _, err := FindCompany(ctx, st, "nobody"); !errors.Is(err, store.ErrNoCompany) {
 		t.Errorf("FindCompany(nobody) err = %v", err)
+	}
+}
+
+func TestAppendNote(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "notes.db")) // a file, so the appends really race
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, _, err := UpsertCompany(ctx, st, model.Company{Name: "Acme"}, company.Removal{}); err != nil {
+		t.Fatal(err)
+	}
+	// Concurrent appends all land.
+	var wg sync.WaitGroup
+	for i := range 8 {
+		wg.Go(func() {
+			if _, err := AppendNote(ctx, st, "acme", fmt.Sprintf("note %d", i), "agent", time.Now()); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	c, _ := FindCompany(ctx, st, "acme")
+	if n := strings.Count(c.Notes, "note "); n != 8 {
+		t.Errorf("%d of 8 notes kept: %q", n, c.Notes)
+	}
+	// A note that would pass the byte limit is refused, not cut short.
+	big := strings.Repeat("界", company.MaxNotes/3) // 3 bytes each
+	_, err = AppendNote(ctx, st, "acme", big, "agent", time.Now())
+	if _, ok := errors.AsType[*InvalidError](err); !ok {
+		t.Errorf("oversized note: %v", err)
+	}
+	if _, err := AppendNote(ctx, st, "nobody", "x", "agent", time.Now()); !errors.Is(err, store.ErrNoCompany) {
+		t.Errorf("unknown company: %v", err)
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/model"
@@ -16,6 +18,30 @@ type Options struct {
 	Industries  []string      // default DefaultIndustries; "any" keeps all
 	AllEntities bool          // keep LLCs and LPs too
 	Now         time.Time     // default time.Now()
+}
+
+// Scope names the filters that decide which filings are kept, so a run
+// with broader filters doesn't skip work a narrower one marked done.
+func (o Options) Scope() string {
+	ind := o.Industries
+	if len(ind) == 0 {
+		ind = DefaultIndustries
+	}
+	keys := make([]string, 0, len(ind))
+	for _, i := range ind {
+		if i = strings.ToLower(strings.TrimSpace(i)); i == "any" {
+			keys = []string{"any"}
+			break
+		}
+		keys = append(keys, i)
+	}
+	slices.Sort(keys)
+	keys = slices.Compact(keys)
+	s := strings.Join(keys, ",")
+	if o.AllEntities {
+		s += "|all"
+	}
+	return s
 }
 
 // Result is what a run found.

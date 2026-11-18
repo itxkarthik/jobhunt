@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -37,11 +38,48 @@ type CompanyView struct {
 // if new) and returns the result and whether it was created.
 func UpsertCompany(ctx context.Context, st *store.Store, in model.Company, rm company.Removal) (model.Company, bool, error) {
 	if err := company.Clean(&in); err != nil {
-		return model.Company{}, false, err
+		return model.Company{}, false, &InvalidError{err}
 	}
 	return st.UpdateCompany(ctx, in.Key, func(old *model.Company) (model.Company, error) {
 		return company.Merge(old, in, rm, time.Now()), nil
 	})
+}
+
+// InvalidError means a company update failed validation; nothing was
+// stored. Other errors from UpsertCompany are storage failures.
+type InvalidError struct{ Err error }
+
+func (e *InvalidError) Error() string { return e.Err.Error() }
+func (e *InvalidError) Unwrap() error { return e.Err }
+
+// AppendNote adds a dated line to a stored company's notes. The read and
+// the write happen in one transaction, so concurrent notes don't
+// overwrite each other. Notes are limited to company.MaxNotes bytes, the
+// limit Clean applies; a note that would be cut short is refused.
+func AppendNote(ctx context.Context, st *store.Store, name, note, source string, now time.Time) (model.Company, error) {
+	c, err := FindCompany(ctx, st, name)
+	if err != nil {
+		return model.Company{}, err
+	}
+	line := now.UTC().Format(time.DateOnly) + ": " + note
+	got, _, err := st.UpdateCompany(ctx, c.Key, func(old *model.Company) (model.Company, error) {
+		if old == nil {
+			return model.Company{}, store.ErrNoCompany
+		}
+		notes := line
+		if old.Notes != "" {
+			notes = old.Notes + "\n" + line
+		}
+		if len(notes) > company.MaxNotes {
+			return model.Company{}, &InvalidError{fmt.Errorf("the notes would pass %d bytes; replace them instead of appending", company.MaxNotes)}
+		}
+		in := model.Company{Name: old.Name, Notes: notes, Sources: []string{source}}
+		if err := company.Clean(&in); err != nil {
+			return model.Company{}, &InvalidError{err}
+		}
+		return company.Merge(old, in, company.Removal{}, now), nil
+	})
+	return got, err
 }
 
 // FindCompany resolves a name, key or key prefix to a stored company.

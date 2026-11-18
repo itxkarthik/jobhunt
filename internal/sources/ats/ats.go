@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"slices"
 	"sort"
@@ -103,6 +104,13 @@ func Check(ctx context.Context, client *sources.Client, c Company) (int, error) 
 	}
 	jobs, err := p.fetchBoard(ctx, client, c)
 	return len(jobs), err
+}
+
+// Gone reports whether a board fetch failed because the ATS says the
+// board doesn't exist (404 or 410), as opposed to a failure that may pass.
+func Gone(err error) bool {
+	se, ok := errors.AsType[*sources.StatusError](err)
+	return ok && (se.Code == http.StatusNotFound || se.Code == http.StatusGone)
 }
 
 // LoadCompanies reads path if it exists, else the embedded starter list.

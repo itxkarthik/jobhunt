@@ -289,10 +289,9 @@ func (fd *FormD) Company(f Filing) model.Company {
 	if date.IsZero() {
 		date = f.Filed
 	}
+	// The amount sold so far, not the target: a filing made before the
+	// first sale has raised nothing yet.
 	amt := fd.Sold
-	if amt == 0 {
-		amt = fd.Offering
-	}
 	c := model.Company{
 		Name:    fd.Name,
 		Country: "US",

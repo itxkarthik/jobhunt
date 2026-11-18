@@ -118,6 +118,32 @@ func TestParseFormD(t *testing.T) {
 	}
 }
 
+func TestCompanyAmountIsSold(t *testing.T) {
+	// Nothing sold yet: the target is not money raised.
+	fd := &FormD{Name: "Kettle Biosciences, Inc.", Offering: 5e6, Sold: 0}
+	c := fd.Company(Filing{CIK: "1", Accession: "0000000001-26-000001", Filed: time.Now()})
+	if c.Rounds[0].Amount != 0 {
+		t.Errorf("amount = %v, want 0", c.Rounds[0].Amount)
+	}
+}
+
+func TestScope(t *testing.T) {
+	tests := []struct {
+		o    Options
+		want string
+	}{
+		{Options{}, "computers,other,other technology,telecommunications"},
+		{Options{Industries: []string{"Telecommunications", "Computers", "Other Technology", "Other"}}, "computers,other,other technology,telecommunications"},
+		{Options{Industries: []string{"Computers", "any"}}, "any"},
+		{Options{Industries: []string{"computers"}, AllEntities: true}, "computers|all"},
+	}
+	for _, tt := range tests {
+		if got := tt.o.Scope(); got != tt.want {
+			t.Errorf("Scope(%+v) = %q, want %q", tt.o, got, tt.want)
+		}
+	}
+}
+
 func TestKeep(t *testing.T) {
 	corp := func(industry string) *FormD { return &FormD{EntityType: "Corporation", Industry: industry} }
 	tests := []struct {

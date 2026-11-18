@@ -11,6 +11,21 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/sources/sourcetest"
 )
 
+func TestGone(t *testing.T) {
+	for err, want := range map[error]bool{
+		&sources.StatusError{Code: 404}:                               true,
+		&sources.StatusError{Code: 410}:                               true,
+		&sources.StatusError{Code: 429}:                               false,
+		&sources.StatusError{Code: 503}:                               false,
+		errors.New("dial tcp: connection refused"):                    false,
+		errors.Join(errors.New("x"), &sources.StatusError{Code: 404}): true,
+	} {
+		if Gone(err) != want {
+			t.Errorf("Gone(%v) = %v", err, !want)
+		}
+	}
+}
+
 func TestEmbeddedCompaniesValid(t *testing.T) {
 	cs, err := LoadCompanies("")
 	if err != nil {

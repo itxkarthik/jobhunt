@@ -89,7 +89,7 @@ func newSourcesCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&checkBoards, "check-boards", false, "fetch every company board (companies.yaml and added ones) and report dead slugs")
-	cmd.Flags().BoolVar(&prune, "prune", false, "with --check-boards, remove added boards that fail from the companies list (companies.yaml is never edited)")
+	cmd.Flags().BoolVar(&prune, "prune", false, "with --check-boards, remove added boards the ATS reports as gone (404/410) from the companies list (companies.yaml is never edited)")
 	return cmd
 }
 
@@ -113,13 +113,20 @@ func runCheckBoards(cmd *cobra.Command, a *app.App, prune bool) error {
 	fmt.Fprintln(w, "COMPANY\tATS\tSLUG\tFROM\tJOBS\tSTATUS")
 	bad := 0
 	var dead []ats.Company
+	unsure := 0
 	for _, r := range results {
 		status := "ok"
 		switch {
 		case r.Err != nil:
 			status, bad = "ERROR: "+trunc(r.Err.Error(), 80), bad+1
-			if r.Company.Added {
+			// Only a board the ATS says is gone is pruned; outages, rate
+			// limits and timeouts are left for a later check.
+			switch {
+			case !r.Company.Added:
+			case ats.Gone(r.Err):
 				dead = append(dead, r.Company)
+			default:
+				unsure++
 			}
 		case r.Count == 0:
 			status, bad = "empty (slug moved?)", bad+1
@@ -132,9 +139,12 @@ func runCheckBoards(cmd *cobra.Command, a *app.App, prune bool) error {
 	}
 	w.Flush()
 	fmt.Fprintf(cmd.OutOrStdout(), "\n%d/%d boards need attention\n", bad, len(results))
+	if unsure > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "%d added boards failed for a reason that may pass (network, rate limit, server error); they are kept\n", unsure)
+	}
 	if !prune {
 		if len(dead) > 0 {
-			fmt.Fprintf(cmd.OutOrStdout(), "%d added boards failed; rerun with --prune to remove them\n", len(dead))
+			fmt.Fprintf(cmd.OutOrStdout(), "%d added boards no longer exist; rerun with --prune to remove them\n", len(dead))
 		}
 		return nil
 	}
