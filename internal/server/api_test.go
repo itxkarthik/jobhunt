@@ -339,8 +339,13 @@ func TestSources(t *testing.T) {
 	if g := byName["greenhouse"]; g.Description == "" || g.Credential != "" {
 		t.Errorf("greenhouse description/credential = %q/%q", g.Description, g.Credential)
 	}
-	if !slices.IsSortedFunc(out, func(a, b sourceStatus) int { return strings.Compare(a.Name, b.Name) }) {
-		t.Error("sources not sorted by name")
+	var names []string
+	for _, o := range out {
+		names = append(names, o.Name)
+	}
+	// Catalog order first, then sources only known from past runs, by name.
+	if want := []string{"greenhouse", "jsearch", "adzuna", "remotive"}; !slices.Equal(names, want) {
+		t.Errorf("order = %v, want %v", names, want)
 	}
 }
 

@@ -524,7 +524,17 @@ func (s *Server) sourcesList(w http.ResponseWriter, r *http.Request) error {
 	for _, st := range byName {
 		out = append(out, *st)
 	}
-	slices.SortFunc(out, func(a, b sourceStatus) int { return cmp.Compare(a.Name, b.Name) })
+	// Catalog order, as `jobhunt sources` prints; anything else (e.g. a
+	// source that has since been removed) after it, by name.
+	rank := func(name string) int {
+		if i := slices.IndexFunc(s.opts.Catalog, func(d SourceDesc) bool { return d.Name == name }); i >= 0 {
+			return i
+		}
+		return len(s.opts.Catalog)
+	}
+	slices.SortFunc(out, func(a, b sourceStatus) int {
+		return cmp.Or(cmp.Compare(rank(a.Name), rank(b.Name)), cmp.Compare(a.Name, b.Name))
+	})
 	writeJSON(w, http.StatusOK, out)
 	return nil
 }

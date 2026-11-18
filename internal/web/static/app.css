@@ -389,8 +389,9 @@ button kbd { color: inherit; border-color: currentColor; opacity: 0.75; margin-l
 table.sources { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
 table.sources th, table.sources td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 table.sources th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); background: var(--panel-2); }
-table.sources td.num { text-align: right; font-variant-numeric: tabular-nums; }
-table.sources tr.off td { color: var(--muted); }
+table.sources tbody th { text-transform: none; letter-spacing: 0; font-size: inherit; color: var(--text); background: transparent; font-family: var(--mono); }
+table.sources .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.sources tr.off td, table.sources tr.off th { color: var(--muted); }
 table.sources .note { max-width: 46ch; overflow-wrap: anywhere; }
 
 /* Phone and narrow screens */
