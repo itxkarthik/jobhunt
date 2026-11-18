@@ -73,6 +73,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | `DELETE /api/jobs/{key}/hide` | Unhide it (`204`) |
 | `GET /api/tracker[?status=applied,interview]` | Tracked jobs, most recently updated first |
 | `PUT /api/tracker/{key}` | `{"status": "applied", "note": "…"}`: set the status, append the note, return the row |
+| `PUT /api/tracker/{key}/notes` | `{"notes": "…"}`: replace the notes (up to 20,000 characters) and return the row. Unlike the `note` above, this isn't added to the history. |
 | `DELETE /api/tracker/{key}` | Stop tracking (`204`; the history is kept) |
 | `GET /api/tracker/{key}/events` | Status history: `[{at, status, note}]` |
 | `GET /api/presets` | Saved presets: `[{name, filters, updated_at}]` |

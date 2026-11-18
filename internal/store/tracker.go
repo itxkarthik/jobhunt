@@ -115,6 +115,7 @@ func (s *Store) Job(ctx context.Context, key string) (*model.Job, error) {
 var (
 	ErrNoJob        = errors.New("no job with that key")
 	ErrAmbiguousKey = errors.New("ambiguous key")
+	ErrNotTracked   = errors.New("job is not tracked")
 )
 
 // ResolveKey expands a key prefix (as printed in the KEY column) to a full
@@ -181,6 +182,25 @@ func (s *Store) SetStatus(ctx context.Context, key string, st Status, note strin
 		return err
 	}
 	return tx.Commit()
+}
+
+// SetNotes replaces key's tracker notes. SetStatus appends a note and
+// records it in the history; this edits the current notes and leaves the
+// history alone.
+func (s *Store) SetNotes(ctx context.Context, key, notes string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE tracker SET notes = ?, updated_at = ? WHERE key = ?`,
+		notes, time.Now().Unix(), key)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: %s", ErrNotTracked, key)
+	}
+	return nil
 }
 
 // Untrack removes key from the tracker (history is kept).

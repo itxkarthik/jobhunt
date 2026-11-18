@@ -17,6 +17,11 @@ export function dateTime(iso) {
   return Number.isNaN(t) ? "" : new Date(t).toLocaleString();
 }
 
+export function date(iso) {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? "" : new Date(t).toLocaleDateString();
+}
+
 export function location(job) {
   return job.location || job.city || (job.countries || []).join(", ") || "unknown";
 }

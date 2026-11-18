@@ -343,7 +343,8 @@ button kbd { color: inherit; border-color: currentColor; opacity: 0.75; margin-l
 .tcard.dragging { opacity: 0.5; }
 .tcard .title { font-weight: 600; overflow-wrap: anywhere; }
 .tcard .sub { color: var(--muted); font-size: 0.83rem; }
-.tcard .note { font-size: 0.83rem; margin-top: 4px; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.tcard .note { font-size: 0.83rem; margin-top: 4px; color: var(--muted); }
+.tcard .note, .tcard .clamp { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
 .tcard .controls { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
 .tcard .controls select { padding: 2px 4px; font-size: 0.82rem; }
 
@@ -380,6 +381,7 @@ button kbd { color: inherit; border-color: currentColor; opacity: 0.75; margin-l
 .timeline .when { color: var(--muted); font-size: 0.82rem; }
 .timeline .what { white-space: pre-wrap; overflow-wrap: anywhere; }
 .confirm { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.pad-y { padding: 8px 0; }
 
 /* Sources */
 

@@ -396,3 +396,38 @@ func TestLinks(t *testing.T) {
 		t.Errorf("default links: %d, %+v", code, out)
 	}
 }
+
+func TestTrackerNotes(t *testing.T) {
+	s, _, _ := apiServer(t)
+	call(t, s, http.MethodPut, "/api/tracker/aaaa1111", `{"status":"applied","note":"first"}`, nil)
+	var tr trackedOut
+	if code := call(t, s, http.MethodPut, "/api/tracker/aaaa1/notes", `{"notes":"  recruiter: Priya\nfollow up Friday  "}`, &tr); code != http.StatusOK {
+		t.Fatalf("PUT notes = %d", code)
+	}
+	if tr.Notes != "recruiter: Priya\nfollow up Friday" || tr.Status != store.Applied {
+		t.Errorf("tracked = %+v", tr)
+	}
+	// Editing notes replaces them and leaves the status history alone.
+	var evs []eventOut
+	call(t, s, http.MethodGet, "/api/tracker/aaaa1111/events", "", &evs)
+	if len(evs) != 1 || evs[0].Note != "first" {
+		t.Errorf("events = %+v", evs)
+	}
+	var cleared trackedOut // notes is omitempty: decode into a fresh value
+	if code := call(t, s, http.MethodPut, "/api/tracker/aaaa1111/notes", `{"notes":""}`, &cleared); code != http.StatusOK || cleared.Notes != "" {
+		t.Errorf("clear notes = %d, %+v", code, cleared)
+	}
+	for _, tt := range []struct {
+		name, path, body string
+		want             int
+	}{
+		{"not tracked", "/api/tracker/bbbb3333/notes", `{"notes":"x"}`, http.StatusNotFound},
+		{"unknown job", "/api/tracker/ffff/notes", `{"notes":"x"}`, http.StatusNotFound},
+		{"too long", "/api/tracker/aaaa1111/notes", `{"notes":"` + strings.Repeat("x", maxNotesLen+1) + `"}`, http.StatusBadRequest},
+		{"unknown field", "/api/tracker/aaaa1111/notes", `{"note":"x"}`, http.StatusBadRequest},
+	} {
+		if code := call(t, s, http.MethodPut, tt.path, tt.body, nil); code != tt.want {
+			t.Errorf("%s: %d, want %d", tt.name, code, tt.want)
+		}
+	}
+}

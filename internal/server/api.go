@@ -22,7 +22,10 @@ import (
 // APIVersion versions the /api request and response shapes.
 const APIVersion = 1
 
-const maxNoteLen = 2000
+const (
+	maxNoteLen  = 2000  // one note added with a status change
+	maxNotesLen = 20000 // a tracked job's whole notes, edited in place
+)
 
 var presetName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
@@ -113,6 +116,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tracker", s.handle(s.trackerList))
 	mux.HandleFunc("PUT /api/tracker/{key}", s.handle(s.trackerSet))
 	mux.HandleFunc("DELETE /api/tracker/{key}", s.handle(s.trackerDelete))
+	mux.HandleFunc("PUT /api/tracker/{key}/notes", s.handle(s.trackerNotes))
 	mux.HandleFunc("GET /api/tracker/{key}/events", s.handle(s.trackerEvents))
 	mux.HandleFunc("GET /api/presets", s.handle(s.presetList))
 	mux.HandleFunc("GET /api/presets/{name}", s.handle(s.presetGet))
@@ -334,6 +338,30 @@ func (s *Server) trackerSet(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if err := s.opts.Store.SetStatus(r.Context(), key, st, note); err != nil {
+		return err
+	}
+	return s.writeTracked(r.Context(), w, key)
+}
+
+// trackerNotes replaces a tracked job's notes, e.g. after editing them in
+// the web UI. Unlike the note on PUT /api/tracker/{key}, it isn't added to
+// the status history.
+func (s *Server) trackerNotes(w http.ResponseWriter, r *http.Request) error {
+	var body struct {
+		Notes string `json:"notes"`
+	}
+	if err := decode(r, &body); err != nil {
+		return err
+	}
+	notes := strings.TrimSpace(body.Notes)
+	if utf8.RuneCountInString(notes) > maxNotesLen {
+		return badRequest("notes are longer than %d characters", maxNotesLen)
+	}
+	key, err := s.resolve(r)
+	if err != nil {
+		return err
+	}
+	if err := s.opts.Store.SetNotes(r.Context(), key, notes); err != nil {
 		return err
 	}
 	return s.writeTracked(r.Context(), w, key)
