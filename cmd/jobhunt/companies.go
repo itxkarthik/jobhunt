@@ -83,7 +83,7 @@ searches in the last 14 days.`,
 	fs.BoolVar(&asJSON, "json", false, "print JSON")
 	fs.BoolVar(&showJobs, "jobs", false, "with --json, include each company's open jobs")
 
-	cmd.AddCommand(newCompanyShowCmd(), newCompanySetCmd(), newCompanyRmCmd())
+	cmd.AddCommand(newCompanyShowCmd(), newCompanySetCmd(), newCompanyRmCmd(), newCompanyImportCmd())
 	return cmd
 }
 

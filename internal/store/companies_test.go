@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/model"
 )
@@ -119,5 +120,27 @@ func TestUpdateCompanyConcurrent(t *testing.T) {
 	c, _ := st.Company(ctx, "acme")
 	if len(c.Tags) != 20 {
 		t.Errorf("tags = %d, want 20", len(c.Tags))
+	}
+}
+
+func TestImportedItems(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.MarkImported(ctx, "edgar", []string{"day:1", "acc:2"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkImported(ctx, "edgar", []string{"day:1"}, time.Now()); err != nil { // again: no error
+		t.Fatal(err)
+	}
+	if err := st.MarkImported(ctx, "hn", []string{"thread:9"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.ImportedItems(ctx, "edgar")
+	if err != nil || len(got) != 2 || !got["day:1"] || !got["acc:2"] || got["thread:9"] {
+		t.Errorf("edgar items = %v, %v", got, err)
 	}
 }

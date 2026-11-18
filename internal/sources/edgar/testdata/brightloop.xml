@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+  <submissionType>D</submissionType>
+  <primaryIssuer>
+    <entityName>BRIGHTLOOP ROBOTICS INC</entityName>
+    <issuerAddress><city>SAN FRANCISCO</city><stateOrCountry>CA</stateOrCountry></issuerAddress>
+    <entityType>Corporation</entityType>
+  </primaryIssuer>
+  <relatedPersonsList>
+    <relatedPersonInfo>
+      <relatedPersonName><firstName>ADA</firstName><lastName>LOVELACE</lastName></relatedPersonName>
+      <relatedPersonRelationshipList><relationship>Executive Officer</relationship></relatedPersonRelationshipList>
+    </relatedPersonInfo>
+  </relatedPersonsList>
+  <offeringData>
+    <industryGroup><industryGroupType>Other Technology</industryGroupType></industryGroup>
+    <typeOfFiling><newOrAmendment><isAmendment>false</isAmendment></newOrAmendment><dateOfFirstSale><yetToOccur>true</yetToOccur></dateOfFirstSale></typeOfFiling>
+    <offeringSalesAmounts><totalOfferingAmount>Indefinite</totalOfferingAmount><totalAmountSold>0</totalAmountSold></offeringSalesAmounts>
+  </offeringData>
+</edgarSubmission>

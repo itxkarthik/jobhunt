@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+  <schemaVersion>X0708</schemaVersion>
+  <submissionType>D</submissionType>
+  <testOrLive>LIVE</testOrLive>
+  <primaryIssuer>
+    <cik>0001994140</cik>
+    <entityName>Lyzr, Inc.</entityName>
+    <issuerAddress>
+      <street1>1 Example St</street1>
+      <city>JERSEY CITY</city>
+      <stateOrCountry>NJ</stateOrCountry>
+      <stateOrCountryDescription>NEW JERSEY</stateOrCountryDescription>
+      <zipCode>07302</zipCode>
+    </issuerAddress>
+    <jurisdictionOfInc>DELAWARE</jurisdictionOfInc>
+    <entityType>Corporation</entityType>
+  </primaryIssuer>
+  <relatedPersonsList>
+    <relatedPersonInfo>
+      <relatedPersonName><firstName>Surendirasiva</firstName><lastName>Selvaraj</lastName></relatedPersonName>
+      <relatedPersonRelationshipList><relationship>Executive Officer</relationship><relationship>Director</relationship></relatedPersonRelationshipList>
+      <relationshipClarification></relationshipClarification>
+    </relatedPersonInfo>
+    <relatedPersonInfo>
+      <relatedPersonName><firstName>Madhu</firstName><middleName>Shalini</middleName><lastName>Iyer</lastName></relatedPersonName>
+      <relatedPersonRelationshipList><relationship>Director</relationship></relatedPersonRelationshipList>
+    </relatedPersonInfo>
+  </relatedPersonsList>
+  <offeringData>
+    <industryGroup><industryGroupType>Other</industryGroupType></industryGroup>
+    <issuerSize><revenueRange>Decline to Disclose</revenueRange></issuerSize>
+    <typeOfFiling>
+      <newOrAmendment><isAmendment>false</isAmendment></newOrAmendment>
+      <dateOfFirstSale><value>2026-11-03</value></dateOfFirstSale>
+    </typeOfFiling>
+    <offeringSalesAmounts>
+      <totalOfferingAmount>33899914</totalOfferingAmount>
+      <totalAmountSold>12899955</totalAmountSold>
+      <totalRemaining>20999959</totalRemaining>
+    </offeringSalesAmounts>
+  </offeringData>
+</edgarSubmission>

@@ -18,6 +18,7 @@ func TestLoadFileAndEnv(t *testing.T) {
 	t.Setenv("JOBHUNT_CONFIG", p)
 	t.Setenv("XDG_DATA_HOME", dir)
 	t.Setenv("JOBHUNT_ADZUNA_APP_KEY", "fromenv")
+	t.Setenv("JOBHUNT_EDGAR_USER_AGENT", "Test Runner test@example.com")
 
 	cfg, err := Load()
 	if err != nil {
@@ -28,6 +29,9 @@ func TestLoadFileAndEnv(t *testing.T) {
 	}
 	if a := cfg.Source("adzuna"); a.AppID != "fromfile" || a.AppKey != "fromenv" || !a.IsEnabled(true) {
 		t.Errorf("adzuna = %+v", a)
+	}
+	if cfg.Importers.EDGAR.UserAgent != "Test Runner test@example.com" {
+		t.Errorf("edgar user agent = %q", cfg.Importers.EDGAR.UserAgent)
 	}
 	if cfg.Source("remotive").IsEnabled(true) {
 		t.Error("remotive should be disabled")

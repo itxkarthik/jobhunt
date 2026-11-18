@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+  <submissionType>D</submissionType>
+  <primaryIssuer>
+    <entityName>Kettle Biosciences, Inc.</entityName>
+    <issuerAddress><city>Boston</city><stateOrCountry>MA</stateOrCountry></issuerAddress>
+    <entityType>Corporation</entityType>
+  </primaryIssuer>
+  <offeringData>
+    <industryGroup><industryGroupType>Biotechnology</industryGroupType></industryGroup>
+    <typeOfFiling><newOrAmendment><isAmendment>false</isAmendment></newOrAmendment><dateOfFirstSale><value>2026-10-01</value></dateOfFirstSale></typeOfFiling>
+    <offeringSalesAmounts><totalOfferingAmount>5000000</totalOfferingAmount><totalAmountSold>5000000</totalAmountSold></offeringSalesAmounts>
+  </offeringData>
+</edgarSubmission>

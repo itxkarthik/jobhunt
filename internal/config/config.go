@@ -34,6 +34,23 @@ type Config struct {
 	Sources  map[string]SourceConfig `yaml:"sources"`
 	Feed     Feed                    `yaml:"feed"`
 	Serve    Serve                   `yaml:"serve"`
+
+	// Importers fill the companies list (`jobhunt companies import`).
+	Importers Importers `yaml:"importers"`
+}
+
+// Importers configures the company importers.
+type Importers struct {
+	EDGAR EDGAR `yaml:"edgar"`
+}
+
+// EDGAR configures the SEC Form D importer. It stays off until UserAgent
+// is set: EDGAR's fair-access policy asks each client to name who runs it
+// and give a contact address.
+type EDGAR struct {
+	UserAgent   string   `yaml:"user_agent,omitempty"`   // "Your Name you@example.com", or JOBHUNT_EDGAR_USER_AGENT
+	Industries  []string `yaml:"industries,omitempty"`   // Form D industry groups; default Computers, Telecommunications, Other Technology, Other
+	AllEntities bool     `yaml:"all_entities,omitempty"` // keep LLCs and LPs, not just corporations
 }
 
 // Serve configures `jobhunt serve`.
@@ -187,6 +204,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("JOBHUNT_WEBHOOK_SECRET"); v != "" {
 		cfg.Feed.WebhookSecret = v
+	}
+	if v := os.Getenv("JOBHUNT_EDGAR_USER_AGENT"); v != "" {
+		cfg.Importers.EDGAR.UserAgent = v
 	}
 	if v := os.Getenv("JOBHUNT_SERVE_TOKEN"); v != "" {
 		cfg.Serve.Token = v

@@ -76,3 +76,13 @@ feed:
 # one here or in JOBHUNT_SERVE_TOKEN (>= 16 chars) for a stable token.
 serve:
   # token: ""
+
+# Company importers: `jobhunt companies import <name>` fills the companies
+# list from official sources. Each stays off until configured.
+importers:
+  edgar:
+    # SEC Form D filings (US funding rounds). EDGAR asks every client to
+    # name who runs it with a contact email; it's sent only to sec.gov.
+    # user_agent: "Your Name you@example.com"   # or JOBHUNT_EDGAR_USER_AGENT
+    # industries: [Computers, Telecommunications, Other Technology, Other]
+    # all_entities: false   # true keeps LLCs and LPs (mostly funds)
