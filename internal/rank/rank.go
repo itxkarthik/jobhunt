@@ -32,15 +32,45 @@ type Ranker struct {
 	Now        time.Time
 }
 
+// Factor names, as reported in model.ScorePart.
+const (
+	FactorMatch   = "match"
+	FactorRecency = "recency"
+	FactorLevel   = "level"
+	FactorFit     = "fit"
+	FactorInfo    = "info"
+)
+
 // Score returns j's score for filters f.
 func (r *Ranker) Score(j *model.Job, f model.Filters, kw *classify.TermSet) float64 {
+	score, _ := r.Explain(j, f, kw)
+	return score
+}
+
+// Explain returns j's score and each factor's share of it, in a fixed
+// order. Points are rounded to one decimal, so they may not add up to the
+// score exactly.
+func (r *Ranker) Explain(j *model.Job, f model.Filters, kw *classify.TermSet) (float64, []model.ScorePart) {
 	w := r.W
 	if w == (Weights{}) {
 		w = DefaultWeights
 	}
-	s := w.Match*r.match(j, f, kw) + w.Recency*r.recency(j) + w.Level*level(j) + w.Fit*fit(j, f) + w.Info*info(j)
-	return math.Round(s*10) / 10
+	parts := []model.ScorePart{
+		{Factor: FactorMatch, Points: w.Match * r.match(j, f, kw), Max: w.Match},
+		{Factor: FactorRecency, Points: w.Recency * r.recency(j), Max: w.Recency},
+		{Factor: FactorLevel, Points: w.Level * level(j), Max: w.Level},
+		{Factor: FactorFit, Points: w.Fit * fit(j, f), Max: w.Fit},
+		{Factor: FactorInfo, Points: w.Info * info(j), Max: w.Info},
+	}
+	s := 0.0
+	for i := range parts {
+		s += parts[i].Points
+		parts[i].Points = round1(parts[i].Points)
+	}
+	return round1(s), parts
 }
+
+func round1(x float64) float64 { return math.Round(x*10) / 10 }
 
 func (r *Ranker) match(j *model.Job, f model.Filters, kw *classify.TermSet) float64 {
 	var parts []float64

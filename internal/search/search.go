@@ -111,7 +111,7 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 	rk := &rank.Ranker{W: e.Weights, Classifier: e.Classifier, Now: now}
 	kw := classify.NewTermSet(f.Keywords)
 	for i := range res.Jobs {
-		res.Jobs[i].Score = rk.Score(&res.Jobs[i], f, kw)
+		res.Jobs[i].Score, res.Jobs[i].ScoreParts = rk.Explain(&res.Jobs[i], f, kw)
 	}
 	Sort(res.Jobs, e.SortBy)
 	if e.Store != nil {

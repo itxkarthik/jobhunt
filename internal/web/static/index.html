@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>jobhunt</title>
+<link rel="icon" href="data:,">
+<link rel="preload" href="fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/barlow-condensed-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="app.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="app">
+  <header class="appbar">
+    <a class="wordmark" href="#/search">jobhunt</a>
+    <span class="appbar-sub mono" id="appbar-sub"></span>
+    <nav class="tabs" aria-label="Views">
+      <a href="#/search" data-route="search" data-key="1"></a>
+      <a href="#/tracker" data-route="tracker" data-key="2"></a>
+      <a href="#/sources" data-route="sources" data-key="3"></a>
+    </nav>
+    <div class="appbar-slot" id="appbar-slot"></div>
+    <div class="appbar-end">
+      <span class="synced mono" id="synced" hidden></span>
+      <button type="button" class="btn btn-secondary fetch" id="fetch" title="Fetch now (r)"></button>
+      <button type="button" class="btn btn-secondary btn-icon" id="theme"></button>
+    </div>
+  </header>
+  <main id="main" tabindex="-1">
+    <noscript><p class="notice">The jobhunt web UI needs JavaScript. The JSON API under /api/ works without it.</p></noscript>
+  </main>
+  <footer class="statusbar mono" id="statusbar">
+    <span class="mode" id="mode"></span>
+    <span class="hints" id="hints"></span>
+    <span class="context" id="context"></span>
+  </footer>
+</div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>

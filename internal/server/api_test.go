@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -281,6 +282,20 @@ func TestPresets(t *testing.T) {
 	if p.Name != "india-backend" || !slices.Equal(p.Filters.Countries, []string{"IN"}) || p.Filters.PostedWithin != "3d" {
 		t.Errorf("saved = %+v", p)
 	}
+	// An unrestricted preset reads back as "any", so saving or searching
+	// with what GET returned doesn't bring the country default back.
+	var anyP, again presetOut
+	call(t, s, http.MethodPut, "/api/presets/anywhere", `{"countries":["any"],"types":["any"]}`, &anyP)
+	if !slices.Equal(anyP.Filters.Countries, []string{"any"}) || !slices.Equal(anyP.Filters.Types, []string{"any"}) {
+		t.Errorf("unrestricted preset = %+v", anyP.Filters)
+	}
+	body, _ := json.Marshal(anyP.Filters)
+	call(t, s, http.MethodPut, "/api/presets/anywhere", string(body), &again)
+	if !reflect.DeepEqual(again.Filters, anyP.Filters) {
+		t.Errorf("re-saved = %+v, want %+v", again.Filters, anyP.Filters)
+	}
+	call(t, s, http.MethodDelete, "/api/presets/anywhere", "", nil)
+
 	var list []presetOut
 	call(t, s, http.MethodGet, "/api/presets", "", &list)
 	if len(list) != 1 {
@@ -339,8 +354,13 @@ func TestSources(t *testing.T) {
 	if g := byName["greenhouse"]; g.Description == "" || g.Credential != "" {
 		t.Errorf("greenhouse description/credential = %q/%q", g.Description, g.Credential)
 	}
-	if !slices.IsSortedFunc(out, func(a, b sourceStatus) int { return strings.Compare(a.Name, b.Name) }) {
-		t.Error("sources not sorted by name")
+	var names []string
+	for _, o := range out {
+		names = append(names, o.Name)
+	}
+	// Catalog order first, then sources only known from past runs, by name.
+	if want := []string{"greenhouse", "jsearch", "adzuna", "remotive"}; !slices.Equal(names, want) {
+		t.Errorf("order = %v, want %v", names, want)
 	}
 }
 
@@ -364,5 +384,120 @@ func TestMeta(t *testing.T) {
 	}
 	if c, _ := m.Defaults["countries"].([]any); len(c) != 1 || c[0] != "IN" {
 		t.Errorf("defaults = %+v", m.Defaults)
+	}
+}
+
+func TestLinks(t *testing.T) {
+	s, _, rec := apiServer(t)
+	var out []linkOut
+	if code := call(t, s, http.MethodGet, "/api/links?countries=IN&types=internship&keywords=Go", "", &out); code != http.StatusOK {
+		t.Fatalf("status %d", code)
+	}
+	sites := map[string]bool{}
+	for _, l := range out {
+		sites[l.Site] = true
+		if !strings.HasPrefix(l.URL, "https://") {
+			t.Errorf("%s link %q isn't https", l.Site, l.URL)
+		}
+	}
+	if !sites["LinkedIn"] || len(out) < 3 {
+		t.Errorf("links = %+v", out)
+	}
+	if rec.calls.Load() != 0 {
+		t.Error("/api/links ran a search")
+	}
+	for _, q := range []string{"countries=Atlantis", "colour=blue", "visa=maybe"} {
+		if code := call(t, s, http.MethodGet, "/api/links?"+q, "", nil); code != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", q, code)
+		}
+	}
+	// Empty filters take the config defaults, like a search would.
+	if code := call(t, s, http.MethodGet, "/api/links", "", &out); code != http.StatusOK || len(out) == 0 {
+		t.Errorf("default links: %d, %+v", code, out)
+	}
+}
+
+func TestTrackerNotes(t *testing.T) {
+	s, _, _ := apiServer(t)
+	call(t, s, http.MethodPut, "/api/tracker/aaaa1111", `{"status":"applied","note":"first"}`, nil)
+	var tr trackedOut
+	if code := call(t, s, http.MethodPut, "/api/tracker/aaaa1/notes", `{"notes":"  recruiter: Priya\nfollow up Friday  "}`, &tr); code != http.StatusOK {
+		t.Fatalf("PUT notes = %d", code)
+	}
+	if tr.Notes != "recruiter: Priya\nfollow up Friday" || tr.Status != store.Applied {
+		t.Errorf("tracked = %+v", tr)
+	}
+	// Editing notes replaces them and leaves the status history alone.
+	var evs []eventOut
+	call(t, s, http.MethodGet, "/api/tracker/aaaa1111/events", "", &evs)
+	if len(evs) != 1 || evs[0].Note != "first" {
+		t.Errorf("events = %+v", evs)
+	}
+	var cleared trackedOut // notes is omitempty: decode into a fresh value
+	if code := call(t, s, http.MethodPut, "/api/tracker/aaaa1111/notes", `{"notes":""}`, &cleared); code != http.StatusOK || cleared.Notes != "" {
+		t.Errorf("clear notes = %d, %+v", code, cleared)
+	}
+	for _, tt := range []struct {
+		name, path, body string
+		want             int
+	}{
+		{"not tracked", "/api/tracker/bbbb3333/notes", `{"notes":"x"}`, http.StatusNotFound},
+		{"unknown job", "/api/tracker/ffff/notes", `{"notes":"x"}`, http.StatusNotFound},
+		{"too long", "/api/tracker/aaaa1111/notes", `{"notes":"` + strings.Repeat("x", maxNotesLen+1) + `"}`, http.StatusBadRequest},
+		{"unknown field", "/api/tracker/aaaa1111/notes", `{"note":"x"}`, http.StatusBadRequest},
+	} {
+		if code := call(t, s, http.MethodPut, tt.path, tt.body, nil); code != tt.want {
+			t.Errorf("%s: %d, want %d", tt.name, code, tt.want)
+		}
+	}
+}
+
+// Every API route must refuse requests without the token, from a foreign
+// Host, and (for writes) from another origin. Add new routes here.
+func TestEveryRouteIsLocked(t *testing.T) {
+	s, _, rec := apiServer(t)
+	routes := []struct {
+		method, path, body string
+	}{
+		{http.MethodGet, "/api/health", ""},
+		{http.MethodGet, "/api/meta", ""},
+		{http.MethodPost, "/api/search", `{}`},
+		{http.MethodGet, "/api/events", ""},
+		{http.MethodGet, "/api/links", ""},
+		{http.MethodGet, "/api/jobs/aaaa1111", ""},
+		{http.MethodPost, "/api/jobs/aaaa1111/hide", ""},
+		{http.MethodDelete, "/api/jobs/aaaa1111/hide", ""},
+		{http.MethodGet, "/api/tracker", ""},
+		{http.MethodPut, "/api/tracker/aaaa1111", `{"status":"saved"}`},
+		{http.MethodPut, "/api/tracker/aaaa1111/notes", `{"notes":"x"}`},
+		{http.MethodDelete, "/api/tracker/aaaa1111", ""},
+		{http.MethodGet, "/api/tracker/aaaa1111/events", ""},
+		{http.MethodGet, "/api/presets", ""},
+		{http.MethodGet, "/api/presets/x", ""},
+		{http.MethodPut, "/api/presets/x", `{}`},
+		{http.MethodDelete, "/api/presets/x", ""},
+		{http.MethodGet, "/api/sources", ""},
+	}
+	for _, rt := range routes {
+		r := req(rt.method, rt.path, rt.body)
+		r.Header.Del("Authorization")
+		if w := serve(s, r); w.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without a token = %d, want 401", rt.method, rt.path, w.Code)
+		}
+		r = req(rt.method, rt.path, rt.body)
+		r.Host = "evil.example"
+		if w := serve(s, r); w.Code != http.StatusForbidden {
+			t.Errorf("%s %s from a foreign host = %d, want 403", rt.method, rt.path, w.Code)
+		}
+		if rt.method != http.MethodGet {
+			r = req(rt.method, rt.path, rt.body)
+			r.Header.Set("Sec-Fetch-Site", "cross-site")
+			if w := serve(s, r); w.Code != http.StatusForbidden {
+				t.Errorf("%s %s cross-site = %d, want 403", rt.method, rt.path, w.Code)
+			}
+		}
+	}
+	if n := rec.calls.Load(); n != 0 {
+		t.Errorf("a refused request ran %d searches", n)
 	}
 }

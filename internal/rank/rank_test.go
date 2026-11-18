@@ -1,6 +1,8 @@
 package rank
 
 import (
+	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -51,5 +53,50 @@ func TestRecencyHalfLife(t *testing.T) {
 	j := model.Job{PostedAt: now.Add(-HalfLife)}
 	if got := r.recency(&j); got < 0.49 || got > 0.51 {
 		t.Errorf("recency at half-life = %.3f", got)
+	}
+}
+
+func part(f string, p, m float64) model.ScorePart {
+	return model.ScorePart{Factor: f, Points: p, Max: m}
+}
+
+func TestExplain(t *testing.T) {
+	now := time.Now()
+	salary := 50000.0
+	tests := []struct {
+		name string
+		w    Weights
+		job  model.Job
+		f    model.Filters
+		want []model.ScorePart
+	}{
+		{"default weights, nothing asked",
+			Weights{}, model.Job{JobType: model.TypeInternship, PostedAt: now},
+			model.Filters{},
+			[]model.ScorePart{part(FactorMatch, 17.5, 35), part(FactorRecency, 25, 25), part(FactorLevel, 25, 25), part(FactorFit, 5, 10), part(FactorInfo, 0, 5)}},
+		{"custom weights, country and salary",
+			Weights{Match: 10, Recency: 20, Level: 30, Fit: 30, Info: 10},
+			model.Job{Experience: model.ExpSenior, Countries: []string{"IN"}, SalaryMin: &salary},
+			model.Filters{Countries: []string{"IN"}},
+			[]model.ScorePart{part(FactorMatch, 5, 10), part(FactorRecency, 6, 20), part(FactorLevel, 0, 30), part(FactorFit, 30, 30), part(FactorInfo, 6, 10)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &Ranker{W: tt.w, Now: now}
+			score, parts := r.Explain(&tt.job, tt.f, nil)
+			if !slices.Equal(parts, tt.want) {
+				t.Errorf("parts = %v, want %v", parts, tt.want)
+			}
+			sum := 0.0
+			for _, p := range parts {
+				sum += p.Points
+			}
+			if math.Abs(sum-score) > 0.3 {
+				t.Errorf("parts sum to %.1f, score is %.1f", sum, score)
+			}
+			if s := r.Score(&tt.job, tt.f, nil); s != score {
+				t.Errorf("Score = %.1f, Explain = %.1f", s, score)
+			}
+		})
 	}
 }

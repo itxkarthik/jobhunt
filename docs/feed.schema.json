@@ -71,6 +71,19 @@
         "description": { "type": "string", "description": "Plain text; absent with --no-description." },
         "tags": { "type": "array", "items": { "type": "string" } },
         "score": { "type": "number", "minimum": 0, "maximum": 100, "description": "Fit for this search; absent means 0." },
+        "score_parts": {
+          "type": "array",
+          "description": "How score was made up, one entry per ranking factor. points are rounded, so they may not add up to score exactly.",
+          "items": {
+            "type": "object",
+            "required": ["factor", "points", "max"],
+            "properties": {
+              "factor": { "enum": ["match", "recency", "level", "fit", "info"], "description": "match: keywords and areas; recency: posting age; level: entry-level fit; fit: country fit; info: salary and visa given." },
+              "points": { "type": "number", "minimum": 0 },
+              "max": { "type": "number", "minimum": 0, "description": "The factor's weight from config." }
+            }
+          }
+        },
         "new": { "type": "boolean", "description": "First seen in this run." }
       }
     },

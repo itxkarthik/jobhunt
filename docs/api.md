@@ -37,7 +37,7 @@ curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:7777/api/health
 
 ### Filters
 
-Searches and presets use the same filter object as the CLI flags. Empty fields take the defaults from your config (for example `countries: ["IN"]`).
+Searches and presets use the same filter object as the CLI flags. Empty fields take the defaults from your config (for example `countries: ["IN"]`). To lift a default instead, send `["any"]` for `countries`, `modes`, `types` or `areas`. Presets and the `/api/meta` defaults return an unrestricted field the same way, so filters read back can be sent again unchanged.
 
 ```json
 {
@@ -67,18 +67,20 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | `GET /api/meta` | API and feed versions, default filters, allowed values for each option |
 | `POST /api/search` | Run a search: filters plus `refresh`, `new_only`, `show_hidden`, `sort` (`score` or `date`) and `limit` (0 means all) |
 | `GET /api/events?…` | The same search, streamed as Server-Sent Events (see below) |
+| `GET /api/links?…` | Pre-filled searches on sites jobhunt can't query, for the filters in the query string (same names as `/api/events`). Runs no search. |
 | `GET /api/jobs/{key}` | One job, plus its tracker `status` if tracked |
 | `POST /api/jobs/{key}/hide` | Hide a job from future results (`204`) |
 | `DELETE /api/jobs/{key}/hide` | Unhide it (`204`) |
 | `GET /api/tracker[?status=applied,interview]` | Tracked jobs, most recently updated first |
 | `PUT /api/tracker/{key}` | `{"status": "applied", "note": "…"}`: set the status, append the note, return the row |
+| `PUT /api/tracker/{key}/notes` | `{"notes": "…"}`: replace the notes (up to 20,000 characters) and return the row. Unlike the `note` above, this isn't added to the history. |
 | `DELETE /api/tracker/{key}` | Stop tracking (`204`; the history is kept) |
 | `GET /api/tracker/{key}/events` | Status history: `[{at, status, note}]` |
 | `GET /api/presets` | Saved presets: `[{name, filters, updated_at}]` |
 | `GET /api/presets/{name}` | One preset |
 | `PUT /api/presets/{name}` | Save filters under a name: letters, digits, `.`, `_` and `-`, up to 64 characters |
 | `DELETE /api/presets/{name}` | Delete it (`204`) |
-| `GET /api/sources` | Every known source, including disabled ones: `description`, `credential` (the config field it needs, never its value), `enabled` and `ready` state, `not_ready` (for example which key is missing), last run, last success and recent errors |
+| `GET /api/sources` | Every known source in `jobhunt sources` order, including disabled ones: `description`, `credential` (the config field it needs, never its value), `enabled` and `ready` state, `not_ready` (for example which key is missing), last run, last success and recent errors |
 
 Tracker statuses are `saved`, `applied`, `oa`, `interview`, `offer` and `rejected`.
 
@@ -127,3 +129,4 @@ data: {"v":1,"type":"run","run_id":"…","at":"…","run":{"fetched":12097,"matc
 - **Keepalive:** comment lines (`: keepalive`) keep idle connections open.
 - **Cancellation:** closing the connection cancels the search.
 - **Browser clients:** `EventSource` can't send the `Authorization` header, so read the stream with `fetch()` instead.
+- **Extras:** the stream carries feed events only. For the "also search" links, call `GET /api/links` with the same query. For tracker statuses, use `GET /api/tracker`.

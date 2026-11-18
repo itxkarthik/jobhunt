@@ -24,9 +24,9 @@ type filterFlags struct {
 
 func (ff *filterFlags) register(cmd *cobra.Command) {
 	fs := cmd.Flags()
-	fs.StringSliceVarP(&ff.in.Countries, "country", "c", nil, "countries: IN,US,JP,UK,DE,CA,SG,NL,AU,AE,remote-global (default from config: IN)")
+	fs.StringSliceVarP(&ff.in.Countries, "country", "c", nil, "countries: IN,US,JP,UK,DE,CA,SG,NL,AU,AE,remote-global, or any (default from config: IN)")
 	fs.StringSliceVarP(&ff.in.Modes, "mode", "m", nil, "work modes: remote,onsite,hybrid (default all)")
-	fs.StringSliceVarP(&ff.in.Types, "type", "t", nil, "job types: internship,full-time,part-time,contract,new-grad")
+	fs.StringSliceVarP(&ff.in.Types, "type", "t", nil, "job types: internship,full-time,part-time,contract,new-grad, or any (default from config)")
 	fs.StringSliceVarP(&ff.in.Areas, "area", "a", nil, "CS areas: backend,frontend,full-stack,mobile,ml-ai,data-engineering,data-science,devops,systems,hpc-gpu,security,embedded,qa,research,blockchain,gamedev")
 	fs.StringSliceVarP(&ff.in.Keywords, "keywords", "k", nil, "keywords; a job must mention at least one (e.g. Go,Kubernetes)")
 	fs.StringSliceVarP(&ff.in.Exclude, "exclude", "x", nil, "drop jobs mentioning any of these (e.g. senior,\"10+ years\")")

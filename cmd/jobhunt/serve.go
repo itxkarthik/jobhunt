@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/url"
 	"slices"
 	"strconv"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/search"
 	"github.com/itxkarthik/jobhunt/internal/server"
+	"github.com/itxkarthik/jobhunt/internal/web"
 )
 
 func newServeCmd() *cobra.Command {
@@ -28,8 +30,8 @@ func newServeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the local web UI and JSON API",
-		Long: `serve starts jobhunt's local HTTP server: the JSON API under /api/ (see
-docs/api.md) and, from the web UI milestone on, the browser interface.
+		Long: `serve starts jobhunt's local HTTP server: the browser UI at / and the
+JSON API it uses under /api/ (see docs/api.md).
 
 It listens on 127.0.0.1 only by default. Every /api request needs the bearer
 token printed at startup ("Authorization: Bearer <token>"); set serve.token
@@ -62,6 +64,7 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 				Defaults: a.Config.Defaults,
 				Token:    token,
 				Hosts:    hosts,
+				Static:   web.FS(),
 				Logger:   slog.New(slog.NewTextHandler(log, nil)),
 			})
 			if err != nil {
@@ -77,7 +80,7 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 			if open {
 				// The token rides in the URL fragment, which browsers never
 				// send to the server or put in Referer headers.
-				if err := browser.Open(base + "/#token=" + token); err != nil {
+				if err := browser.Open(uiURL(base, token)); err != nil {
 					fmt.Fprintf(log, "could not open a browser: %v\n", err)
 				}
 			}
@@ -133,8 +136,14 @@ func printServeBanner(w io.Writer, base, token string, fixed bool) {
 		fmt.Fprintf(w, "  web UI:    %s/#token=<your token>\n", base)
 		return
 	}
-	fmt.Fprintf(w, "  web UI:    %s/#token=%s\n", base, token)
+	fmt.Fprintf(w, "  web UI:    %s\n", uiURL(base, token))
 	fmt.Fprintf(w, "  API:       curl -H 'Authorization: Bearer %s' %s/api/health\n", token, base)
+}
+
+// uiURL is the web UI link carrying the token in the fragment, escaped so
+// a configured token with "/", "&" or "#" in it arrives intact.
+func uiURL(base, token string) string {
+	return base + "/#token=" + url.PathEscape(token)
 }
 
 // engineSearch adapts the app's search engine to the server.

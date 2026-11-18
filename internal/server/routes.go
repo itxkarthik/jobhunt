@@ -1,30 +1,44 @@
 package server
 
 import (
+	"io/fs"
 	"net/http"
+	"path"
 	"strings"
 )
 
+// routes keeps the API in a mux of its own: in a shared one, the web UI's
+// "GET /" catch-all would also match unknown /api/ paths and answer them
+// with the file server's plain-text 404 instead of a JSON error.
 func (s *Server) routes() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
-	s.apiRoutes(mux)
+	s.apiRoutes(api)
+
+	root := http.NewServeMux()
 	if s.opts.Static != nil {
-		mux.Handle("GET /", http.FileServerFS(s.opts.Static))
+		root.Handle("GET /", static(s.opts.Static))
 	} else {
-		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
+		root.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			_, _ = w.Write([]byte("jobhunt is running. The JSON API is under /api/ (see docs/api.md).\n"))
 		})
 	}
-	return jsonErrors(mux)
+	apiHandler := jsonErrors(api)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			apiHandler.ServeHTTP(w, r)
+			return
+		}
+		root.ServeHTTP(w, r)
+	})
 }
 
-// jsonErrors turns the mux's own plain-text 404 and 405 answers for /api/
-// paths into JSON errors, keeping the Allow header. (A catch-all "/api/"
-// route can't do this: it would also swallow wrong-method requests.)
+// jsonErrors turns the API mux's own plain-text 404 and 405 answers into
+// JSON errors, keeping the Allow header. (A catch-all "/api/" route inside
+// that mux can't do this: it would also swallow wrong-method requests.)
 func jsonErrors(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, pattern := mux.Handler(r)
@@ -55,3 +69,32 @@ type statusProbe struct {
 func (p *statusProbe) Header() http.Header         { return p.header }
 func (p *statusProbe) Write(b []byte) (int, error) { return len(b), nil }
 func (p *statusProbe) WriteHeader(code int)        { p.code = code }
+
+// static serves the web UI files. Directory listings are refused, and
+// browsers revalidate each file so a new jobhunt binary's UI shows up
+// without a hard refresh.
+// staticTypes pins the media type of every kind of file the UI ships.
+// Responses carry nosniff, and the system MIME table varies by machine
+// (Go's built-in one has no woff2).
+var staticTypes = map[string]string{
+	".html":  "text/html; charset=utf-8",
+	".css":   "text/css; charset=utf-8",
+	".js":    "text/javascript; charset=utf-8",
+	".woff2": "font/woff2",
+	".txt":   "text/plain; charset=utf-8",
+}
+
+func static(files fs.FS) http.Handler {
+	fileServer := http.FileServerFS(files)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		if t, ok := staticTypes[path.Ext(r.URL.Path)]; ok {
+			w.Header().Set("Content-Type", t)
+		}
+		fileServer.ServeHTTP(w, r)
+	})
+}

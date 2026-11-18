@@ -35,6 +35,10 @@ func TestParseFilters(t *testing.T) {
 		{"age and currency", FilterInput{PostedWithin: "7d", Currency: " inr "}, func(f model.Filters) bool {
 			return f.PostedWithin == 7*24*time.Hour && f.Currency == "INR"
 		}, false},
+		{"any lifts the default", FilterInput{Countries: []string{"any"}, Types: []string{" ANY "}, Modes: []string{"any"}, Areas: []string{"any"}}, func(f model.Filters) bool {
+			return f.Countries == nil && f.Types == nil && f.Modes == nil && f.Areas == nil
+		}, false},
+		{"any with other values", FilterInput{Countries: []string{"any", "US"}}, nil, true},
 		{"unknown country", FilterInput{Countries: []string{"Atlantis"}}, nil, true},
 		{"unknown mode", FilterInput{Modes: []string{"teleport"}}, nil, true},
 		{"unknown type", FilterInput{Types: []string{"forever"}}, nil, true},
@@ -59,19 +63,31 @@ func TestParseFilters(t *testing.T) {
 }
 
 func TestInputOfRoundTrip(t *testing.T) {
-	f := model.Filters{
-		Countries: []string{"IN", model.RemoteGlobal}, Modes: []model.WorkMode{model.ModeRemote},
-		Types: []model.JobType{model.TypeInternship}, Areas: []model.Area{model.AreaBackend},
-		Experience: []model.Experience{model.ExpIntern}, Keywords: []string{"Go"}, Exclude: []string{"senior"},
-		PostedWithin: 3 * 24 * time.Hour, VisaOnly: true, MinSalary: 100000, Currency: "INR",
-		StrictCountry: true, IncludeUnknown: true,
+	tests := []struct {
+		name string
+		f    model.Filters
+	}{
+		{"every field set", model.Filters{
+			Countries: []string{"IN", model.RemoteGlobal}, Modes: []model.WorkMode{model.ModeRemote},
+			Types: []model.JobType{model.TypeInternship}, Areas: []model.Area{model.AreaBackend},
+			Experience: []model.Experience{model.ExpIntern}, Keywords: []string{"Go"}, Exclude: []string{"senior"},
+			PostedWithin: 3 * 24 * time.Hour, VisaOnly: true, MinSalary: 100000, Currency: "INR",
+			StrictCountry: true, IncludeUnknown: true,
+		}},
+		// The defaults restrict country and type; an unrestricted preset
+		// must not pick them up on the way back.
+		{"unrestricted", model.Filters{Keywords: []string{"Go"}}},
 	}
-	got, err := ParseFilters(defaults, InputOf(f))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(got, f) {
-		t.Errorf("round trip:\n got %+v\nwant %+v", got, f)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseFilters(defaults, InputOf(tt.f))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tt.f) {
+				t.Errorf("round trip:\n got %+v\nwant %+v", got, tt.f)
+			}
+		})
 	}
 }
 

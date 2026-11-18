@@ -100,6 +100,8 @@ Available on `search`, `tui`, `export`, `watch` and `preset save`.
 | `--min-salary N --currency INR` | minimum advertised annual salary |
 | `-p, --preset` | start from a saved preset |
 
+Countries, types, areas and modes left out take the defaults from your config; `any` (as in `-c any`) lifts the restriction instead.
+
 `--country IN` also includes remote jobs open worldwide or to a region containing India; `--strict-country` drops them. Jobs whose type, area or country is unclear are dropped unless you pass `--include-unknown`.
 
 ### TUI keys
@@ -205,7 +207,7 @@ Results are cached in SQLite per source, so repeat searches take under a second.
 | Fit | 10 | your exact country and mode (worldwide remote scores 70%) |
 | Info | 5 | salary and/or visa sponsorship stated |
 
-Weights are configurable under `ranking:`.
+Weights are configurable under `ranking:`. Each job in `jobhunt feed` and the local API carries `score_parts`, the points it got for each component.
 
 ## Privacy and security
 

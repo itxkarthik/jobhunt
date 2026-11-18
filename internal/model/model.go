@@ -106,11 +106,19 @@ type Job struct {
 	Tags            []string   `json:"tags,omitempty"`
 
 	// Populated after fetching.
-	Key         string    `json:"key"` // stable dedup key across sources/runs
-	Sources     []string  `json:"sources,omitempty"`
-	FirstSeenAt time.Time `json:"first_seen_at,omitzero"`
-	Score       float64   `json:"score,omitempty"`
-	New         bool      `json:"new,omitempty"`
+	Key         string      `json:"key"` // stable dedup key across sources/runs
+	Sources     []string    `json:"sources,omitempty"`
+	FirstSeenAt time.Time   `json:"first_seen_at,omitzero"`
+	Score       float64     `json:"score,omitempty"`
+	ScoreParts  []ScorePart `json:"score_parts,omitempty"` // how Score was made up
+	New         bool        `json:"new,omitempty"`
+}
+
+// ScorePart is one ranking factor's contribution to Job.Score.
+type ScorePart struct {
+	Factor string  `json:"factor"` // match, recency, level, fit or info
+	Points float64 `json:"points"`
+	Max    float64 `json:"max"`
 }
 
 // HasArea reports whether the job was tagged with a.

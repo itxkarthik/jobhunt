@@ -43,7 +43,7 @@ func (s *Server) handle(fn func(http.ResponseWriter, *http.Request) error) http.
 		switch {
 		case isTooBig(err):
 			writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
-		case errors.Is(err, store.ErrNoJob), errors.Is(err, store.ErrNoPreset):
+		case errors.Is(err, store.ErrNoJob), errors.Is(err, store.ErrNoPreset), errors.Is(err, store.ErrNotTracked):
 			writeError(w, http.StatusNotFound, err.Error())
 		case errors.Is(err, store.ErrAmbiguousKey):
 			writeError(w, http.StatusConflict, err.Error())
