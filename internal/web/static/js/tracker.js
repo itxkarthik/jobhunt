@@ -126,8 +126,9 @@ export async function mount(main) {
   // Moves are optimistic. One card's requests go out one at a time, in
   // order, so the server ends on the last choice; only the reply to the
   // latest move updates the card, and a failure reverts it to the last
-  // status the server confirmed.
-  const moves = new Map(); // key -> { chain, seq, confirmed }
+  // status the server confirmed. Removing a card cancels its queued moves
+  // (see untrack), so none can re-create the row after the DELETE.
+  const moves = new Map(); // key -> { chain, seq, confirmed, cancelled }
 
   function move(key, status) {
     const r = rows.find((x) => x.key === key);
@@ -141,6 +142,7 @@ export async function mount(main) {
     r.status = status;
     render();
     m.chain = m.chain.then(async () => {
+      if (m.cancelled) return;
       const latest = () => seq === m.seq;
       try {
         const reply = await api("PUT", `/api/tracker/${enc(key)}`, { status });
@@ -155,11 +157,25 @@ export async function mount(main) {
           toast(`Couldn't move the card: ${err.message}`, { error: true });
         }
       }
-      if (latest()) {
+      if (latest() && !m.cancelled) {
         moves.delete(key);
         render();
       }
     });
+  }
+
+  // untrack stops tracking key. Its queued moves are dropped and any
+  // request already sent finishes first, so the DELETE is the last word.
+  async function untrack(key) {
+    const m = moves.get(key);
+    if (m) {
+      m.cancelled = true;
+      await m.chain;
+      moves.delete(key);
+      const r = rows.find((x) => x.key === key);
+      if (r) r.status = m.confirmed; // what the server has, should the DELETE fail
+    }
+    await api("DELETE", `/api/tracker/${enc(key)}`);
   }
 
   // ---- Details drawer ----------------------------------------------------
@@ -234,15 +250,18 @@ export async function mount(main) {
       h("button", { type: "button", class: "ghost", onclick: resetRemove }, "Cancel"));
     const resetRemove = () => replace(removeBox,
       h("button", { type: "button", class: "danger", onclick: askRemove }, "Remove from tracker"));
-    async function remove() {
+    async function remove(e) {
+      e.currentTarget.disabled = true;
       try {
-        await api("DELETE", `/api/tracker/${enc(key)}`);
+        await untrack(key);
         rows = rows.filter((x) => x.key !== key);
         closeDrawer();
         render();
         toast(`Removed: ${title(r)}`);
       } catch (err) {
         toast(`Couldn't remove it: ${err.message}`, { error: true });
+        render();
+        resetRemove();
       }
     }
     resetRemove();
