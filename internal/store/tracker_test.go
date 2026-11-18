@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -113,4 +114,29 @@ func openMem(t *testing.T) *Store {
 	}
 	t.Cleanup(func() { s.Close() })
 	return s
+}
+
+func TestSetNotes(t *testing.T) {
+	s := openMem(t)
+	ctx := context.Background()
+	if err := s.MarkSeen(ctx, []model.Job{{Key: "aaa111", Title: "A"}}, time.Unix(1_800_000_000, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetNotes(ctx, "aaa111", "x"); !errors.Is(err, ErrNotTracked) {
+		t.Fatalf("untracked: err = %v, want ErrNotTracked", err)
+	}
+	if err := s.SetStatus(ctx, "aaa111", Applied, "one"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetNotes(ctx, "aaa111", "rewritten"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.TrackedJobs(ctx)
+	if err != nil || len(rows) != 1 || rows[0].Notes != "rewritten" || rows[0].Status != Applied {
+		t.Fatalf("rows = %+v, %v", rows, err)
+	}
+	evs, err := s.Events(ctx, "aaa111")
+	if err != nil || len(evs) != 1 || evs[0].Note != "one" {
+		t.Errorf("history = %+v, %v; editing notes must not add events", evs, err)
+	}
 }

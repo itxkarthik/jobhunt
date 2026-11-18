@@ -22,7 +22,10 @@ import (
 // APIVersion versions the /api request and response shapes.
 const APIVersion = 1
 
-const maxNoteLen = 2000
+const (
+	maxNoteLen  = 2000  // one note added with a status change
+	maxNotesLen = 20000 // a tracked job's whole notes, edited in place
+)
 
 var presetName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
@@ -106,12 +109,14 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/meta", s.handle(s.meta))
 	mux.HandleFunc("POST /api/search", s.handle(s.search))
 	mux.HandleFunc("GET /api/events", s.handle(s.events))
+	mux.HandleFunc("GET /api/links", s.handle(s.links))
 	mux.HandleFunc("GET /api/jobs/{key}", s.handle(s.job))
 	mux.HandleFunc("POST /api/jobs/{key}/hide", s.handle(s.hide(true)))
 	mux.HandleFunc("DELETE /api/jobs/{key}/hide", s.handle(s.hide(false)))
 	mux.HandleFunc("GET /api/tracker", s.handle(s.trackerList))
 	mux.HandleFunc("PUT /api/tracker/{key}", s.handle(s.trackerSet))
 	mux.HandleFunc("DELETE /api/tracker/{key}", s.handle(s.trackerDelete))
+	mux.HandleFunc("PUT /api/tracker/{key}/notes", s.handle(s.trackerNotes))
 	mux.HandleFunc("GET /api/tracker/{key}/events", s.handle(s.trackerEvents))
 	mux.HandleFunc("GET /api/presets", s.handle(s.presetList))
 	mux.HandleFunc("GET /api/presets/{name}", s.handle(s.presetGet))
@@ -165,16 +170,38 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) error {
 	}
 	out := searchResponse{
 		RunAt: res.RunAt.UTC(), Fetched: res.Total, Matched: len(res.Jobs),
-		Jobs: jobs, Sources: make([]sourceOut, 0, len(res.Reports)), Links: []linkOut{},
+		Jobs: jobs, Sources: make([]sourceOut, 0, len(res.Reports)),
 	}
 	for _, rp := range res.Reports {
 		out.Sources = append(out.Sources, sourceOut{feed.SourceOf(rp), rp.Link})
 	}
-	for _, l := range links.For(f) {
-		out.Links = append(out.Links, linkOut{l.Site, l.URL})
-	}
+	out.Links = linksFor(f)
 	writeJSON(w, http.StatusOK, out)
 	return nil
+}
+
+// links returns the pre-filled searches on sites jobhunt can't query for
+// the filters in the query string (named as for GET /api/events), without
+// running a search. Stream clients use it alongside /api/events.
+func (s *Server) links(w http.ResponseWriter, r *http.Request) error {
+	req, err := searchRequestOf(r.URL.Query())
+	if err != nil {
+		return err
+	}
+	f, _, err := s.parseSearch(req)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, linksFor(f))
+	return nil
+}
+
+func linksFor(f model.Filters) []linkOut {
+	out := []linkOut{}
+	for _, l := range links.For(f) {
+		out = append(out, linkOut{l.Site, l.URL})
+	}
+	return out
 }
 
 func (s *Server) parseSearch(req searchRequest) (model.Filters, SearchOptions, error) {
@@ -313,7 +340,36 @@ func (s *Server) trackerSet(w http.ResponseWriter, r *http.Request) error {
 	if err := s.opts.Store.SetStatus(r.Context(), key, st, note); err != nil {
 		return err
 	}
-	rows, err := s.opts.Store.TrackedJobs(r.Context(), st)
+	return s.writeTracked(r.Context(), w, key)
+}
+
+// trackerNotes replaces a tracked job's notes, e.g. after editing them in
+// the web UI. Unlike the note on PUT /api/tracker/{key}, it isn't added to
+// the status history.
+func (s *Server) trackerNotes(w http.ResponseWriter, r *http.Request) error {
+	var body struct {
+		Notes string `json:"notes"`
+	}
+	if err := decode(r, &body); err != nil {
+		return err
+	}
+	notes := strings.TrimSpace(body.Notes)
+	if utf8.RuneCountInString(notes) > maxNotesLen {
+		return badRequest("notes are longer than %d characters", maxNotesLen)
+	}
+	key, err := s.resolve(r)
+	if err != nil {
+		return err
+	}
+	if err := s.opts.Store.SetNotes(r.Context(), key, notes); err != nil {
+		return err
+	}
+	return s.writeTracked(r.Context(), w, key)
+}
+
+// writeTracked answers with key's tracker row.
+func (s *Server) writeTracked(ctx context.Context, w http.ResponseWriter, key string) error {
+	rows, err := s.opts.Store.TrackedJobs(ctx)
 	if err != nil {
 		return err
 	}
@@ -468,7 +524,17 @@ func (s *Server) sourcesList(w http.ResponseWriter, r *http.Request) error {
 	for _, st := range byName {
 		out = append(out, *st)
 	}
-	slices.SortFunc(out, func(a, b sourceStatus) int { return cmp.Compare(a.Name, b.Name) })
+	// Catalog order, as `jobhunt sources` prints; anything else (e.g. a
+	// source that has since been removed) after it, by name.
+	rank := func(name string) int {
+		if i := slices.IndexFunc(s.opts.Catalog, func(d SourceDesc) bool { return d.Name == name }); i >= 0 {
+			return i
+		}
+		return len(s.opts.Catalog)
+	}
+	slices.SortFunc(out, func(a, b sourceStatus) int {
+		return cmp.Or(cmp.Compare(rank(a.Name), rank(b.Name)), cmp.Compare(a.Name, b.Name))
+	})
 	writeJSON(w, http.StatusOK, out)
 	return nil
 }
