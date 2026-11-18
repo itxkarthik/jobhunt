@@ -69,10 +69,26 @@ func AddBoards(ctx context.Context, st *store.Store, in model.Company, check Boa
 		n, err := check(ctx, ats.Company{Name: in.Name, ATS: b.ATS, Slug: b.Slug})
 		switch {
 		case err != nil:
-			return fmt.Errorf("board %s: %w", b, err)
+			return &BoardError{Board: b, Err: err}
 		case n == 0:
-			return fmt.Errorf("board %s lists no jobs; check the slug (or pass it later when it has openings)", b)
+			return &BoardError{Board: b}
 		}
 	}
 	return nil
 }
+
+// BoardError means a new board failed its check: the fetch failed (Err),
+// or it listed no jobs (Err nil).
+type BoardError struct {
+	Board model.Board
+	Err   error
+}
+
+func (e *BoardError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("board %s lists no jobs; check the slug (or pass it later when it has openings)", e.Board)
+	}
+	return fmt.Sprintf("board %s: %v", e.Board, e.Err)
+}
+
+func (e *BoardError) Unwrap() error { return e.Err }

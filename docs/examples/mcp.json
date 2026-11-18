@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "jobhunt": {
+      "command": "jobhunt",
+      "args": ["mcp"]
+    },
+    "jobhunt-read-only": {
+      "command": "jobhunt",
+      "args": ["mcp", "--read-only"]
+    }
+  }
+}
