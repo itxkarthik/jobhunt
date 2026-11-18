@@ -38,6 +38,11 @@ export async function mount(main) {
   const kw = h("input", { type: "text", id: "kw", name: "keywords", placeholder: "go, rust, kubernetes", autocomplete: "off" });
   const ex = h("input", { type: "text", id: "ex", name: "exclude", placeholder: "senior, unpaid", autocomplete: "off" });
   const age = h("select", { id: "age", name: "posted_within" }, AGES.map(([v, t]) => h("option", { value: v }, t)));
+  const minSalary = h("input", { type: "number", id: "min-salary", min: 0, step: "any", inputmode: "numeric", placeholder: "0", class: "grow" });
+  const currency = h("input", {
+    type: "text", id: "currency", maxlength: 3, placeholder: "INR", "aria-label": "Currency",
+    pattern: "[A-Za-z]{3}", autocomplete: "off", class: "currency",
+  });
   const check = (name, text, title) =>
     h("label", { class: "check", title }, h("input", { type: "checkbox", name }), text);
   const searchBtn = h("button", { type: "submit" }, "Search");
@@ -60,6 +65,8 @@ export async function mount(main) {
     h("label", { for: "kw" }, "Keywords ", h("kbd", {}, "/")), kw,
     h("label", { for: "ex" }, "Exclude"), ex,
     h("label", { for: "age" }, "Posted within"), age,
+    h("label", { for: "min-salary", title: "Jobs without salary info, or in another currency, are dropped unless Include unknown fields is on" }, "Min salary (yearly)"),
+    h("div", { class: "row" }, minSalary, currency),
     h("fieldset", {},
       h("legend", {}, "Options"),
       check("new_only", "New since last search only"),
@@ -80,6 +87,8 @@ export async function mount(main) {
       areas: list("areas"), experience: list("experience"),
       keywords: words(kw.value), exclude: words(ex.value),
       posted_within: age.value,
+      min_salary: Number(minSalary.value) || 0,
+      currency: currency.value.trim().toUpperCase(),
     };
     for (const k of ["new_only", "include_unknown", "strict_country", "visa", "show_hidden"]) {
       input[k] = form.elements[k].checked;
@@ -98,6 +107,8 @@ export async function mount(main) {
       age.append(h("option", { value: want }, want)); // e.g. a preset saved from the CLI as 48h
     }
     age.value = want;
+    minSalary.value = input.min_salary ? String(input.min_salary) : "";
+    currency.value = input.currency || "";
     for (const k of ["new_only", "include_unknown", "strict_country", "visa", "show_hidden"]) {
       form.elements[k].checked = Boolean(input[k]);
     }
@@ -345,25 +356,35 @@ export async function mount(main) {
     }
   }
 
+  const hiding = new Set(); // keys with a hide request in flight
+
   async function hide() {
-    const i = st.sel;
-    const j = st.jobs[i];
-    if (!j) return;
+    const j = st.jobs[st.sel];
+    if (!j || hiding.has(j.key)) return;
+    hiding.add(j.key);
     try {
       await api("POST", `/api/jobs/${enc(j.key)}/hide`);
     } catch (err) {
       toast(`Couldn't hide the job: ${err.message}`, { error: true });
       return;
+    } finally {
+      hiding.delete(j.key);
     }
+    // Find the row again: the list may have been re-sorted meanwhile.
+    const i = st.jobs.findIndex((x) => x.key === j.key);
+    if (i < 0) return;
+    const wasSelected = i === st.sel;
     st.jobs.splice(i, 1);
-    select(Math.min(i, st.jobs.length - 1));
+    if (wasSelected) select(Math.min(i, st.jobs.length - 1));
+    else { if (st.sel > i) st.sel--; renderList(); }
     toast(`Hidden: ${j.title}`, {
       action: "Undo",
       onAction: async () => {
         try {
           await api("DELETE", `/api/jobs/${enc(j.key)}/hide`);
+          if (st.jobs.some((x) => x.key === j.key)) return;
           st.jobs.splice(Math.min(i, st.jobs.length), 0, j);
-          select(i);
+          select(Math.min(i, st.jobs.length - 1));
         } catch (err) {
           toast(`Couldn't unhide the job: ${err.message}`, { error: true });
         }
@@ -449,7 +470,7 @@ export async function mount(main) {
         toast(`Sorted by ${st.sort}`);
       },
       r: () => run({ refresh: true }),
-      "/": () => kw.focus(),
+      "/": () => { setFolded(false); kw.focus(); },
     };
     const fn = actions[e.key];
     if (fn) { e.preventDefault(); fn(); }

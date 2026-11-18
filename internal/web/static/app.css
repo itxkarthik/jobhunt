@@ -245,6 +245,7 @@ main:focus { outline: none; }
 .filters .actions { display: flex; gap: 6px; margin-top: 14px; }
 .filters .actions button { flex: 1; }
 .preset-save { display: flex; gap: 6px; margin-top: 6px; }
+input.currency { width: 4.5rem; text-transform: uppercase; }
 
 .results { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); }
 .results-head {
