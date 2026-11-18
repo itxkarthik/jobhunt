@@ -23,6 +23,22 @@ func (s *Store) ImportedItems(ctx context.Context, source string) (map[string]bo
 	return out, rows.Err()
 }
 
+// ForgetImported deletes the given items of source, so later runs do
+// them again.
+func (s *Store) ForgetImported(ctx context.Context, source string, items []string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, it := range items {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM import_items WHERE source = ? AND item = ?`, source, it); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // MarkImported records items as finished for source.
 func (s *Store) MarkImported(ctx context.Context, source string, items []string, at time.Time) error {
 	tx, err := s.db.BeginTx(ctx, nil)

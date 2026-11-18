@@ -87,7 +87,7 @@ JOBHUNT_EDGAR_USER_AGENT first. Requests stay at 5 a second.`,
 	fs.StringSliceVar(&o.Industries, "industry", nil, `Form D industry groups to keep, or "any" (default from config: Computers, Telecommunications, Other Technology, Other)`)
 	fs.BoolVar(&o.AllEntities, "all-entities", false, "keep LLCs and LPs too, not just corporations (mostly funds)")
 	fs.BoolVar(&dryRun, "dry-run", false, "show what would be added; save nothing")
-	fs.BoolVar(&o.Redo, "redo", false, "read the whole --since window again, ignoring what earlier runs finished")
+	fs.BoolVar(&o.Redo, "redo", false, "read the whole --since window again: forget what earlier runs finished there (a run cut short by --max-filings continues on the next run)")
 	fs.BoolVar(&asJSON, "json", false, "print the summary as JSON")
 	return cmd
 }

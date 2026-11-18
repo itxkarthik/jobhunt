@@ -50,6 +50,14 @@ func ImportEDGAR(ctx context.Context, st *store.Store, im *edgar.Importer, o edg
 	if o.Redo {
 		// Read the window again, e.g. after removing an imported company.
 		// Saving is a merge, so companies already stored aren't duplicated.
+		// The saved progress is deleted too, so a redo cut short by
+		// --max-filings continues on the next plain run. A dry run only
+		// ignores it.
+		if !dryRun {
+			if err := st.ForgetImported(ctx, src, o.RedoItems(done)); err != nil {
+				return nil, err
+			}
+		}
 		done = map[string]bool{}
 	}
 	res, runErr := im.Run(ctx, o, func(item string) bool { return done[item] })

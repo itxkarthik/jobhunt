@@ -65,6 +65,27 @@ func TestImportEDGAR(t *testing.T) {
 	}
 	o.Redo = false
 
+	// A redo cut short by --max-filings resumes on the next plain run.
+	o.Redo, o.MaxFilings = true, 1
+	if sum, err = ImportEDGAR(ctx, st, im, o, false); err != nil || sum.Complete || sum.Fetched != 1 {
+		t.Fatalf("capped redo: %+v, %v", sum, err)
+	}
+	o.Redo, o.MaxFilings = false, 0
+	before = len(srv.Requests())
+	if sum, err = ImportEDGAR(ctx, st, im, o, false); err != nil || !sum.Complete || sum.Fetched != 2 {
+		t.Errorf("resume after capped redo: %+v, %v", sum, err)
+	}
+	// A dry-run redo leaves the saved progress alone.
+	o.Redo = true
+	if _, err = ImportEDGAR(ctx, st, im, o, true); err != nil {
+		t.Fatal(err)
+	}
+	o.Redo = false
+	before = len(srv.Requests())
+	if sum, err = ImportEDGAR(ctx, st, im, o, false); err != nil || len(srv.Requests()) != before {
+		t.Errorf("dry-run redo changed progress: %+v, %v, %d requests", sum, err, len(srv.Requests())-before)
+	}
+
 	// Broader filters read the same day again and find the biotech filing.
 	o.Industries = []string{"any"}
 	sum, err = ImportEDGAR(ctx, st, im, o, false)

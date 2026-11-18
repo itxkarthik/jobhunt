@@ -143,4 +143,12 @@ func TestImportedItems(t *testing.T) {
 	if err != nil || len(got) != 2 || !got["day:1"] || !got["acc:2"] || got["thread:9"] {
 		t.Errorf("edgar items = %v, %v", got, err)
 	}
+	if err := st.ForgetImported(ctx, "edgar", []string{"day:1", "day:404"}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = st.ImportedItems(ctx, "edgar")
+	hn, _ := st.ImportedItems(ctx, "hn")
+	if len(got) != 1 || !got["acc:2"] || len(hn) != 1 {
+		t.Errorf("after forget: edgar %v, hn %v", got, hn)
+	}
 }

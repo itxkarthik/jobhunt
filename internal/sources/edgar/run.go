@@ -45,6 +45,34 @@ func (o Options) Scope() string {
 	return s
 }
 
+// RedoItems lists the saved progress a redo of this window must forget:
+// the window's days, and every filing (a filing's key doesn't say its
+// day; forgetting one outside the window only costs a refetch if its day
+// is ever read again). done is the saved progress.
+func (o Options) RedoItems(done map[string]bool) []string {
+	since := o.Since
+	if since <= 0 {
+		since = 7 * 24 * time.Hour
+	}
+	now := o.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	var out []string
+	for _, d := range Days(now, since) {
+		if it := "day:" + d.Format("20060102"); done[it] {
+			out = append(out, it)
+		}
+	}
+	for it := range done {
+		if strings.HasPrefix(it, "acc:") {
+			out = append(out, it)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // Result is what a run found.
 type Result struct {
 	Days       int // daily indexes read
