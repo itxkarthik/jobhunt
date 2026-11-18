@@ -94,6 +94,8 @@ Available on `search`, `tui`, `export`, `watch` and `preset save`.
 | `-a, --area` | `backend frontend full-stack mobile ml-ai data-engineering data-science devops systems hpc-gpu security embedded qa research blockchain gamedev` |
 | `-m, --mode` | `remote hybrid onsite` |
 | `-e, --experience` | `intern entry mid senior` |
+
+Countries, types, areas and modes left out take the defaults from your config; `any` (as in `-c any`) lifts the restriction instead.
 | `-k, --keywords` / `-x, --exclude` | include jobs mentioning any / drop jobs mentioning any |
 | `--posted-within` | `24h 3d 7d 30d` |
 | `--visa` | only jobs that mention visa sponsorship |

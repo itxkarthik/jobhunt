@@ -35,6 +35,10 @@ func TestParseFilters(t *testing.T) {
 		{"age and currency", FilterInput{PostedWithin: "7d", Currency: " inr "}, func(f model.Filters) bool {
 			return f.PostedWithin == 7*24*time.Hour && f.Currency == "INR"
 		}, false},
+		{"any lifts the default", FilterInput{Countries: []string{"any"}, Types: []string{" ANY "}, Modes: []string{"any"}, Areas: []string{"any"}}, func(f model.Filters) bool {
+			return f.Countries == nil && f.Types == nil && f.Modes == nil && f.Areas == nil
+		}, false},
+		{"any with other values", FilterInput{Countries: []string{"any", "US"}}, nil, true},
 		{"unknown country", FilterInput{Countries: []string{"Atlantis"}}, nil, true},
 		{"unknown mode", FilterInput{Modes: []string{"teleport"}}, nil, true},
 		{"unknown type", FilterInput{Types: []string{"forever"}}, nil, true},

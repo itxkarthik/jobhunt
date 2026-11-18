@@ -37,7 +37,7 @@ curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:7777/api/health
 
 ### Filters
 
-Searches and presets use the same filter object as the CLI flags. Empty fields take the defaults from your config (for example `countries: ["IN"]`).
+Searches and presets use the same filter object as the CLI flags. Empty fields take the defaults from your config (for example `countries: ["IN"]`). To lift a default instead, send `["any"]` for `countries`, `modes`, `types` or `areas`.
 
 ```json
 {

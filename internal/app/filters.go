@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -29,25 +30,33 @@ type FilterInput struct {
 	IncludeUnknown bool     `json:"include_unknown,omitempty"`
 }
 
+// Any is the filter value meaning "no restriction". As the only value of
+// countries, modes, types or areas it lifts the config default, which an
+// empty field would apply.
+const Any = "any"
+
 // ParseFilters validates in and fills empty countries, modes, types and
 // areas from the config defaults.
 func ParseFilters(d config.Defaults, in FilterInput) (model.Filters, error) {
 	var f model.Filters
-	for _, c := range orDefault(in.Countries, d.Countries) {
+	countries, err := orDefault(in.Countries, d.Countries)
+	if err != nil {
+		return f, err
+	}
+	for _, c := range countries {
 		code, ok := model.NormalizeCountry(c)
 		if !ok {
 			return f, fmt.Errorf("unknown country %q", c)
 		}
 		f.Countries = append(f.Countries, code)
 	}
-	var err error
-	if f.Modes, err = parseAll(orDefault(in.Modes, d.Modes), model.ParseWorkMode); err != nil {
+	if f.Modes, err = parseDefault(in.Modes, d.Modes, model.ParseWorkMode); err != nil {
 		return f, err
 	}
-	if f.Types, err = parseAll(orDefault(in.Types, d.Types), model.ParseJobType); err != nil {
+	if f.Types, err = parseDefault(in.Types, d.Types, model.ParseJobType); err != nil {
 		return f, err
 	}
-	if f.Areas, err = parseAll(orDefault(in.Areas, d.Areas), model.ParseArea); err != nil {
+	if f.Areas, err = parseDefault(in.Areas, d.Areas, model.ParseArea); err != nil {
 		return f, err
 	}
 	if f.Experience, err = parseAll(in.Experience, model.ParseExperience); err != nil {
@@ -138,11 +147,27 @@ func strs[T ~string](xs []T) []string {
 	return out
 }
 
-func orDefault(v, def []string) []string {
-	if len(v) > 0 {
-		return v
+// orDefault returns v, or def when v is empty, or nothing when v is
+// just Any.
+func orDefault(v, def []string) ([]string, error) {
+	if slices.ContainsFunc(v, func(s string) bool { return strings.EqualFold(strings.TrimSpace(s), Any) }) {
+		if len(v) > 1 {
+			return nil, fmt.Errorf("%q can't be combined with other values", Any)
+		}
+		return nil, nil
 	}
-	return def
+	if len(v) > 0 {
+		return v, nil
+	}
+	return def, nil
+}
+
+func parseDefault[T any](v, def []string, parse func(string) (T, error)) ([]T, error) {
+	vals, err := orDefault(v, def)
+	if err != nil {
+		return nil, err
+	}
+	return parseAll(vals, parse)
 }
 
 func trimAll(xs []string) []string {
