@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"net"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -67,6 +68,24 @@ func TestCatalogListsEverySource(t *testing.T) {
 	for i, info := range app.Catalog {
 		if d := got[i]; d.Name != info.Name || d.Description != info.Description || d.Credential != info.Key {
 			t.Errorf("catalog[%d] = %+v, want %s", i, d, info.Name)
+		}
+	}
+}
+
+func TestUIURL(t *testing.T) {
+	for _, tok := range []string{"ABCDEFGHJKLMNPQRSTUVWXYZ23", "a/b+c&d#e%f g=h"} {
+		u := uiURL("http://127.0.0.1:7777", tok)
+		frag, ok := strings.CutPrefix(u, "http://127.0.0.1:7777/#token=")
+		if !ok {
+			t.Fatalf("uiURL(%q) = %q", tok, u)
+		}
+		if strings.ContainsAny(frag, "/# ") {
+			t.Errorf("uiURL(%q) = %q: fragment isn't escaped", tok, u)
+		}
+		// The web UI decodes the fragment with decodeURIComponent, which
+		// matches url.PathUnescape for these characters.
+		if got, err := url.PathUnescape(frag); err != nil || got != tok {
+			t.Errorf("round trip of %q = %q, %v", tok, got, err)
 		}
 	}
 }
