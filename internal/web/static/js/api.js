@@ -15,9 +15,11 @@ export class APIError extends Error {
 // takeToken moves a token from the fragment into storage and strips it
 // from the address bar and history.
 export function takeToken() {
-  const m = /^#token=([^&/]+)/.exec(location.hash);
+  const m = /^#token=(.+)$/.exec(location.hash); // the whole rest: tokens may contain "/" or "&"
   if (!m) return;
-  setToken(decodeURIComponent(m[1]));
+  let t = m[1];
+  try { t = decodeURIComponent(t); } catch { /* not escaped: use as is */ }
+  setToken(t);
   history.replaceState(null, "", `${location.pathname}${location.search}#/search`);
 }
 
