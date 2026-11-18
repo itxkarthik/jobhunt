@@ -143,6 +143,16 @@ type Filters struct {
 
 	StrictCountry  bool `json:"strict_country,omitempty" yaml:"strict_country,omitempty"`
 	IncludeUnknown bool `json:"include_unknown,omitempty" yaml:"include_unknown,omitempty"`
+
+	// Only jobs at companies in the companies list with these funding
+	// stages or headcounts. Jobs at companies not on the list are dropped.
+	CompanyStages     []Stage     `json:"company_stages,omitempty" yaml:"company_stages,omitempty"`
+	CompanyHeadcounts []Headcount `json:"company_headcounts,omitempty" yaml:"company_headcounts,omitempty"`
+}
+
+// WantsCompanies reports whether f restricts jobs by company record.
+func (f Filters) WantsCompanies() bool {
+	return len(f.CompanyStages) > 0 || len(f.CompanyHeadcounts) > 0
 }
 
 func (f Filters) WantsType(t JobType) bool {
@@ -159,10 +169,6 @@ func (f Filters) WantsMode(m WorkMode) bool {
 // OnlyRemote is true when the user restricted modes to remote.
 func (f Filters) OnlyRemote() bool {
 	return len(f.Modes) == 1 && f.Modes[0] == ModeRemote
-}
-
-func (f Filters) WantsCountry(c string) bool {
-	return slices.Contains(f.Countries, c)
 }
 
 func ParseWorkMode(s string) (WorkMode, error) {

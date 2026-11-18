@@ -77,7 +77,7 @@ func (s *Source) queries(f model.Filters) []url.Values {
 	}
 	var out []url.Values
 	for _, c := range f.Countries {
-		q := cloneValues(base)
+		q := sources.CloneValues(base)
 		if c == model.RemoteGlobal {
 			q.Set("worldwide", "true")
 		} else {
@@ -89,14 +89,6 @@ func (s *Source) queries(f model.Filters) []url.Values {
 		out = append(out, base)
 	}
 	return out
-}
-
-func cloneValues(v url.Values) url.Values {
-	c := url.Values{}
-	for k, vs := range v {
-		c[k] = append([]string(nil), vs...)
-	}
-	return c
 }
 
 type response struct {

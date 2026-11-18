@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/itxkarthik/jobhunt/internal/dedup"
 	"github.com/itxkarthik/jobhunt/internal/model"
 )
 
@@ -83,10 +84,47 @@ func putJob(ctx context.Context, db execer, j *model.Job, ts int64) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx,
-		`INSERT INTO jobs (key, json, updated_at) VALUES (?, ?, ?)
-		 ON CONFLICT (key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at`,
-		j.Key, blob, ts)
+		`INSERT INTO jobs (key, json, updated_at, company_key) VALUES (?, ?, ?, ?)
+		 ON CONFLICT (key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at,
+		   company_key = excluded.company_key`,
+		j.Key, blob, ts, dedup.NormCompany(j.Company))
 	return err
+}
+
+// CompanyJobs returns the stored jobs of the given companies (keys from
+// dedup.NormCompany) last seen at or after since, newest first.
+func (s *Store) CompanyJobs(ctx context.Context, keys []string, since time.Time) (map[string][]model.Job, error) {
+	out := map[string][]model.Job{}
+	if len(keys) == 0 {
+		return out, nil
+	}
+	list, err := json.Marshal(keys) // one parameter, however many companies
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT company_key, json FROM jobs
+		 WHERE updated_at >= ? AND company_key IN (SELECT value FROM json_each(?))
+		 ORDER BY updated_at DESC`, since.Unix(), string(list))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			key  string
+			blob []byte
+			j    model.Job
+		)
+		if err := rows.Scan(&key, &blob); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(blob, &j); err != nil {
+			return nil, err
+		}
+		out[key] = append(out[key], j)
+	}
+	return out, rows.Err()
 }
 
 // SaveJob stores j's latest record (used when tracking a job).

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -64,6 +65,10 @@ type Engine struct {
 	ShowHidden  bool   // keep jobs the user hid
 	NewOnly     bool   // keep only jobs never seen in an earlier run
 	NoMarkSeen  bool   // don't record results as seen (dry runs)
+	// Prepare, if set, runs before each search, e.g. to reload boards
+	// added since the engine was built. An error is not fatal: the search
+	// runs with what it has.
+	Prepare func(context.Context) error
 	// Progress, if set, is called as each source finishes.
 	Progress func(Report)
 }
@@ -71,6 +76,9 @@ type Engine struct {
 // Run executes the search. It only returns an error for problems that make
 // the whole search impossible; individual source failures go in Reports.
 func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
+	if e.Prepare != nil {
+		_ = e.Prepare(ctx) // a stale board list is better than no search
+	}
 	var (
 		mu      sync.Mutex
 		all     []model.Job
@@ -114,12 +122,38 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		res.Jobs[i].Score, res.Jobs[i].ScoreParts = rk.Explain(&res.Jobs[i], f, kw)
 	}
 	Sort(res.Jobs, e.SortBy)
+	if f.WantsCompanies() {
+		if e.Store == nil {
+			return nil, errors.New("company filters need the database")
+		}
+		if err := e.byCompany(ctx, res, f); err != nil {
+			return nil, err
+		}
+	}
 	if e.Store != nil {
 		if err := e.track(ctx, res, now); err != nil {
 			return nil, err
 		}
 	}
 	return res, nil
+}
+
+// byCompany keeps jobs at companies on the companies list whose stage and
+// headcount pass f.
+func (e *Engine) byCompany(ctx context.Context, res *Result, f model.Filters) error {
+	cs, err := e.Store.Companies(ctx)
+	if err != nil {
+		return err
+	}
+	ok := map[string]bool{}
+	for _, c := range cs {
+		if (len(f.CompanyStages) == 0 || slices.Contains(f.CompanyStages, c.Stage)) &&
+			(len(f.CompanyHeadcounts) == 0 || slices.Contains(f.CompanyHeadcounts, c.Headcount)) {
+			ok[c.Key] = true
+		}
+	}
+	res.Jobs = keep(res.Jobs, func(j *model.Job) bool { return ok[dedup.NormCompany(j.Company)] })
+	return nil
 }
 
 // track drops hidden jobs, records the rest as seen, and marks new ones.

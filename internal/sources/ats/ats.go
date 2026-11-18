@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"slices"
 	"sort"
@@ -34,6 +35,82 @@ type Company struct {
 	Slug      string   `yaml:"slug"`
 	Countries []string `yaml:"countries"`
 	Remote    bool     `yaml:"remote"`
+	// Added marks a board from the companies list in the database rather
+	// than companies.yaml.
+	Added bool `yaml:"-"`
+}
+
+// Boards is the set of boards the ATS sources fetch: companies.yaml plus
+// boards added at runtime to the companies list. It is shared by all ATS
+// sources and safe to update while searches run.
+type Boards struct {
+	mu    sync.RWMutex
+	base  []Company
+	added []Company
+}
+
+// NewBoards returns a set holding base (usually companies.yaml).
+func NewBoards(base []Company) *Boards { return &Boards{base: base} }
+
+// SetAdded replaces the runtime boards. Boards already in the base list
+// are skipped, so a company in both is fetched once.
+func (b *Boards) SetAdded(cs []Company) {
+	var out []Company
+	b.mu.RLock()
+	for _, c := range cs {
+		if !slices.ContainsFunc(b.base, func(x Company) bool { return sameBoard(x, c) }) &&
+			!slices.ContainsFunc(out, func(x Company) bool { return sameBoard(x, c) }) {
+			c.Added = true
+			out = append(out, c)
+		}
+	}
+	b.mu.RUnlock()
+	b.mu.Lock()
+	b.added = out
+	b.mu.Unlock()
+}
+
+// All returns every board, companies.yaml first.
+func (b *Boards) All() []Company {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return slices.Concat(b.base, b.added)
+}
+
+// For returns the boards on one ATS.
+func (b *Boards) For(atsName string) []Company {
+	var out []Company
+	for _, c := range b.All() {
+		if c.ATS == atsName {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func sameBoard(a, b Company) bool {
+	return a.ATS == b.ATS && strings.EqualFold(a.Slug, b.Slug)
+}
+
+// Check fetches one board and returns how many jobs it lists, to vet a
+// board before it is saved. client may be nil for a default client.
+func Check(ctx context.Context, client *sources.Client, c Company) (int, error) {
+	p, ok := providers[c.ATS]
+	if !ok {
+		return 0, fmt.Errorf("unknown ats %q", c.ATS)
+	}
+	if client == nil {
+		client = sources.NewClient("", rate.Limit(4))
+	}
+	jobs, err := p.fetchBoard(ctx, client, c)
+	return len(jobs), err
+}
+
+// Gone reports whether a board fetch failed because the ATS says the
+// board doesn't exist (404 or 410), as opposed to a failure that may pass.
+func Gone(err error) bool {
+	se, ok := errors.AsType[*sources.StatusError](err)
+	return ok && (se.Code == http.StatusNotFound || se.Code == http.StatusGone)
 }
 
 // LoadCompanies reads path if it exists, else the embedded starter list.
@@ -93,15 +170,21 @@ var ATSNames = []string{"greenhouse", "lever", "ashby", "workable", "recruitee"}
 // Source is one ATS across many company boards.
 type Source struct {
 	ATS         string
-	Companies   []Company // only boards on this ATS
 	Client      *sources.Client
 	Concurrency int
+	list        *Boards
 	prov        provider
 }
 
 // New returns a Source for ats over the matching companies. base overrides
 // the API base URL (tests); pass "" for the real one.
 func New(atsName string, all []Company, client *sources.Client, base string) *Source {
+	return NewShared(atsName, NewBoards(all), client, base)
+}
+
+// NewShared returns a Source reading its boards from list, which the
+// caller may update between searches.
+func NewShared(atsName string, list *Boards, client *sources.Client, base string) *Source {
 	p := providers[atsName]
 	if base != "" {
 		switch atsName {
@@ -117,14 +200,11 @@ func New(atsName string, all []Company, client *sources.Client, base string) *So
 			p = recruitee{base: base}
 		}
 	}
-	s := &Source{ATS: atsName, Client: client, Concurrency: 4, prov: p}
-	for _, c := range all {
-		if c.ATS == atsName {
-			s.Companies = append(s.Companies, c)
-		}
-	}
-	return s
+	return &Source{ATS: atsName, Client: client, Concurrency: 4, list: list, prov: p}
 }
+
+// Companies returns the boards on this ATS.
+func (s *Source) Companies() []Company { return s.list.For(s.ATS) }
 
 func (s *Source) Name() string              { return s.ATS }
 func (s *Source) Rate() rate.Limit          { return rate.Limit(4) }
@@ -146,13 +226,14 @@ func (s *Source) CacheKey(f model.Filters) string {
 // boards are included too unless the search is strict, since their
 // worldwide-remote jobs pass the country filter.
 func (s *Source) boards(f model.Filters) []Company {
+	all := s.Companies()
 	if len(f.Countries) == 0 {
-		return s.Companies
+		return all
 	}
 	var out []Company
-	for _, c := range s.Companies {
+	for _, c := range all {
 		for _, want := range f.Countries {
-			if (c.Remote && (want == model.RemoteGlobal || !f.StrictCountry)) || contains(c.Countries, want) {
+			if (c.Remote && (want == model.RemoteGlobal || !f.StrictCountry)) || slices.Contains(c.Countries, want) {
 				out = append(out, c)
 				break
 			}
@@ -208,10 +289,11 @@ type BoardResult struct {
 // CheckBoards fetches every board and reports job counts or errors, to find
 // slugs that went stale (companies switch ATS often).
 func (s *Source) CheckBoards(ctx context.Context) []BoardResult {
-	out := make([]BoardResult, len(s.Companies))
+	all := s.Companies()
+	out := make([]BoardResult, len(all))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(s.Concurrency)
-	for i, c := range s.Companies {
+	for i, c := range all {
 		g.Go(func() error {
 			jobs, err := s.prov.fetchBoard(gctx, s.Client, c)
 			out[i] = BoardResult{Company: c, Count: len(jobs), Err: err}
@@ -245,10 +327,6 @@ func locate(texts ...string) (countries []string, city string) {
 		}
 	}
 	return countries, city
-}
-
-func contains(xs []string, x string) bool {
-	return slices.Contains(xs, x)
 }
 
 const maxDesc = 5000

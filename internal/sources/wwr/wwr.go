@@ -125,7 +125,7 @@ func parse(b []byte) ([]model.Job, error) {
 		if !ok {
 			company, title = "", it.Title
 		}
-		loc := strings.Join(nonEmpty(it.Region, it.Country), ", ")
+		loc := strings.Join(sources.NonEmpty(it.Region, it.Country), ", ")
 		countries, city := model.ParseLocation(loc)
 		link := it.Link
 		if link == "" {
@@ -168,16 +168,6 @@ func parse(b []byte) ([]model.Job, error) {
 		jobs = append(jobs, j)
 	}
 	return jobs, nil
-}
-
-func nonEmpty(xs ...string) []string {
-	var out []string
-	for _, x := range xs {
-		if x = strings.TrimSpace(x); x != "" {
-			out = append(out, x)
-		}
-	}
-	return out
 }
 
 func (s *Source) SearchURL(f model.Filters) string {

@@ -67,6 +67,28 @@ func TestStatusErrorRedactsKeys(t *testing.T) {
 	}
 }
 
+func TestErrorsRedactKeys(t *testing.T) {
+	ctx := context.Background()
+	q := "?app_id=secret1&app_key=secret2&q=go"
+	// A body that isn't JSON: the decode error quotes the URL.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("<html>")) }))
+	var v any
+	err := testClient().GetJSON(ctx, srv.URL+"/x"+q, nil, &v)
+	srv.Close()
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Errorf("decode error leaks credentials: %v", err)
+	}
+	// A transport failure: *url.Error carries the URL.
+	err = testClient().GetJSON(ctx, srv.URL+"/x"+q, nil, &v) // server closed
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Errorf("transport error leaks credentials: %v", err)
+	}
+	got := RedactURLs(`decode https://api.example.com/jobs?app_key=abc&q=go: bad; see "http://x.io/?token=t1"`)
+	if strings.Contains(got, "abc") || strings.Contains(got, "t1") || !strings.Contains(got, "q=go") {
+		t.Errorf("RedactURLs = %s", got)
+	}
+}
+
 func TestStripHTML(t *testing.T) {
 	tests := []struct{ in, want string }{
 		{"<p>Hello <b>world</b></p><p>Two</p>", "Hello world\n\nTwo"},

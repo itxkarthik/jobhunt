@@ -3,6 +3,7 @@ package ats
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -130,7 +131,7 @@ func (lever) parse(resp []leverPosting, c Company) []model.Job {
 			locs = []string{r.Categories.Location}
 		}
 		countries, city := locate(locs...)
-		if r.Country != "" && !contains(countries, strings.ToUpper(r.Country)) {
+		if r.Country != "" && !slices.Contains(countries, strings.ToUpper(r.Country)) {
 			countries = append([]string{strings.ToUpper(r.Country)}, countries...)
 		}
 		var desc strings.Builder
@@ -257,7 +258,7 @@ func (ashby) parse(resp ashbyResponse, c Company) []model.Job {
 		texts := []string{r.Location}
 		var countries []string
 		addCountry := func(name string) {
-			if code, ok := model.NormalizeCountry(name); ok && name != "" && !contains(countries, code) {
+			if code, ok := model.NormalizeCountry(name); ok && name != "" && !slices.Contains(countries, code) {
 				countries = append(countries, code)
 			}
 		}
@@ -270,7 +271,7 @@ func (ashby) parse(resp ashbyResponse, c Company) []model.Job {
 		}
 		parsed, city := locate(texts...)
 		for _, p := range parsed {
-			if !contains(countries, p) {
+			if !slices.Contains(countries, p) {
 				countries = append(countries, p)
 			}
 		}
@@ -290,7 +291,7 @@ func (ashby) parse(resp ashbyResponse, c Company) []model.Job {
 			Description: sources.Truncate(r.DescriptionPlain, maxDesc),
 		}
 		for _, t := range []string{r.Department, r.Team} {
-			if t != "" && !contains(j.Tags, t) {
+			if t != "" && !slices.Contains(j.Tags, t) {
 				j.Tags = append(j.Tags, t)
 			}
 		}
@@ -377,7 +378,7 @@ func (workable) parse(resp workableResponse, c Company) []model.Job {
 		var countries, texts []string
 		city := r.City
 		for _, l := range r.Locations {
-			if code := strings.ToUpper(l.CountryCode); len(code) == 2 && !contains(countries, code) {
+			if code := strings.ToUpper(l.CountryCode); len(code) == 2 && !slices.Contains(countries, code) {
 				countries = append(countries, code)
 			}
 			if city == "" {
@@ -408,7 +409,7 @@ func (workable) parse(resp workableResponse, c Company) []model.Job {
 			Description: sources.Truncate(sources.StripHTML(r.Description), maxDesc),
 		}
 		for _, t := range []string{r.Department, r.Function} {
-			if t != "" && !contains(j.Tags, t) {
+			if t != "" && !slices.Contains(j.Tags, t) {
 				j.Tags = append(j.Tags, t)
 			}
 		}
@@ -488,7 +489,7 @@ func (recruitee) parse(resp recruiteeResponse, c Company) []model.Job {
 	for _, o := range resp.Offers {
 		var countries []string
 		add := func(cc string) {
-			if cc = strings.ToUpper(cc); len(cc) == 2 && !contains(countries, cc) {
+			if cc = strings.ToUpper(cc); len(cc) == 2 && !slices.Contains(countries, cc) {
 				countries = append(countries, cc)
 			}
 		}

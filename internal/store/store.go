@@ -35,7 +35,11 @@ func Open(path string) (*Store, error) {
 			return nil, err
 		}
 	}
-	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)"
+	// _txlock=immediate: every transaction here reads then writes. Taking
+	// the write lock at BEGIN lets busy_timeout queue concurrent writers
+	// (the server, an agent, a watch loop); a deferred transaction would
+	// fail with SQLITE_BUSY when it tries to upgrade its read lock.
+	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_txlock=immediate"
 	if path == ":memory:" {
 		dsn = "file::memory:?_pragma=foreign_keys(1)"
 	}

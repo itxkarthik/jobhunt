@@ -1,0 +1,18 @@
+Description:           Daily Index of EDGAR Dissemination Feed by Form Type
+Last Data Received:    Nov 17, 2026
+Comments:              webmaster@sec.gov
+Anonymous FTP:         ftp://ftp.sec.gov/edgar/
+
+
+
+
+Form Type   Company Name                                                  CIK         Date Filed  File Name
+---------------------------------------------------------------------------------------------------------------------------------------------
+8-K         Example Holdings Corp                                         1000001     20261117    edgar/data/1000001/0001000001-26-000010.txt
+D           AC-004 Fund V, a Series of SVP Partners Fund 2025 LLC         2165497     20261117    edgar/data/2165497/0002165497-26-000001.txt
+D           ARC Greenway Office Investor, LLC                             2161528     20261117    edgar/data/2161528/0000912282-26-001507.txt
+D           Lyzr, Inc.                                                    1994140     20261117    edgar/data/1994140/0001994140-26-000006.txt
+D           Brightloop Robotics Inc                                       2170001     20261117    edgar/data/2170001/0002170001-26-000001.txt
+D           Kettle Biosciences, Inc.                                      2170002     20261117    edgar/data/2170002/0002170002-26-000001.txt
+D/A         Lyzr, Inc.                                                    1994140     20261117    edgar/data/1994140/0001994140-26-000007.txt
+DEF 14A     Example Holdings Corp                                         1000001     20261117    edgar/data/1000001/0001000001-26-000011.txt

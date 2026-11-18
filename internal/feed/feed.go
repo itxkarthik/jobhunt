@@ -80,7 +80,7 @@ type Options struct {
 // then pending redeliveries, then the selected jobs in result order, then
 // the run summary.
 func Build(res *search.Result, runID string, opts Options) []Event {
-	at := utc(res.RunAt)
+	at := res.RunAt.UTC()
 	ev := func(t Type) Event { return Event{V: Version, Type: t, RunID: runID, At: at} }
 
 	events := make([]Event, 0, len(res.Reports)+len(res.Jobs)+1)
@@ -101,7 +101,7 @@ func Build(res *search.Result, runID string, opts Options) []Event {
 		if opts.NoDescription {
 			j.Description = ""
 		}
-		j.PostedAt, j.FirstSeenAt = utc(j.PostedAt), utc(j.FirstSeenAt)
+		j.PostedAt, j.FirstSeenAt = j.PostedAt.UTC(), j.FirstSeenAt.UTC()
 		e := ev(TypeJob)
 		e.Job = &j
 		events = append(events, e)
@@ -137,14 +137,6 @@ func SourceOf(r search.Report) SourceEvent {
 		Name: r.Source, Status: r.Status, Count: r.Count,
 		DurationMS: r.Duration.Milliseconds(), Error: r.Err,
 	}
-}
-
-// utc normalises event timestamps; the zero time stays zero so it's omitted.
-func utc(t time.Time) time.Time {
-	if t.IsZero() {
-		return t
-	}
-	return t.UTC()
 }
 
 func (o Options) keep(j *model.Job) bool {

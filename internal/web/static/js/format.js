@@ -80,7 +80,3 @@ export function ago(iso, now = Date.now()) {
 export function count(n) {
   return Number(n || 0).toLocaleString();
 }
-
-export function plural(n, one, many = `${one}s`) {
-  return `${count(n)} ${n === 1 ? one : many}`;
-}

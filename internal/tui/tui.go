@@ -344,13 +344,13 @@ func (m *Model) isOn(o option) bool {
 	f := m.filters
 	switch o.group {
 	case "country":
-		return has(f.Countries, o.value)
+		return slices.Contains(f.Countries, o.value)
 	case "type":
-		return has(f.Types, model.JobType(o.value))
+		return slices.Contains(f.Types, model.JobType(o.value))
 	case "mode":
-		return has(f.Modes, model.WorkMode(o.value))
+		return slices.Contains(f.Modes, model.WorkMode(o.value))
 	case "area":
-		return has(f.Areas, model.Area(o.value))
+		return slices.Contains(f.Areas, model.Area(o.value))
 	}
 	return false
 }
@@ -645,10 +645,6 @@ func trunc(s string, n int) string {
 		return s
 	}
 	return string(r[:n-1]) + "…"
-}
-
-func has[T comparable](xs []T, x T) bool {
-	return slices.Contains(xs, x)
 }
 
 func flipT[T comparable](xs []T, x T) []T {

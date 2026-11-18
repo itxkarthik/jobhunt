@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -119,7 +120,7 @@ func TestSidebarSpaceToggles(t *testing.T) {
 	}
 	keys(m, "j") // US
 	cmd := func() tea.Cmd { _, c := m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}); return c }()
-	if !has(m.filters.Countries, "US") {
+	if !slices.Contains(m.filters.Countries, "US") {
 		t.Fatalf("countries = %v, want US toggled on", m.filters.Countries)
 	}
 	if cmd == nil {
@@ -128,7 +129,7 @@ func TestSidebarSpaceToggles(t *testing.T) {
 	for msg := cmd(); msg != nil; msg = wait(m.ch)() {
 		m.Update(msg)
 	}
-	if !has(got.Countries, "US") || m.loading {
+	if !slices.Contains(got.Countries, "US") || m.loading {
 		t.Errorf("search got %v, loading=%v", got.Countries, m.loading)
 	}
 }

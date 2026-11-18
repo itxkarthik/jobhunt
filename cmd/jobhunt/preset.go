@@ -119,6 +119,8 @@ func summary(f model.Filters) string {
 	add("level:", strs(f.Experience))
 	add("kw:", f.Keywords)
 	add("-", f.Exclude)
+	add("company:", strs(f.CompanyStages))
+	add("people:", strs(f.CompanyHeadcounts))
 	if f.PostedWithin > 0 {
 		parts = append(parts, fmt.Sprintf("≤%.0fd", f.PostedWithin.Hours()/24))
 	}
