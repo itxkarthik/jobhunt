@@ -371,4 +371,19 @@ func TestStaticUI(t *testing.T) {
 	if w := serve(s, req(http.MethodGet, "/", "")); !strings.Contains(w.Body.String(), "<title>jobhunt</title>") {
 		t.Errorf("index body = %q", w.Body.String())
 	}
+	// Regression: the UI's catch-all must not answer unknown API paths.
+	for _, tt := range []struct {
+		method, path, allow string
+		want                int
+	}{
+		{http.MethodGet, "/api/does-not-exist", "", http.StatusNotFound},
+		{http.MethodPost, "/api/does-not-exist", "", http.StatusNotFound},
+		{http.MethodPut, "/api/meta", "GET, HEAD", http.StatusMethodNotAllowed},
+	} {
+		w := serve(s, req(tt.method, tt.path, ""))
+		if w.Code != tt.want || !strings.HasPrefix(w.Header().Get("Content-Type"), "application/json") || w.Header().Get("Allow") != tt.allow {
+			t.Errorf("%s %s = %d %q, Allow %q; want %d JSON, Allow %q", tt.method, tt.path, w.Code,
+				w.Header().Get("Content-Type"), w.Header().Get("Allow"), tt.want, tt.allow)
+		}
+	}
 }

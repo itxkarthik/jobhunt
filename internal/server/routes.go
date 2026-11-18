@@ -6,26 +6,38 @@ import (
 	"strings"
 )
 
+// routes keeps the API in a mux of its own: in a shared one, the web UI's
+// "GET /" catch-all would also match unknown /api/ paths and answer them
+// with the file server's plain-text 404 instead of a JSON error.
 func (s *Server) routes() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
-	s.apiRoutes(mux)
+	s.apiRoutes(api)
+
+	root := http.NewServeMux()
 	if s.opts.Static != nil {
-		mux.Handle("GET /", static(s.opts.Static))
+		root.Handle("GET /", static(s.opts.Static))
 	} else {
-		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
+		root.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			_, _ = w.Write([]byte("jobhunt is running. The JSON API is under /api/ (see docs/api.md).\n"))
 		})
 	}
-	return jsonErrors(mux)
+	apiHandler := jsonErrors(api)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			apiHandler.ServeHTTP(w, r)
+			return
+		}
+		root.ServeHTTP(w, r)
+	})
 }
 
-// jsonErrors turns the mux's own plain-text 404 and 405 answers for /api/
-// paths into JSON errors, keeping the Allow header. (A catch-all "/api/"
-// route can't do this: it would also swallow wrong-method requests.)
+// jsonErrors turns the API mux's own plain-text 404 and 405 answers into
+// JSON errors, keeping the Allow header. (A catch-all "/api/" route inside
+// that mux can't do this: it would also swallow wrong-method requests.)
 func jsonErrors(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, pattern := mux.Handler(r)
