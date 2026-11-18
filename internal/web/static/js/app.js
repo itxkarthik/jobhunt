@@ -31,16 +31,22 @@ async function render() {
     return;
   }
   document.title = `jobhunt · ${name}`;
-  replace(main, h("p", { class: "muted pad" }, "Loading…"));
+  // Each mount gets its own container. If the route changes while it is
+  // still loading, it fills a detached node, and its cleanup runs as soon
+  // as it finishes instead of replacing the current view's.
+  const view = h("div", { class: "view" }, h("p", { class: "muted pad" }, "Loading…"));
+  main.replaceChildren(view);
+  let done = null;
   try {
     const mod = await views[name]();
-    if (gen !== generation) return; // the route changed while loading
-    main.replaceChildren();
-    cleanup = (await mod.mount(main)) || null;
-  } catch (err) {
     if (gen !== generation) return;
-    replace(main, h("p", { class: "notice error" }, `Could not load this view: ${err.message}`));
+    view.replaceChildren();
+    done = (await mod.mount(view)) || null;
+  } catch (err) {
+    if (gen === generation) replace(view, h("p", { class: "notice error" }, `Could not load this view: ${err.message}`));
   }
+  if (gen === generation) cleanup = done;
+  else if (done) done();
 }
 
 function showLogin(reason = "") {
