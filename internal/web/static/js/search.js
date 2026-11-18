@@ -82,6 +82,14 @@ function explicit(input) {
   return out;
 }
 
+// fromAPI turns the server's ["any"] (in presets and meta defaults) back
+// into an empty group: no chips on.
+function fromAPI(input) {
+  const out = { ...input };
+  for (const k of DEFAULTED) if (out[k]?.length === 1 && out[k][0] === "any") out[k] = [];
+  return out;
+}
+
 // query builds /api/events and /api/links parameters, named like the JSON.
 export function query(input, extra = {}) {
   const q = new URLSearchParams();
@@ -97,7 +105,7 @@ export async function currentInput() {
   if (!S.input) {
     const m = await meta();
     const last = loadLast();
-    S.input = { ...clone(m.defaults), new_only: false, show_hidden: false, ...(last?.input || {}) };
+    S.input = fromAPI({ ...clone(m.defaults), new_only: false, show_hidden: false, ...(last?.input || {}) });
     S.sort = last?.sort === "date" ? "date" : "score";
   }
   return S.input;
@@ -700,7 +708,7 @@ export async function mount(view, { live = () => true } = {}) {
   }
 
   function reset() {
-    S.input = { ...clone(m.defaults), new_only: false, show_hidden: false };
+    S.input = fromAPI({ ...clone(m.defaults), new_only: false, show_hidden: false });
     S.where = "";
     where.value = "";
     presetSel.value = "";
@@ -773,7 +781,7 @@ export async function mount(view, { live = () => true } = {}) {
       countries: [], modes: [], types: [], areas: [], experience: [], keywords: [], exclude: [], posted_within: "",
       visa: false, min_salary: 0, currency: "", strict_country: false, include_unknown: false,
     };
-    S.input = { ...blank, ...clone(p.filters), new_only: S.input.new_only, show_hidden: S.input.show_hidden };
+    S.input = fromAPI({ ...blank, ...clone(p.filters), new_only: S.input.new_only, show_hidden: S.input.show_hidden });
     presetName.value = p.name;
     changed();
   });

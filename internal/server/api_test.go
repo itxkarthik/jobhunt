@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -281,6 +282,20 @@ func TestPresets(t *testing.T) {
 	if p.Name != "india-backend" || !slices.Equal(p.Filters.Countries, []string{"IN"}) || p.Filters.PostedWithin != "3d" {
 		t.Errorf("saved = %+v", p)
 	}
+	// An unrestricted preset reads back as "any", so saving or searching
+	// with what GET returned doesn't bring the country default back.
+	var anyP, again presetOut
+	call(t, s, http.MethodPut, "/api/presets/anywhere", `{"countries":["any"],"types":["any"]}`, &anyP)
+	if !slices.Equal(anyP.Filters.Countries, []string{"any"}) || !slices.Equal(anyP.Filters.Types, []string{"any"}) {
+		t.Errorf("unrestricted preset = %+v", anyP.Filters)
+	}
+	body, _ := json.Marshal(anyP.Filters)
+	call(t, s, http.MethodPut, "/api/presets/anywhere", string(body), &again)
+	if !reflect.DeepEqual(again.Filters, anyP.Filters) {
+		t.Errorf("re-saved = %+v, want %+v", again.Filters, anyP.Filters)
+	}
+	call(t, s, http.MethodDelete, "/api/presets/anywhere", "", nil)
+
 	var list []presetOut
 	call(t, s, http.MethodGet, "/api/presets", "", &list)
 	if len(list) != 1 {

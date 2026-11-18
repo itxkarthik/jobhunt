@@ -79,13 +79,15 @@ func ParseFilters(d config.Defaults, in FilterInput) (model.Filters, error) {
 }
 
 // InputOf converts filters back to their user-facing form, e.g. to show a
-// saved preset. ParseFilters(d, InputOf(f)) returns f.
+// saved preset. ParseFilters(d, InputOf(f)) returns f for any defaults d:
+// an unrestricted countries, modes, types or areas field comes back as
+// [Any], since leaving it empty would bring the default back.
 func InputOf(f model.Filters) FilterInput {
 	return FilterInput{
-		Countries:      f.Countries,
-		Modes:          strs(f.Modes),
-		Types:          strs(f.Types),
-		Areas:          strs(f.Areas),
+		Countries:      orAny(f.Countries),
+		Modes:          orAny(strs(f.Modes)),
+		Types:          orAny(strs(f.Types)),
+		Areas:          orAny(strs(f.Areas)),
 		Experience:     strs(f.Experience),
 		Keywords:       f.Keywords,
 		Exclude:        f.Exclude,
@@ -160,6 +162,13 @@ func orDefault(v, def []string) ([]string, error) {
 		return v, nil
 	}
 	return def, nil
+}
+
+func orAny(v []string) []string {
+	if len(v) == 0 {
+		return []string{Any}
+	}
+	return v
 }
 
 func parseDefault[T any](v, def []string, parse func(string) (T, error)) ([]T, error) {
