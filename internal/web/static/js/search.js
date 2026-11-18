@@ -72,10 +72,20 @@ export function hiddenSites() {
   try { return new Set(JSON.parse(localStorage.getItem(LINKS_OFF) || "[]")); } catch { return new Set(); }
 }
 
+// The filters the server fills from config when they are empty. A group
+// the user cleared is sent as "any", so the server doesn't put the
+// default back.
+const DEFAULTED = ["countries", "modes", "types", "areas"];
+function explicit(input) {
+  const out = { ...input };
+  for (const k of DEFAULTED) if (!out[k]?.length) out[k] = ["any"];
+  return out;
+}
+
 // query builds /api/events and /api/links parameters, named like the JSON.
 export function query(input, extra = {}) {
   const q = new URLSearchParams();
-  for (const [k, v] of Object.entries({ ...input, ...extra })) {
+  for (const [k, v] of Object.entries({ ...explicit(input), ...extra })) {
     if (Array.isArray(v)) { if (v.length) q.set(k, v.join(",")); }
     else if (typeof v === "boolean") { if (v) q.set(k, "true"); }
     else if (v) q.set(k, String(v));
@@ -126,7 +136,7 @@ export async function fetchNow({ refresh = false } = {}) {
   saveLast();
   const seq = ++runSeq;
   Object.assign(S, { jobs: [], run: null, running: true, shown: PAGE, reports: 0, started: true });
-  shell.setBusy(true);
+  ui?.setBusy(true);
   ui?.renderAll();
   const q = query(input, { refresh });
   api("GET", "/api/links?" + q).then((ls) => { S.links = ls; ui?.renderLinks(); }, () => {});
@@ -152,7 +162,7 @@ export async function fetchNow({ refresh = false } = {}) {
   } finally {
     if (seq === runSeq) {
       S.running = false;
-      shell.setBusy(false);
+      ui?.setBusy(false);
       if (!S.jobs.some((j) => j.key === S.selKey)) S.selKey = phone.matches ? null : visible()[0]?.key ?? null;
       ui?.renderAll();
     }
@@ -163,7 +173,7 @@ function stopSearch() {
   runSeq++;
   runlog.stop();
   S.running = false;
-  shell.setBusy(false);
+  ui?.setBusy(false);
   ui?.renderAll();
 }
 
@@ -249,12 +259,16 @@ async function hide(j) {
   }
   S.jobs.splice(i, 1);
   ui?.renderAll();
+  const shownRun = runSeq; // the results the job was hidden from
   const t = j.title || "job";
   toast(`Hid “${t.length > 36 ? `${t.slice(0, 36)}…` : t}”`, {
     action: "Undo",
     onAction: async () => {
       try {
         await api("DELETE", `/api/jobs/${enc(j.key)}/hide`);
+        // Put it back only into the results it came from; another search
+        // may not match it, so run that one again instead.
+        if (runSeq !== shownRun) { fetchNow(); return; }
         if (!S.jobs.some((x) => x.key === j.key)) S.jobs.push(j);
         S.selKey = j.key;
         ui?.renderAll();
@@ -268,9 +282,10 @@ async function hide(j) {
 
 // ---- View ---------------------------------------------------------------------
 
-export async function mount(view) {
+export async function mount(view, { live = () => true } = {}) {
   const m = await meta();
   await currentInput();
+  if (!live()) return null; // the user left while this was loading
   let mDetail = false; // phone: a job is open full screen
   let railOpen = false;
   let debounce = 0;
@@ -448,6 +463,7 @@ export async function mount(view) {
     const total = Math.max(S.expected, S.reports, 1);
     progressText.textContent = `fetching · ${S.reports} / ${total} sources`;
     progressBar.style.width = `${Math.round((S.reports / total) * 100)}%`;
+    if (!live()) return;
     shell.setCount("search", S.running && !S.run ? "…" : count(v.length));
     shell.setContext(`${count(v.length)} shown${phone.matches ? "" : " · drag column edges to resize"}`);
   }
@@ -751,7 +767,13 @@ export async function mount(view) {
     }
     const p = presets.find((x) => x.name === presetSel.value);
     if (!p) return;
-    S.input = { ...clone(m.defaults), ...clone(p.filters), new_only: S.input.new_only, show_hidden: S.input.show_hidden };
+    // A preset is stored with defaults already applied, so a field it
+    // leaves out means "any", not "the config default".
+    const blank = {
+      countries: [], modes: [], types: [], areas: [], experience: [], keywords: [], exclude: [], posted_within: "",
+      visa: false, min_salary: 0, currency: "", strict_country: false, include_unknown: false,
+    };
+    S.input = { ...blank, ...clone(p.filters), new_only: S.input.new_only, show_hidden: S.input.show_hidden };
     presetName.value = p.name;
     changed();
   });
@@ -768,7 +790,7 @@ export async function mount(view) {
     }
     const { new_only, show_hidden, ...filters } = S.input; // search options, not filters
     try {
-      await api("PUT", `/api/presets/${enc(name)}`, filters);
+      await api("PUT", `/api/presets/${enc(name)}`, explicit(filters));
       presetSave.hidden = true;
       toast(`Saved preset ${name}`);
       await loadPresets(name);
@@ -862,7 +884,8 @@ export async function mount(view) {
   shell.setBusy(S.running);
   shell.setStatus("BROWSE", [["j k", "move"], ["o", "open"], ["s", "save"], ["a", "applied"], ["h", "hide"], ["/", "search"], ["1 2 3", "tabs"], ["t", "theme"]]);
 
-  ui = { schedule, renderAll, renderList, renderDetail, renderLinks, reveal };
+  const setBusy = (b) => { if (live()) shell.setBusy(b); };
+  ui = { setBusy, schedule, renderAll, renderList, renderDetail, renderLinks, reveal };
   renderAll();
   loadPresets();
   if (!S.started) fetchNow();
@@ -871,8 +894,9 @@ export async function mount(view) {
     api("GET", "/api/links?" + query(S.input)).then((ls) => { S.links = ls; renderLinks(); }, () => {});
   }
 
+  const mine = ui;
   return () => {
-    ui = null;
+    if (ui === mine) ui = null; // a late cleanup mustn't unhook a newer view
     clearTimeout(debounce);
     if (frame) cancelAnimationFrame(frame);
     document.removeEventListener("keydown", onKey);

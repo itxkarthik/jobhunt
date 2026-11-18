@@ -5,7 +5,9 @@ import { h, icon, corners, replace, typing } from "./dom.js";
 import * as shell from "./shell.js";
 import * as runlog from "./runlog.js";
 
-// Views register here; each is { mount(view) -> optional cleanup }.
+// Views register here; each is { mount(view, { live }) -> optional
+// cleanup }. live() turns false once the user has moved on, so a mount
+// still waiting on the network must not touch the shared shell.
 const views = {
   search: { load: () => import("./search.js"), label: "Search", icon: "search", sub: "" },
   tracker: { load: () => import("./tracker.js"), label: "Tracker", icon: "kanban", sub: "pipeline" },
@@ -65,7 +67,7 @@ async function render() {
     const mod = await views[name].load();
     if (gen !== generation) return;
     view.replaceChildren();
-    done = (await mod.mount(view)) || null;
+    done = (await mod.mount(view, { live: () => gen === generation })) || null;
   } catch (err) {
     if (gen === generation) replace(view, h("p", { class: "notice error" }, `Could not load this view: ${err.message}`));
   }
