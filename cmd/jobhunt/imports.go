@@ -44,6 +44,7 @@ importers.edgar.user_agent ("Your Name you@example.com") in config.yaml or
 JOBHUNT_EDGAR_USER_AGENT first. Requests stay at 5 a second.`,
 		Example: `  jobhunt companies import edgar --since 14d
   jobhunt companies import edgar --dry-run --industry any
+  jobhunt companies import edgar --since 30d --redo   # read a month again
   jobhunt companies --stage unknown --funded-within 30d --country US   # what came in`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -86,6 +87,7 @@ JOBHUNT_EDGAR_USER_AGENT first. Requests stay at 5 a second.`,
 	fs.StringSliceVar(&o.Industries, "industry", nil, `Form D industry groups to keep, or "any" (default from config: Computers, Telecommunications, Other Technology, Other)`)
 	fs.BoolVar(&o.AllEntities, "all-entities", false, "keep LLCs and LPs too, not just corporations (mostly funds)")
 	fs.BoolVar(&dryRun, "dry-run", false, "show what would be added; save nothing")
+	fs.BoolVar(&o.Redo, "redo", false, "read the whole --since window again, ignoring what earlier runs finished")
 	fs.BoolVar(&asJSON, "json", false, "print the summary as JSON")
 	return cmd
 }

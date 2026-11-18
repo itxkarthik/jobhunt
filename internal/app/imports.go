@@ -47,6 +47,11 @@ func ImportEDGAR(ctx context.Context, st *store.Store, im *edgar.Importer, o edg
 	if err != nil {
 		return nil, err
 	}
+	if o.Redo {
+		// Read the window again, e.g. after removing an imported company.
+		// Saving is a merge, so companies already stored aren't duplicated.
+		done = map[string]bool{}
+	}
 	res, runErr := im.Run(ctx, o, func(item string) bool { return done[item] })
 	sum := &ImportSummary{Source: "edgar", DryRun: dryRun}
 	if res == nil {

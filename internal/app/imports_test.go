@@ -53,6 +53,18 @@ func TestImportEDGAR(t *testing.T) {
 		t.Errorf("repeat run: %+v, %v, %d new requests", sum, err, len(srv.Requests())-before)
 	}
 
+	// --redo reads the day again; saving merges, so nothing is duplicated.
+	before = len(srv.Requests())
+	o.Redo = true
+	sum, err = ImportEDGAR(ctx, st, im, o, false)
+	if err != nil || len(srv.Requests()) == before || len(sum.Added) != 0 || len(sum.Updated) != 2 {
+		t.Errorf("redo: %+v, %v, %d requests", sum, err, len(srv.Requests())-before)
+	}
+	if c, _ := FindCompany(ctx, st, "Lyzr"); len(c.Rounds) != 1 || len(c.Contacts) != 1 {
+		t.Errorf("redo duplicated data: %+v", c)
+	}
+	o.Redo = false
+
 	// Broader filters read the same day again and find the biotech filing.
 	o.Industries = []string{"any"}
 	sum, err = ImportEDGAR(ctx, st, im, o, false)

@@ -17,6 +17,7 @@ type Options struct {
 	MaxFilings  int           // fetch at most this many Form D documents (default 200)
 	Industries  []string      // default DefaultIndustries; "any" keeps all
 	AllEntities bool          // keep LLCs and LPs too
+	Redo        bool          // ignore earlier runs and read the whole window again
 	Now         time.Time     // default time.Now()
 }
 
