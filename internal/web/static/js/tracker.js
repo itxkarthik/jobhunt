@@ -15,12 +15,14 @@ export async function mount(main) {
   const filter = h("input", { type: "search", placeholder: "Filter cards", "aria-label": "Filter cards", class: "grow" });
   const count = h("span", { class: "muted" });
   const board = h("div", { class: "board" });
+  const loadError = h("p", { class: "notice error", hidden: true, role: "alert" });
   main.append(
     h("div", { class: "board-head" },
       h("h1", {}, "Tracker"), count,
       h("span", { class: "muted grow hint" }, "Drag cards between columns, or focus one and press ← →."),
       filter,
       h("button", { type: "button", class: "ghost", onclick: load }, "Refresh")),
+    loadError,
     board);
 
   const columns = Object.fromEntries(statuses.map((s) => {
@@ -54,7 +56,7 @@ export async function mount(main) {
     const sel = h("select", { "aria-label": `Move "${title(r)}" to`, class: "grow" },
       statuses.map((s) => h("option", { value: s }, statusLabel[s] || s)));
     sel.value = r.status;
-    sel.addEventListener("change", () => move(r.key, sel.value, { focus: true }));
+    sel.addEventListener("change", () => move(r.key, sel.value));
     const when = r.status !== "saved" && r.applied_at
       ? `applied ${date(r.applied_at)}`
       : `updated ${since(r.updated_at)} ago`;
@@ -77,14 +79,16 @@ export async function mount(main) {
     li.addEventListener("keydown", (e) => {
       if (e.target !== li) return; // keys in the select or button act normally
       const i = statuses.indexOf(r.status);
-      if (e.key === "ArrowRight" && i < statuses.length - 1) { e.preventDefault(); move(r.key, statuses[i + 1], { focus: true }); }
-      else if (e.key === "ArrowLeft" && i > 0) { e.preventDefault(); move(r.key, statuses[i - 1], { focus: true }); }
+      if (e.key === "ArrowRight" && i < statuses.length - 1) { e.preventDefault(); move(r.key, statuses[i + 1]); }
+      else if (e.key === "ArrowLeft" && i > 0) { e.preventDefault(); move(r.key, statuses[i - 1]); }
       else if (e.key === "Enter") { e.preventDefault(); openDrawer(r.key); }
     });
     return li;
   }
 
+  // render redraws the board, keeping focus on the card that had it.
   function render() {
+    const focused = document.activeElement?.closest?.("li.tcard")?.dataset.key;
     const q = filter.value.trim().toLowerCase();
     const shown = q
       ? rows.filter((r) => `${title(r)} ${company(r)} ${r.notes || ""}`.toLowerCase().includes(q))
@@ -95,6 +99,7 @@ export async function mount(main) {
       columns[s].n.textContent = String(inCol.length);
       replace(columns[s].list, inCol.length ? inCol.map(card) : h("li", { class: "empty" }, "Nothing here"));
     }
+    if (focused) focusCard(focused);
   }
 
   function focusCard(key) {
@@ -104,37 +109,75 @@ export async function mount(main) {
   async function load() {
     try {
       rows = await api("GET", "/api/tracker");
+      loadError.hidden = true;
       render();
     } catch (err) {
-      replace(board, h("p", { class: "notice error" }, `Couldn't load the tracker: ${err.message}`));
+      loadError.textContent = `Couldn't load the tracker: ${err.message}`;
+      loadError.hidden = false;
     }
   }
 
-  async function move(key, status, { focus = false } = {}) {
+  // apply copies an API reply into a row. Fields the API omits when empty
+  // must be cleared, not left at their old values.
+  function apply(r, reply) {
+    Object.assign(r, { notes: "", applied_at: null }, reply);
+  }
+
+  // Moves are optimistic. One card's requests go out one at a time, in
+  // order, so the server ends on the last choice; only the reply to the
+  // latest move updates the card, and a failure reverts it to the last
+  // status the server confirmed.
+  const moves = new Map(); // key -> { chain, seq, confirmed }
+
+  function move(key, status) {
     const r = rows.find((x) => x.key === key);
     if (!r || r.status === status) return;
-    const before = r.status;
-    r.status = status; // optimistic; reverted on failure
-    render();
-    if (focus) focusCard(key);
-    try {
-      Object.assign(r, await api("PUT", `/api/tracker/${enc(key)}`, { status }));
-      if (drawer?.key === key) drawer.refresh();
-    } catch (err) {
-      r.status = before;
-      toast(`Couldn't move the card: ${err.message}`, { error: true });
+    let m = moves.get(key);
+    if (!m) {
+      m = { chain: Promise.resolve(), seq: 0, confirmed: r.status };
+      moves.set(key, m);
     }
+    const seq = ++m.seq;
+    r.status = status;
     render();
-    if (focus) focusCard(key);
+    m.chain = m.chain.then(async () => {
+      const latest = () => seq === m.seq;
+      try {
+        const reply = await api("PUT", `/api/tracker/${enc(key)}`, { status });
+        m.confirmed = reply.status;
+        if (latest()) {
+          apply(r, reply);
+          if (drawer?.key === key) drawer.refresh();
+        }
+      } catch (err) {
+        if (latest()) {
+          r.status = m.confirmed;
+          toast(`Couldn't move the card: ${err.message}`, { error: true });
+        }
+      }
+      if (latest()) {
+        moves.delete(key);
+        render();
+      }
+    });
   }
 
   // ---- Details drawer ----------------------------------------------------
+
+  // While the drawer is open the page behind it is inert, so keyboard
+  // focus can't reach controls it covers. Toasts stay usable.
+  function setBackgroundInert(on) {
+    for (const el of [document.querySelector("header.top"), document.getElementById("main")]) {
+      if (el) el.inert = on;
+    }
+  }
 
   function closeDrawer() {
     if (!drawer) return;
     const { el, key } = drawer;
     drawer = null;
     el.remove();
+    setBackgroundInert(false);
     document.removeEventListener("keydown", onDrawerKey);
     focusCard(key);
   }
@@ -149,6 +192,7 @@ export async function mount(main) {
     const el = h("div", { class: "drawer-backdrop" }, body);
     el.addEventListener("click", (e) => { if (e.target === el) closeDrawer(); });
     document.body.append(el);
+    setBackgroundInert(true);
     document.addEventListener("keydown", onDrawerKey);
     drawer = { el, key, refresh: () => fill(body, key) };
     fill(body, key).then(() => body.querySelector("textarea")?.focus());
@@ -160,14 +204,16 @@ export async function mount(main) {
     const sel = h("select", { id: "drawer-status" }, statuses.map((s) => h("option", { value: s }, statusLabel[s] || s)));
     sel.value = r.status;
     sel.addEventListener("change", () => move(key, sel.value));
+    // A refresh (e.g. after a status change) keeps unsaved notes and focus.
+    const draft = body.querySelector("#drawer-notes")?.value;
+    const activeId = body.contains(document.activeElement) ? document.activeElement.id : "";
     const notes = h("textarea", { id: "drawer-notes", maxlength: 20000, rows: 6, placeholder: "Contacts, interview dates, links…" });
-    notes.value = r.notes || "";
+    notes.value = draft ?? (r.notes || "");
     const saveNotes = h("button", { type: "button" }, "Save notes");
     saveNotes.addEventListener("click", async () => {
       saveNotes.disabled = true;
       try {
-        Object.assign(r, await api("PUT", `/api/tracker/${enc(key)}/notes`, { notes: notes.value }));
-        if (r.notes == null) r.notes = ""; // omitted when empty
+        apply(r, await api("PUT", `/api/tracker/${enc(key)}/notes`, { notes: notes.value }));
         toast("Notes saved");
         render();
       } catch (err) {
@@ -218,6 +264,7 @@ export async function mount(main) {
       h("div", { class: "row pad-y" }, saveNotes, h("span", { class: "muted" }, "Ctrl+Enter")),
       h("h3", {}, "History"), history,
       h("h3", {}, "Remove"), removeBox);
+    if (activeId) body.querySelector(`#${CSS.escape(activeId)}`)?.focus();
 
     try {
       const evs = await api("GET", `/api/tracker/${enc(key)}/events`);
