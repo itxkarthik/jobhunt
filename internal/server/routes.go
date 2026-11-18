@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io/fs"
 	"net/http"
 	"strings"
 )
@@ -12,7 +13,7 @@ func (s *Server) routes() http.Handler {
 	})
 	s.apiRoutes(mux)
 	if s.opts.Static != nil {
-		mux.Handle("GET /", http.FileServerFS(s.opts.Static))
+		mux.Handle("GET /", static(s.opts.Static))
 	} else {
 		mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -55,3 +56,18 @@ type statusProbe struct {
 func (p *statusProbe) Header() http.Header         { return p.header }
 func (p *statusProbe) Write(b []byte) (int, error) { return len(b), nil }
 func (p *statusProbe) WriteHeader(code int)        { p.code = code }
+
+// static serves the web UI files. Directory listings are refused, and
+// browsers revalidate each file so a new jobhunt binary's UI shows up
+// without a hard refresh.
+func static(files fs.FS) http.Handler {
+	fileServer := http.FileServerFS(files)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		fileServer.ServeHTTP(w, r)
+	})
+}

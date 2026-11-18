@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>jobhunt</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="#/search">jobhunt</a>
+  <nav aria-label="Views">
+    <a href="#/search" data-route="search">Search</a>
+    <a href="#/tracker" data-route="tracker">Tracker</a>
+    <a href="#/sources" data-route="sources">Sources</a>
+  </nav>
+  <button type="button" class="ghost" id="theme" title="Switch theme">Theme: auto</button>
+</header>
+<main id="main" tabindex="-1">
+  <noscript><p class="notice">The jobhunt web UI needs JavaScript. The JSON API under /api/ works without it.</p></noscript>
+</main>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>

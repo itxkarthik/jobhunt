@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/config"
@@ -329,5 +330,45 @@ func TestServeForcesShutdown(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve hung on a request that ignores cancellation")
+	}
+}
+
+func TestStaticUI(t *testing.T) {
+	ui := fstest.MapFS{
+		"index.html": {Data: []byte("<!doctype html><title>jobhunt</title>")},
+		"js/app.js":  {Data: []byte("export {};")},
+	}
+	s, _ := newTestServer(t, func(o *Options) { o.Static = ui })
+	tests := []struct {
+		name, path, host string
+		token            bool
+		want             int
+	}{
+		{"index without a token", "/", "127.0.0.1:7777", false, http.StatusOK},
+		{"module", "/js/app.js", "localhost:7777", false, http.StatusOK},
+		{"no directory listing", "/js/", "127.0.0.1:7777", false, http.StatusNotFound},
+		{"missing file", "/nope.js", "127.0.0.1:7777", false, http.StatusNotFound},
+		{"foreign host", "/", "evil.example", false, http.StatusForbidden},
+		{"api still needs the token", "/api/meta", "127.0.0.1:7777", false, http.StatusUnauthorized},
+	}
+	for _, tt := range tests {
+		r := req(http.MethodGet, tt.path, "")
+		r.Host = tt.host
+		if !tt.token {
+			r.Header.Del("Authorization")
+		}
+		w := serve(s, r)
+		if w.Code != tt.want {
+			t.Errorf("%s: GET %s = %d, want %d", tt.name, tt.path, w.Code, tt.want)
+		}
+		if w.Header().Get("Content-Security-Policy") != csp {
+			t.Errorf("%s: missing CSP", tt.name)
+		}
+		if tt.want == http.StatusOK && w.Header().Get("Cache-Control") != "no-cache" {
+			t.Errorf("%s: Cache-Control = %q", tt.name, w.Header().Get("Cache-Control"))
+		}
+	}
+	if w := serve(s, req(http.MethodGet, "/", "")); !strings.Contains(w.Body.String(), "<title>jobhunt</title>") {
+		t.Errorf("index body = %q", w.Body.String())
 	}
 }

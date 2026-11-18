@@ -17,6 +17,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/search"
 	"github.com/itxkarthik/jobhunt/internal/server"
+	"github.com/itxkarthik/jobhunt/internal/web"
 )
 
 func newServeCmd() *cobra.Command {
@@ -28,8 +29,8 @@ func newServeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the local web UI and JSON API",
-		Long: `serve starts jobhunt's local HTTP server: the JSON API under /api/ (see
-docs/api.md) and, from the web UI milestone on, the browser interface.
+		Long: `serve starts jobhunt's local HTTP server: the browser UI at / and the
+JSON API it uses under /api/ (see docs/api.md).
 
 It listens on 127.0.0.1 only by default. Every /api request needs the bearer
 token printed at startup ("Authorization: Bearer <token>"); set serve.token
@@ -62,6 +63,7 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 				Defaults: a.Config.Defaults,
 				Token:    token,
 				Hosts:    hosts,
+				Static:   web.FS(),
 				Logger:   slog.New(slog.NewTextHandler(log, nil)),
 			})
 			if err != nil {
