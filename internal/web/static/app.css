@@ -224,6 +224,7 @@ main:focus { outline: none; }
   background: var(--panel);
 }
 .filters fieldset { border: 0; padding: 0; margin: 0 0 6px; }
+.filters-toggle { display: none; width: 100%; margin-bottom: 8px; }
 .filters legend { font-weight: 600; font-size: 0.85rem; margin: 10px 0 4px; padding: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { position: relative; display: inline-block; margin: 0; font-weight: 400; }
@@ -415,6 +416,11 @@ table.sources .note { max-width: 46ch; overflow-wrap: anywhere; }
   .top nav { order: 3; flex-basis: 100%; }
   .search { display: flex; flex-direction: column; overflow-y: auto; }
   .filters { border-right: 0; border-bottom: 1px solid var(--border); overflow: visible; }
+  .filters-toggle { display: block; }
+  .filters.folded { padding-bottom: 4px; }
+  .filters.folded > :not(.filters-toggle) { display: none; }
+  .board-head .hint { display: none; }
+  .board-head input[type="search"] { order: 5; flex-basis: 100%; }
   .results { border-right: 0; min-height: 60vh; }
   .board { grid-template-columns: repeat(6, minmax(78vw, 1fr)); scroll-snap-type: x mandatory; }
   .column { scroll-snap-align: start; }

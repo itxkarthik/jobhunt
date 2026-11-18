@@ -18,7 +18,7 @@ export async function mount(main) {
   main.append(
     h("div", { class: "board-head" },
       h("h1", {}, "Tracker"), count,
-      h("span", { class: "muted grow" }, "Drag cards between columns, or focus one and press ← →."),
+      h("span", { class: "muted grow hint" }, "Drag cards between columns, or focus one and press ← →."),
       filter,
       h("button", { type: "button", class: "ghost", onclick: load }, "Refresh")),
     board);

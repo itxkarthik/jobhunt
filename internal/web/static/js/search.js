@@ -47,7 +47,10 @@ export async function mount(main) {
     pattern: "[A-Za-z0-9][A-Za-z0-9._\\-]{0,63}", maxlength: 64, autocomplete: "off",
   });
 
+  const narrow = window.matchMedia("(max-width: 720px)");
+  const toggle = h("button", { type: "button", class: "ghost filters-toggle", "aria-expanded": "true" }, "Filters");
   const form = h("form", { class: "filters", "aria-label": "Filters" },
+    toggle,
     presetSel,
     chipGroup("countries", "Country", m.options.countries, { "remote-global": "Remote (global)" }),
     chipGroup("types", "Job type", m.options.types),
@@ -402,9 +405,20 @@ export async function mount(main) {
 
   // ---- Events ------------------------------------------------------------
 
+  // On phones the filters fold away so results are on screen.
+  function setFolded(folded) {
+    form.classList.toggle("folded", folded);
+    toggle.setAttribute("aria-expanded", String(!folded));
+    toggle.textContent = folded ? "Show filters" : "Hide filters";
+  }
+  toggle.addEventListener("click", () => setFolded(!form.classList.contains("folded")));
+  setFolded(narrow.matches);
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (st.ctrl) stop(); else run();
+    if (st.ctrl) { stop(); return; }
+    if (narrow.matches) setFolded(true);
+    run();
   });
   refreshBtn.addEventListener("click", () => run({ refresh: true }));
   sortSel.addEventListener("change", () => { st.sort = sortSel.value; sortJobs(); renderList(); });

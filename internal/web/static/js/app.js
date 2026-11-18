@@ -89,5 +89,6 @@ function initTheme() {
 
 takeToken();
 initTheme();
-window.addEventListener("hashchange", render);
+// A #token= link pasted into an open tab is a hash change, not a reload.
+window.addEventListener("hashchange", () => { takeToken(); render(); });
 render();
