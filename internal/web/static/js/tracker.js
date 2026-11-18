@@ -13,8 +13,27 @@ import * as shell from "./shell.js";
 const NEXT = { saved: "applied", applied: "oa", oa: "interview", interview: "offer" };
 let stage = null; // the phone's current stage tab; kept across visits
 
-export async function mount(view) {
+// Moves are optimistic. One card's requests go out one at a time, in
+// order, so the server ends on the last choice; only the reply to the
+// latest move updates the card, and a failure reverts it to the last
+// status the server confirmed. Removing a card cancels its queued moves
+// (see untrack), so none can re-create the row after the DELETE.
+//
+// The queue outlives a visit to the tab: requests keep going after the
+// user leaves, and a later visit must still be able to cancel them.
+// Replies go to whichever board is mounted then, through hooks.
+const moves = new Map(); // key -> { chain, seq, confirmed, cancelled }
+let hooks = null;        // { row(key), render(), refreshDrawer(key) } of the mounted board
+
+// apply copies an API reply into a row. Fields the API omits when empty
+// must be cleared, not left at their old values.
+function apply(r, reply) {
+  Object.assign(r, { notes: "", applied_at: null }, reply);
+}
+
+export async function mount(view, { live = () => true } = {}) {
   const m = await meta();
+  if (!live()) return null; // the user left while this was loading
   const statuses = m.options.statuses;
   let rows = [];
   let drawer = null; // the open details drawer, if any
@@ -147,8 +166,8 @@ export async function mount(view) {
       replace(c.list, inCol.length ? inCol.map(card)
         : h("li", { class: "empty-box" }, q ? "No cards match." : "Drop a card here"));
     }
-    shell.setContext(q ? `${count(shown.length)} of ${count(rows.length)} tracked` : `${count(rows.length)} tracked`);
-    shell.setCount("tracker", String(rows.filter((r) => r.status !== "rejected").length));
+    if (live()) shell.setContext(q ? `${count(shown.length)} of ${count(rows.length)} tracked` : `${count(rows.length)} tracked`);
+    if (live()) shell.setCount("tracker", String(rows.filter((r) => r.status !== "rejected").length));
     if (focused) focusCard(focused);
   }
 
@@ -169,19 +188,6 @@ export async function mount(view) {
 
   const changed = () => window.dispatchEvent(new Event("jobhunt:tracker"));
 
-  // apply copies an API reply into a row. Fields the API omits when empty
-  // must be cleared, not left at their old values.
-  function apply(r, reply) {
-    Object.assign(r, { notes: "", applied_at: null }, reply);
-  }
-
-  // Moves are optimistic. One card's requests go out one at a time, in
-  // order, so the server ends on the last choice; only the reply to the
-  // latest move updates the card, and a failure reverts it to the last
-  // status the server confirmed. Removing a card cancels its queued moves
-  // (see untrack), so none can re-create the row after the DELETE.
-  const moves = new Map(); // key -> { chain, seq, confirmed, cancelled }
-
   function move(key, status) {
     const r = rows.find((x) => x.key === key);
     if (!r || r.status === status) return;
@@ -200,18 +206,20 @@ export async function mount(view) {
         const reply = await api("PUT", `/api/tracker/${enc(key)}`, { status });
         mv.confirmed = reply.status;
         if (latest()) {
-          apply(r, reply);
-          if (drawer?.key === key) drawer.refresh();
+          const row = hooks?.row(key);
+          if (row) apply(row, reply);
+          hooks?.refreshDrawer(key);
         }
       } catch (err) {
         if (latest()) {
-          r.status = mv.confirmed;
+          const row = hooks?.row(key);
+          if (row) row.status = mv.confirmed;
           toast(`Couldn't move the card: ${err.message}`, { error: true });
         }
       }
       if (latest() && !mv.cancelled) {
         moves.delete(key);
-        render();
+        hooks?.render();
         changed();
       }
     });
@@ -281,7 +289,11 @@ export async function mount(view) {
     saveNotes.addEventListener("click", async () => {
       saveNotes.disabled = true;
       try {
-        apply(r, await api("PUT", `/api/tracker/${enc(key)}/notes`, { notes: notes.value }));
+        // Take only the notes: a stage move may have overtaken this request,
+        // and its status in the reply could be the old one.
+        const reply = await api("PUT", `/api/tracker/${enc(key)}/notes`, { notes: notes.value });
+        r.notes = reply.notes || "";
+        r.updated_at = reply.updated_at;
         toast("Notes saved");
         render();
       } catch (err) {
@@ -359,11 +371,18 @@ export async function mount(view) {
   }
   document.addEventListener("keydown", onKey);
 
+  const mine = {
+    row: (key) => rows.find((x) => x.key === key),
+    render,
+    refreshDrawer: (key) => { if (drawer?.key === key) drawer.refresh(); },
+  };
+  hooks = mine;
   shell.setFetch(load, "Reload");
   shell.setStatus("TRACK", [["drag", "move card"], ["← →", "move focused card"], ["enter", "details"], ["/", "filter"], ["1 2 3", "tabs"]]);
   await load();
 
   return () => {
+    if (hooks === mine) hooks = null; // a late cleanup mustn't unhook a newer board
     closeDrawer();
     document.removeEventListener("keydown", onKey);
   };

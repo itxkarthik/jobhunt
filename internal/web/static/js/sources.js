@@ -10,7 +10,7 @@ import * as shell from "./shell.js";
 import * as runlog from "./runlog.js";
 import { fetchNow, currentInput, query, hiddenSites, LINKS_OFF } from "./search.js";
 
-export async function mount(view) {
+export async function mount(view, { live = () => true } = {}) {
   let list = [];
   let sites = [];
 
@@ -132,6 +132,7 @@ export async function mount(view) {
     if (runlog.last.running) logList.lastElementChild?.scrollIntoView({ block: "nearest" });
 
     runBtn.disabled = runlog.last.running;
+    if (!live()) return;
     shell.setBusy(runlog.last.running);
     shell.setCount("sources", `${reporting}/${on.length}`);
     shell.setContext(runlog.last.running ? "fetching…" : `${on.length} of ${list.length} enabled`);
