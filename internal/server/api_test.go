@@ -436,3 +436,53 @@ func TestTrackerNotes(t *testing.T) {
 		}
 	}
 }
+
+// Every API route must refuse requests without the token, from a foreign
+// Host, and (for writes) from another origin. Add new routes here.
+func TestEveryRouteIsLocked(t *testing.T) {
+	s, _, rec := apiServer(t)
+	routes := []struct {
+		method, path, body string
+	}{
+		{http.MethodGet, "/api/health", ""},
+		{http.MethodGet, "/api/meta", ""},
+		{http.MethodPost, "/api/search", `{}`},
+		{http.MethodGet, "/api/events", ""},
+		{http.MethodGet, "/api/links", ""},
+		{http.MethodGet, "/api/jobs/aaaa1111", ""},
+		{http.MethodPost, "/api/jobs/aaaa1111/hide", ""},
+		{http.MethodDelete, "/api/jobs/aaaa1111/hide", ""},
+		{http.MethodGet, "/api/tracker", ""},
+		{http.MethodPut, "/api/tracker/aaaa1111", `{"status":"saved"}`},
+		{http.MethodPut, "/api/tracker/aaaa1111/notes", `{"notes":"x"}`},
+		{http.MethodDelete, "/api/tracker/aaaa1111", ""},
+		{http.MethodGet, "/api/tracker/aaaa1111/events", ""},
+		{http.MethodGet, "/api/presets", ""},
+		{http.MethodGet, "/api/presets/x", ""},
+		{http.MethodPut, "/api/presets/x", `{}`},
+		{http.MethodDelete, "/api/presets/x", ""},
+		{http.MethodGet, "/api/sources", ""},
+	}
+	for _, rt := range routes {
+		r := req(rt.method, rt.path, rt.body)
+		r.Header.Del("Authorization")
+		if w := serve(s, r); w.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without a token = %d, want 401", rt.method, rt.path, w.Code)
+		}
+		r = req(rt.method, rt.path, rt.body)
+		r.Host = "evil.example"
+		if w := serve(s, r); w.Code != http.StatusForbidden {
+			t.Errorf("%s %s from a foreign host = %d, want 403", rt.method, rt.path, w.Code)
+		}
+		if rt.method != http.MethodGet {
+			r = req(rt.method, rt.path, rt.body)
+			r.Header.Set("Sec-Fetch-Site", "cross-site")
+			if w := serve(s, r); w.Code != http.StatusForbidden {
+				t.Errorf("%s %s cross-site = %d, want 403", rt.method, rt.path, w.Code)
+			}
+		}
+	}
+	if n := rec.calls.Load(); n != 0 {
+		t.Errorf("a refused request ran %d searches", n)
+	}
+}
