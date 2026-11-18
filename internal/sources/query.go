@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/itxkarthik/jobhunt/internal/model"
@@ -92,4 +93,14 @@ func CountryName(code string) string {
 		return "Remote"
 	}
 	return code
+}
+
+// CloneValues deep-copies query values, so a per-page copy can be changed
+// without touching the shared base query.
+func CloneValues(v url.Values) url.Values {
+	c := url.Values{}
+	for k, vs := range v {
+		c[k] = append([]string(nil), vs...)
+	}
+	return c
 }

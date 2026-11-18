@@ -139,3 +139,14 @@ func (f *FlexFloat) UnmarshalJSON(b []byte) error {
 	*f = FlexFloat(v)
 	return nil
 }
+
+// NonEmpty returns the trimmed values that aren't blank, in order.
+func NonEmpty(xs ...string) []string {
+	var out []string
+	for _, x := range xs {
+		if x = strings.TrimSpace(x); x != "" {
+			out = append(out, x)
+		}
+	}
+	return out
+}

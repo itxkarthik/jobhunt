@@ -40,7 +40,7 @@ func For(f model.Filters) []Link {
 	for _, c := range countries {
 		add("Indeed"+suffix(countries, c), indeed(f, c))
 	}
-	if has(countries, "IN") {
+	if slices.Contains(countries, "IN") {
 		if wantsInternships(f) {
 			add("Internshala", internshala(f))
 		}
@@ -48,7 +48,7 @@ func For(f model.Filters) []Link {
 		add("Cutshort", "https://cutshort.io/jobs/"+slug(topicOr(f, "software developer"))+"-jobs")
 		add("Instahyre", "https://www.instahyre.com/search-jobs/?q="+url.QueryEscape(topicOr(f, "software engineer")))
 	}
-	if has(countries, "JP") {
+	if slices.Contains(countries, "JP") {
 		add("TokyoDev", "https://www.tokyodev.com/jobs")
 		add("Japan Dev", japanDev(f))
 	}
@@ -146,7 +146,7 @@ func indeed(f model.Filters, c string) string {
 	}
 	q := url.Values{}
 	q.Set("q", sources.Phrase(f))
-	if f.OnlyRemote() || has(f.Countries, model.RemoteGlobal) {
+	if f.OnlyRemote() || slices.Contains(f.Countries, model.RemoteGlobal) {
 		q.Set("l", "Remote")
 	}
 	switch {
@@ -262,10 +262,6 @@ func slug(s string) string {
 	return strings.TrimSuffix(b.String(), "-")
 }
 
-func has(xs []string, x string) bool {
-	return slices.Contains(xs, x)
-}
-
 func dedupe(xs []string) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -284,9 +280,9 @@ func dedupe(xs []string) []string {
 func ycJobs(countries []string) string {
 	base := "https://www.ycombinator.com/jobs/role/software-engineer"
 	switch {
-	case has(countries, "IN"):
+	case slices.Contains(countries, "IN"):
 		return base + "/india"
-	case has(countries, model.RemoteGlobal):
+	case slices.Contains(countries, model.RemoteGlobal):
 		return base + "/remote"
 	}
 	return base

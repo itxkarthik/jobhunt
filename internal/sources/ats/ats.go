@@ -152,7 +152,7 @@ func (s *Source) boards(f model.Filters) []Company {
 	var out []Company
 	for _, c := range s.Companies {
 		for _, want := range f.Countries {
-			if (c.Remote && (want == model.RemoteGlobal || !f.StrictCountry)) || contains(c.Countries, want) {
+			if (c.Remote && (want == model.RemoteGlobal || !f.StrictCountry)) || slices.Contains(c.Countries, want) {
 				out = append(out, c)
 				break
 			}
@@ -245,10 +245,6 @@ func locate(texts ...string) (countries []string, city string) {
 		}
 	}
 	return countries, city
-}
-
-func contains(xs []string, x string) bool {
-	return slices.Contains(xs, x)
 }
 
 const maxDesc = 5000

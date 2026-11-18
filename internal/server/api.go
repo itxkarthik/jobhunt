@@ -313,7 +313,7 @@ func (s *Server) trackerList(w http.ResponseWriter, r *http.Request) error {
 func trackedOf(t store.Tracked) trackedOut {
 	return trackedOut{
 		Key: t.Key, Status: t.Status, Notes: t.Notes, CreatedAt: t.CreatedAt.UTC(),
-		UpdatedAt: t.UpdatedAt.UTC(), AppliedAt: utc(t.AppliedAt), Job: t.Job,
+		UpdatedAt: t.UpdatedAt.UTC(), AppliedAt: t.AppliedAt.UTC(), Job: t.Job,
 	}
 }
 
@@ -518,7 +518,7 @@ func (s *Server) sourcesList(w http.ResponseWriter, r *http.Request) error {
 		}
 		l := h.Last
 		st.Last = &lastRun{RunAt: l.RunAt.UTC(), Status: l.Status, Count: l.Count, Error: l.Error, DurationMS: l.Duration.Milliseconds()}
-		st.LastSuccess, st.RecentErrors = utc(h.LastSuccess), h.RecentErrors
+		st.LastSuccess, st.RecentErrors = h.LastSuccess.UTC(), h.RecentErrors
 	}
 	out := make([]sourceStatus, 0, len(byName))
 	for _, st := range byName {
@@ -537,11 +537,4 @@ func (s *Server) sourcesList(w http.ResponseWriter, r *http.Request) error {
 	})
 	writeJSON(w, http.StatusOK, out)
 	return nil
-}
-
-func utc(t time.Time) time.Time {
-	if t.IsZero() {
-		return t
-	}
-	return t.UTC()
 }

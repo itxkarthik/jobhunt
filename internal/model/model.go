@@ -161,10 +161,6 @@ func (f Filters) OnlyRemote() bool {
 	return len(f.Modes) == 1 && f.Modes[0] == ModeRemote
 }
 
-func (f Filters) WantsCountry(c string) bool {
-	return slices.Contains(f.Countries, c)
-}
-
 func ParseWorkMode(s string) (WorkMode, error) {
 	s = norm(s)
 	if s == "on-site" || s == "office" {

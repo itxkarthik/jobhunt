@@ -37,7 +37,7 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex *clas
 			remote := j.WorkMode == model.ModeRemote
 			for _, c := range f.Countries {
 				if c == model.RemoteGlobal {
-					ok = ok || (remote && contains(j.Countries, model.RemoteGlobal))
+					ok = ok || (remote && slices.Contains(j.Countries, model.RemoteGlobal))
 					continue
 				}
 				ok = ok || model.CountryAllows(j.Countries, c, remote, f.StrictCountry)
@@ -114,8 +114,4 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex *clas
 		}
 	}
 	return true
-}
-
-func contains(xs []string, x string) bool {
-	return slices.Contains(xs, x)
 }

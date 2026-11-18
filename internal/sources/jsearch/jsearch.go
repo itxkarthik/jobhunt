@@ -88,7 +88,7 @@ func (s *Source) queries(f model.Filters) []url.Values {
 	base.Set("num_pages", strconv.Itoa(s.NumPages))
 	var types []string
 	for _, t := range f.Types {
-		if et, ok := empTypes[t]; ok && !contains(types, et) {
+		if et, ok := empTypes[t]; ok && !slices.Contains(types, et) {
 			types = append(types, et)
 		}
 	}
@@ -103,7 +103,7 @@ func (s *Source) queries(f model.Filters) []url.Values {
 	}
 	var out []url.Values
 	for _, c := range f.Countries {
-		q := cloneValues(base)
+		q := sources.CloneValues(base)
 		if c == model.RemoteGlobal {
 			q.Set("query", sources.Phrase(f)+" remote")
 			q.Set("work_from_home", "true")
@@ -114,7 +114,7 @@ func (s *Source) queries(f model.Filters) []url.Values {
 		out = append(out, q)
 	}
 	if len(out) == 0 {
-		q := cloneValues(base)
+		q := sources.CloneValues(base)
 		q.Set("query", sources.Phrase(f))
 		out = append(out, q)
 	}
@@ -186,9 +186,9 @@ func (s *Source) Fetch(ctx context.Context, f model.Filters) ([]model.Job, error
 func parse(resp response) []model.Job {
 	jobs := make([]model.Job, 0, len(resp.Data))
 	for _, r := range resp.Data {
-		loc := strings.Join(nonEmpty(r.City, r.State, r.Country), ", ")
+		loc := strings.Join(sources.NonEmpty(r.City, r.State, r.Country), ", ")
 		countries, city := model.ParseLocation(loc)
-		if c := strings.ToUpper(r.Country); len(c) == 2 && !contains(countries, c) {
+		if c := strings.ToUpper(r.Country); len(c) == 2 && !slices.Contains(countries, c) {
 			countries = append([]string{c}, countries...)
 		}
 		if city == "" {
@@ -238,28 +238,6 @@ func empType(s string) model.JobType {
 		return model.TypeFullTime
 	}
 	return model.TypeUnknown
-}
-
-func nonEmpty(xs ...string) []string {
-	var out []string
-	for _, x := range xs {
-		if x = strings.TrimSpace(x); x != "" {
-			out = append(out, x)
-		}
-	}
-	return out
-}
-
-func contains(xs []string, x string) bool {
-	return slices.Contains(xs, x)
-}
-
-func cloneValues(v url.Values) url.Values {
-	c := url.Values{}
-	for k, vs := range v {
-		c[k] = append([]string(nil), vs...)
-	}
-	return c
 }
 
 func (s *Source) SearchURL(f model.Filters) string {
