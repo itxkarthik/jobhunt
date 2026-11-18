@@ -72,8 +72,8 @@ func TestImportEDGAR(t *testing.T) {
 	}
 	o.Redo, o.MaxFilings = false, 0
 	before = len(srv.Requests())
-	if sum, err = ImportEDGAR(ctx, st, im, o, false); err != nil || !sum.Complete || sum.Fetched != 2 {
-		t.Errorf("resume after capped redo: %+v, %v", sum, err)
+	if sum, err = ImportEDGAR(ctx, st, im, o, false); err != nil || !sum.Complete || sum.Fetched != 2 || len(srv.Requests())-before != 3 {
+		t.Errorf("resume after capped redo: %+v, %v, %d requests", sum, err, len(srv.Requests())-before) // the index + 2 filings
 	}
 	// A dry-run redo leaves the saved progress alone.
 	o.Redo = true
