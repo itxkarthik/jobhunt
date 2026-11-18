@@ -2,6 +2,7 @@ package sources
 
 import (
 	"encoding/json"
+	"errors"
 	"html"
 	"net/url"
 	"regexp"
@@ -80,6 +81,23 @@ func redact(raw string) string {
 		u.RawQuery = q.Encode()
 	}
 	return u.String()
+}
+
+// redactErr hides credentials in the URL a *url.Error carries.
+func redactErr(err error) error {
+	if ue, ok := errors.AsType[*url.Error](err); ok {
+		ue.URL = redact(ue.URL)
+	}
+	return err
+}
+
+var urlInText = regexp.MustCompile(`https?://[^\s"'<>]+`)
+
+// RedactURLs hides credential query params in every URL inside s, for
+// error text stored before redaction was complete or coming from
+// elsewhere.
+func RedactURLs(s string) string {
+	return urlInText.ReplaceAllStringFunc(s, redact)
 }
 
 // Float returns a pointer to v, or nil when v is zero.

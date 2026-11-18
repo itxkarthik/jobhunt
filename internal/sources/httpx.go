@@ -88,7 +88,7 @@ func (c *Client) GetJSON(ctx context.Context, url string, headers map[string]str
 		return err
 	}
 	if err := json.Unmarshal(b, out); err != nil {
-		return fmt.Errorf("decode %s: %w", url, err)
+		return fmt.Errorf("decode %s: %w", redact(url), err)
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func (c *Client) do(ctx context.Context, url string, headers map[string]string) 
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, false, err
+		return nil, false, redactErr(err)
 	}
 	req.Header.Set("User-Agent", c.UserAgent)
 	req.Header.Set("Accept", "application/json, application/rss+xml, application/xml;q=0.9, */*;q=0.8")
@@ -115,7 +115,7 @@ func (c *Client) do(ctx context.Context, url string, headers map[string]string) 
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, true, err
+		return nil, true, redactErr(err) // *url.Error carries the full URL
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, c.MaxBody))
