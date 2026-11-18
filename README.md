@@ -205,7 +205,7 @@ Results are cached in SQLite per source, so repeat searches take under a second.
 | Fit | 10 | your exact country and mode (worldwide remote scores 70%) |
 | Info | 5 | salary and/or visa sponsorship stated |
 
-Weights are configurable under `ranking:`.
+Weights are configurable under `ranking:`. Each job in `jobhunt feed` and the local API carries `score_parts`, the points it got for each component.
 
 ## Privacy and security
 

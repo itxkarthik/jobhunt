@@ -35,6 +35,8 @@ func result() *search.Result {
 		Jobs: []model.Job{
 			{ID: "greenhouse:1", Source: "greenhouse", Experience: model.ExpIntern, PostedAt: older, Key: "aaaa1111", Title: "Backend Intern", Company: "Acme", URL: "https://acme.example/jobs/1",
 				Score: 91, New: true, FirstSeenAt: runAt, Description: "Go and Postgres",
+				ScoreParts: []model.ScorePart{{Factor: "match", Points: 35, Max: 35}, {Factor: "recency", Points: 20.4, Max: 25},
+					{Factor: "level", Points: 25, Max: 25}, {Factor: "fit", Points: 10, Max: 10}, {Factor: "info", Points: 0.6, Max: 5}},
 				JobType: model.TypeInternship, WorkMode: model.ModeRemote, Sources: []string{"greenhouse"}},
 			{ID: "remotive:2", Source: "remotive", Experience: model.ExpIntern, Key: "bbbb2222", Title: "SDE Intern", Company: "Beta", URL: "https://beta.example/2",
 				Score: 72, FirstSeenAt: older, Description: "line one\nline two",
