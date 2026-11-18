@@ -37,6 +37,8 @@ func (ff *filterFlags) register(cmd *cobra.Command) {
 	fs.StringVar(&ff.in.Currency, "currency", "", "currency for --min-salary, e.g. INR, USD")
 	fs.BoolVar(&ff.in.StrictCountry, "strict-country", false, "exclude remote jobs that are open worldwide/regionally rather than to the country itself")
 	fs.BoolVar(&ff.in.IncludeUnknown, "include-unknown", false, "keep jobs whose country/type/area couldn't be determined")
+	fs.StringSliceVar(&ff.in.CompanyStages, "company-stage", nil, "only jobs at listed companies (jobhunt companies) at these funding stages, e.g. seed,series-a")
+	fs.StringSliceVar(&ff.in.CompanyHeadcounts, "company-headcount", nil, "only jobs at listed companies of these sizes, e.g. 1-10,11-50")
 	fs.StringVarP(&ff.preset, "preset", "p", "", "start from a saved preset; flags you pass override it")
 }
 
@@ -70,6 +72,8 @@ func (ff *filterFlags) resolve(cmd *cobra.Command, a *app.App) (model.Filters, e
 		{"currency", func() { base.Currency = f.Currency }},
 		{"strict-country", func() { base.StrictCountry = f.StrictCountry }},
 		{"include-unknown", func() { base.IncludeUnknown = f.IncludeUnknown }},
+		{"company-stage", func() { base.CompanyStages = f.CompanyStages }},
+		{"company-headcount", func() { base.CompanyHeadcounts = f.CompanyHeadcounts }},
 	}
 	for _, o := range overrides {
 		if set(o.flag) {

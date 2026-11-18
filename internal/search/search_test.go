@@ -3,6 +3,8 @@ package search
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -213,5 +215,61 @@ func TestTTLFor(t *testing.T) {
 		if got := e.ttlFor(tt.src); got != tt.want {
 			t.Errorf("%s: ttl = %v, want %v", tt.name, got, tt.want)
 		}
+	}
+}
+
+func TestEngineCompanyFilter(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	for _, c := range []model.Company{
+		{Key: "acme", Name: "Acme", Stage: model.StageSeed, Headcount: model.Headcount11to50},
+		{Key: "bigco", Name: "BigCo", Stage: model.StageGrowth, Headcount: model.Headcount1kPlus},
+	} {
+		if _, _, err := st.UpdateCompany(ctx, c.Key, func(*model.Company) (model.Company, error) { return c, nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	at := func(id, company string) model.Job {
+		j := job(id, "Backend Intern", "Bengaluru")
+		j.Company = company
+		return j
+	}
+	src := &fakeSource{name: "src", supports: true, jobs: []model.Job{
+		at("src:1", "Acme Inc."), at("src:2", "BigCo"), at("src:3", "Unlisted Ltd"),
+	}}
+	eng := &Engine{Sources: []sources.Source{src}, Store: st, Classifier: classify.Default()}
+	tests := []struct {
+		name string
+		f    model.Filters
+		want string
+	}{
+		{"no company filter", model.Filters{}, "src:1,src:2,src:3"},
+		{"stage", model.Filters{CompanyStages: []model.Stage{model.StageSeed, model.StageSeriesA}}, "src:1"},
+		{"headcount", model.Filters{CompanyHeadcounts: []model.Headcount{model.Headcount1kPlus}}, "src:2"},
+		{"both must match", model.Filters{CompanyStages: []model.Stage{model.StageSeed}, CompanyHeadcounts: []model.Headcount{model.Headcount1kPlus}}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.f.Countries = []string{"IN"}
+			res, err := eng.Run(ctx, tt.f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ids []string
+			for _, j := range res.Jobs {
+				ids = append(ids, j.ID)
+			}
+			slices.Sort(ids)
+			if strings.Join(ids, ",") != tt.want {
+				t.Errorf("jobs = %v, want %s", ids, tt.want)
+			}
+		})
+	}
+	if _, err := (&Engine{Sources: []sources.Source{src}, Classifier: classify.Default()}).Run(ctx, model.Filters{CompanyStages: []model.Stage{model.StageSeed}}); err == nil {
+		t.Error("company filter without a store should fail")
 	}
 }

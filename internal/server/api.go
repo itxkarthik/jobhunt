@@ -141,6 +141,8 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) error {
 			"types":      model.AllJobTypes,
 			"areas":      model.AllAreas,
 			"experience": model.AllExperience,
+			"stages":     model.AllStages,
+			"headcounts": model.AllHeadcounts,
 			"statuses":   store.Statuses,
 			"sorts":      []string{"score", "date"},
 		},

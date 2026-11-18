@@ -53,11 +53,13 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
   "min_salary": 0,
   "currency": "INR",
   "strict_country": false,
-  "include_unknown": false
+  "include_unknown": false,
+  "company_stages": ["seed", "series-a"],
+  "company_headcounts": ["1-10", "11-50"]
 }
 ```
 
-`GET /api/meta` lists the allowed values.
+`company_stages` and `company_headcounts` keep only jobs at companies on your companies list (`jobhunt companies`) with those funding stages or sizes; jobs at other companies are dropped. `GET /api/meta` lists the allowed values.
 
 ## Endpoints
 

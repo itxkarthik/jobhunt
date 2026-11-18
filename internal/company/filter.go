@@ -16,6 +16,7 @@ type Filter struct {
 	Countries    []string
 	Tags         []string
 	FundedWithin time.Duration // latest round no older than this
+	FundedBefore time.Duration // latest round at least this old
 	HasContact   bool
 	Query        string // case-insensitive substring of the name
 }
@@ -27,7 +28,8 @@ type FilterInput struct {
 	Headcounts   []string `json:"headcounts,omitempty"`
 	Countries    []string `json:"countries,omitempty"`
 	Tags         []string `json:"tags,omitempty"`
-	FundedWithin string   `json:"funded_within,omitempty"` // an age like 90d or 180d
+	FundedWithin string   `json:"funded_within,omitempty"` // an age like 270d: raised at most this long ago
+	FundedBefore string   `json:"funded_before,omitempty"` // an age like 90d: raised at least this long ago
 	HasContact   bool     `json:"has_contact,omitempty"`
 	Query        string   `json:"q,omitempty"`
 }
@@ -68,6 +70,16 @@ func ParseFilter(in FilterInput, parseAge func(string) (time.Duration, error)) (
 		}
 		f.FundedWithin = d
 	}
+	if in.FundedBefore != "" {
+		d, err := parseAge(in.FundedBefore)
+		if err != nil {
+			return f, err
+		}
+		f.FundedBefore = d
+	}
+	if f.FundedWithin > 0 && f.FundedBefore >= f.FundedWithin {
+		return f, fmt.Errorf("funded_before (%s) must be shorter than funded_within (%s)", in.FundedBefore, in.FundedWithin)
+	}
 	f.HasContact, f.Query = in.HasContact, strings.ToLower(strings.TrimSpace(in.Query))
 	return f, nil
 }
@@ -91,9 +103,13 @@ func (f Filter) Match(c *model.Company, now time.Time) bool {
 			return false
 		}
 	}
-	if f.FundedWithin > 0 {
+	if f.FundedWithin > 0 || f.FundedBefore > 0 {
 		r := c.LatestRound()
-		if r == nil || r.Date.IsZero() || now.Sub(r.Date) > f.FundedWithin {
+		if r == nil || r.Date.IsZero() {
+			return false
+		}
+		age := now.Sub(r.Date)
+		if (f.FundedWithin > 0 && age > f.FundedWithin) || age < f.FundedBefore {
 			return false
 		}
 	}

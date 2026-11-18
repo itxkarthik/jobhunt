@@ -156,6 +156,8 @@ func TestFilter(t *testing.T) {
 		{"headcount", FilterInput{Headcounts: []string{"1-10", "11-50"}}, "Acme"},
 		{"country", FilterInput{Countries: []string{"india"}}, "Beta Labs"},
 		{"funded within", FilterInput{FundedWithin: "90d"}, "Acme"},
+		{"funded 3-9 months ago", FilterInput{FundedWithin: "270d", FundedBefore: "60d"}, ""},
+		{"funded over 6 months ago", FilterInput{FundedBefore: "180d"}, "Beta Labs"},
 		{"has contact", FilterInput{HasContact: true}, "Acme"},
 		{"tag", FilterInput{Tags: []string{"AI"}}, "Acme"},
 		{"query", FilterInput{Query: "LABS"}, "Beta Labs"},
@@ -179,6 +181,9 @@ func TestFilter(t *testing.T) {
 	}
 	if _, err := ParseFilter(FilterInput{Stages: []string{"unicorn"}}, days); err == nil {
 		t.Error("bad stage accepted")
+	}
+	if _, err := ParseFilter(FilterInput{FundedWithin: "90d", FundedBefore: "90d"}, days); err == nil {
+		t.Error("empty funding window accepted")
 	}
 
 	Sort(cs)

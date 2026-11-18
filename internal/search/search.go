@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -114,12 +115,38 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		res.Jobs[i].Score, res.Jobs[i].ScoreParts = rk.Explain(&res.Jobs[i], f, kw)
 	}
 	Sort(res.Jobs, e.SortBy)
+	if f.WantsCompanies() {
+		if e.Store == nil {
+			return nil, errors.New("company filters need the database")
+		}
+		if err := e.byCompany(ctx, res, f); err != nil {
+			return nil, err
+		}
+	}
 	if e.Store != nil {
 		if err := e.track(ctx, res, now); err != nil {
 			return nil, err
 		}
 	}
 	return res, nil
+}
+
+// byCompany keeps jobs at companies on the companies list whose stage and
+// headcount pass f.
+func (e *Engine) byCompany(ctx context.Context, res *Result, f model.Filters) error {
+	cs, err := e.Store.Companies(ctx)
+	if err != nil {
+		return err
+	}
+	ok := map[string]bool{}
+	for _, c := range cs {
+		if (len(f.CompanyStages) == 0 || slices.Contains(f.CompanyStages, c.Stage)) &&
+			(len(f.CompanyHeadcounts) == 0 || slices.Contains(f.CompanyHeadcounts, c.Headcount)) {
+			ok[c.Key] = true
+		}
+	}
+	res.Jobs = keep(res.Jobs, func(j *model.Job) bool { return ok[dedup.NormCompany(j.Company)] })
+	return nil
 }
 
 // track drops hidden jobs, records the rest as seen, and marks new ones.

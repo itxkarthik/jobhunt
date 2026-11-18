@@ -39,6 +39,12 @@ func TestParseFilters(t *testing.T) {
 			return f.Countries == nil && f.Types == nil && f.Modes == nil && f.Areas == nil
 		}, false},
 		{"any with other values", FilterInput{Countries: []string{"any", "US"}}, nil, true},
+		{"company filters", FilterInput{CompanyStages: []string{"Series A"}, CompanyHeadcounts: []string{"1-10", "30"}}, func(f model.Filters) bool {
+			return slices.Equal(f.CompanyStages, []model.Stage{model.StageSeriesA}) &&
+				slices.Equal(f.CompanyHeadcounts, []model.Headcount{model.Headcount1to10, model.Headcount11to50}) && f.WantsCompanies()
+		}, false},
+		{"unknown company stage", FilterInput{CompanyStages: []string{"unknown"}}, nil, true},
+		{"bad company headcount", FilterInput{CompanyHeadcounts: []string{"lots"}}, nil, true},
 		{"unknown country", FilterInput{Countries: []string{"Atlantis"}}, nil, true},
 		{"unknown mode", FilterInput{Modes: []string{"teleport"}}, nil, true},
 		{"unknown type", FilterInput{Types: []string{"forever"}}, nil, true},
@@ -73,6 +79,7 @@ func TestInputOfRoundTrip(t *testing.T) {
 			Experience: []model.Experience{model.ExpIntern}, Keywords: []string{"Go"}, Exclude: []string{"senior"},
 			PostedWithin: 3 * 24 * time.Hour, VisaOnly: true, MinSalary: 100000, Currency: "INR",
 			StrictCountry: true, IncludeUnknown: true,
+			CompanyStages: []model.Stage{model.StageSeed}, CompanyHeadcounts: []model.Headcount{model.Headcount11to50},
 		}},
 		// The defaults restrict country and type; an unrestricted preset
 		// must not pick them up on the way back.

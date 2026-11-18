@@ -143,6 +143,16 @@ type Filters struct {
 
 	StrictCountry  bool `json:"strict_country,omitempty" yaml:"strict_country,omitempty"`
 	IncludeUnknown bool `json:"include_unknown,omitempty" yaml:"include_unknown,omitempty"`
+
+	// Only jobs at companies in the companies list with these funding
+	// stages or headcounts. Jobs at companies not on the list are dropped.
+	CompanyStages     []Stage     `json:"company_stages,omitempty" yaml:"company_stages,omitempty"`
+	CompanyHeadcounts []Headcount `json:"company_headcounts,omitempty" yaml:"company_headcounts,omitempty"`
+}
+
+// WantsCompanies reports whether f restricts jobs by company record.
+func (f Filters) WantsCompanies() bool {
+	return len(f.CompanyStages) > 0 || len(f.CompanyHeadcounts) > 0
 }
 
 func (f Filters) WantsType(t JobType) bool {
