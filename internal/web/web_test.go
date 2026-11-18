@@ -37,6 +37,12 @@ func TestShell(t *testing.T) {
 			t.Errorf("index.html doesn't reference %s", ref)
 		}
 	}
+	// Every module the router can load must exist.
+	for _, view := range []string{"search", "tracker", "sources"} {
+		if _, ok := files["js/"+view+".js"]; !ok {
+			t.Errorf("js/%s.js is missing", view)
+		}
+	}
 }
 
 // The UI renders text from the open internet. These patterns would let it
