@@ -200,3 +200,48 @@ func TestRecruitee(t *testing.T) {
 		t.Errorf("boardURL = %s", got)
 	}
 }
+
+func TestBoardsAdded(t *testing.T) {
+	base := []Company{{Name: "Stripe", ATS: "greenhouse", Slug: "stripe", Countries: []string{"US"}}}
+	b := NewBoards(base)
+	b.SetAdded([]Company{
+		{Name: "Stripe again", ATS: "greenhouse", Slug: "Stripe"}, // already in companies.yaml
+		{Name: "Acme", ATS: "greenhouse", Slug: "acme", Countries: []string{"IN"}},
+		{Name: "Acme dup", ATS: "greenhouse", Slug: "acme"},
+		{Name: "Beta", ATS: "lever", Slug: "beta", Remote: true},
+	})
+	all := b.All()
+	if len(all) != 3 || all[0].Added || !all[1].Added || all[1].Name != "Acme" || !all[2].Added {
+		t.Fatalf("All = %+v", all)
+	}
+	if gh := b.For("greenhouse"); len(gh) != 2 {
+		t.Errorf("For(greenhouse) = %+v", gh)
+	}
+
+	// A source built on the shared list sees boards added later, and a
+	// search only fetches the ones for the requested countries.
+	srv := sourcetest.Serve(t, map[string]string{"/stripe/jobs": "testdata/greenhouse.json", "/acme/jobs": "testdata/greenhouse.json"})
+	s := NewShared("greenhouse", NewBoards(base), sourcetest.Client(), srv.URL)
+	s.list.SetAdded([]Company{{Name: "Acme", ATS: "greenhouse", Slug: "acme", Countries: []string{"IN"}}})
+	if got := s.CacheKey(model.Filters{Countries: []string{"IN"}, StrictCountry: true}); got != "acme" {
+		t.Errorf("IN boards = %q, want acme", got)
+	}
+	jobs, err := s.Fetch(context.Background(), model.Filters{Countries: []string{"IN"}, StrictCountry: true})
+	if err != nil || len(jobs) == 0 {
+		t.Fatalf("Fetch = %d jobs, %v", len(jobs), err)
+	}
+	for _, r := range s.CheckBoards(context.Background()) {
+		if r.Err != nil || r.Count == 0 {
+			t.Errorf("check %s: %d, %v", r.Company.Slug, r.Count, r.Err)
+		}
+	}
+	s.list.SetAdded([]Company{{Name: "Gone", ATS: "greenhouse", Slug: "gone"}})
+	for _, r := range s.CheckBoards(context.Background()) {
+		if (r.Company.Slug == "gone") != (r.Err != nil) {
+			t.Errorf("check %s: err %v", r.Company.Slug, r.Err)
+		}
+	}
+	if _, err := Check(context.Background(), nil, Company{ATS: "workday", Slug: "x"}); err == nil {
+		t.Error("unknown ats accepted")
+	}
+}

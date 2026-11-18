@@ -3,6 +3,7 @@
 package app
 
 import (
+	"context"
 	"strconv"
 	"time"
 
@@ -18,8 +19,10 @@ type App struct {
 	Config     *config.Config
 	Store      *store.Store
 	Classifier *classify.Classifier
-	Companies  []ats.Company
-	Sources    []sources.Source
+	// Boards is companies.yaml plus boards on the companies list; the ATS
+	// sources share it and RefreshBoards updates it.
+	Boards  *ats.Boards
+	Sources []sources.Source
 }
 
 // Open loads config, opens the DB, and builds the enabled sources.
@@ -42,7 +45,13 @@ func Open() (*App, error) {
 		st.Close()
 		return nil, err
 	}
-	return &App{Config: cfg, Store: st, Classifier: cl, Companies: companies, Sources: BuildSources(cfg, companies)}, nil
+	boards := ats.NewBoards(companies)
+	a := &App{Config: cfg, Store: st, Classifier: cl, Boards: boards, Sources: BuildSources(cfg, boards)}
+	if err := a.RefreshBoards(context.Background()); err != nil {
+		st.Close()
+		return nil, err
+	}
+	return a, nil
 }
 
 func (a *App) Close() error { return a.Store.Close() }
@@ -58,6 +67,9 @@ func (a *App) Engine() *search.Engine {
 		Timeout:     a.Config.Timeout,
 		Concurrency: 8,
 		Weights:     a.Config.Ranking,
+		// Another process (an agent through jobhunt mcp, say) may have
+		// added boards since this one started.
+		Prepare: a.RefreshBoards,
 	}
 }
 

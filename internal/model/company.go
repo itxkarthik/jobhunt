@@ -132,6 +132,7 @@ type Company struct {
 	Name            string    `json:"name"`
 	Website         string    `json:"website,omitempty"`
 	Country         string    `json:"country,omitempty"`
+	Remote          bool      `json:"remote,omitempty"` // hires remotely beyond Country
 	City            string    `json:"city,omitempty"`
 	Stage           Stage     `json:"stage"`
 	Rounds          []Round   `json:"rounds,omitempty"` // newest first

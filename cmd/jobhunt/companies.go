@@ -128,6 +128,7 @@ func newCompanySetCmd() *cobra.Command {
 		rm      company.Removal
 		asJSON  bool
 		checked bool
+		noCheck bool
 	)
 	cmd := &cobra.Command{
 		Use:   "set <name>",
@@ -167,6 +168,11 @@ the page where the person published it.`,
 				return err
 			}
 			defer a.Close()
+			if !noCheck {
+				if err := app.AddBoards(cmd.Context(), a.Store, c, a.CheckBoard); err != nil {
+					return fmt.Errorf("%w (use --no-check to save it anyway)", err)
+				}
+			}
 			got, created, err := app.UpsertCompany(cmd.Context(), a.Store, c, rm)
 			if err != nil {
 				return err
@@ -189,7 +195,9 @@ the page where the person published it.`,
 	fs.StringVar(&stage, "stage", "", "funding stage: "+joinStr(strs(model.AllStages)))
 	fs.StringVar(&people, "headcount", "", "people, as a number or bucket ("+joinStr(strs(model.AllHeadcounts))+")")
 	fs.StringVar(&c.HeadcountSource, "headcount-source", "", `where the headcount came from: a URL, or "estimate"`)
-	fs.StringSliceVar(&boards, "board", nil, "job board as ats:slug, e.g. greenhouse:acme")
+	fs.StringSliceVar(&boards, "board", nil, "job board as ats:slug, e.g. greenhouse:acme; fetched once to check it, then searched like companies.yaml boards")
+	fs.BoolVar(&noCheck, "no-check", false, "save new boards without fetching them first")
+	fs.BoolVar(&c.Remote, "remote", false, "the company hires remotely beyond its country, so its board is searched for remote roles too")
 	fs.StringArrayVar(&rounds, "round", nil, `funding round "stage,amount,currency,date,source-url" (repeatable)`)
 	fs.StringVar(&ct.Name, "contact-name", "", "contact's name")
 	fs.StringVar(&ct.Role, "contact-role", "", "contact's role, e.g. CEO")

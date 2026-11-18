@@ -65,6 +65,10 @@ type Engine struct {
 	ShowHidden  bool   // keep jobs the user hid
 	NewOnly     bool   // keep only jobs never seen in an earlier run
 	NoMarkSeen  bool   // don't record results as seen (dry runs)
+	// Prepare, if set, runs before each search, e.g. to reload boards
+	// added since the engine was built. An error is not fatal: the search
+	// runs with what it has.
+	Prepare func(context.Context) error
 	// Progress, if set, is called as each source finishes.
 	Progress func(Report)
 }
@@ -72,6 +76,9 @@ type Engine struct {
 // Run executes the search. It only returns an error for problems that make
 // the whole search impossible; individual source failures go in Reports.
 func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
+	if e.Prepare != nil {
+		_ = e.Prepare(ctx) // a stale board list is better than no search
+	}
 	var (
 		mu      sync.Mutex
 		all     []model.Job

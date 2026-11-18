@@ -39,6 +39,7 @@ func Merge(old *model.Company, in model.Company, rm Removal, now time.Time) mode
 	set(&c.Website, in.Website)
 	set(&c.Country, in.Country)
 	set(&c.City, in.City)
+	c.Remote = c.Remote || in.Remote
 	if in.Headcount != "" && in.Headcount != model.HeadcountUnknown {
 		c.Headcount, c.HeadcountSource = in.Headcount, in.HeadcountSource
 	}

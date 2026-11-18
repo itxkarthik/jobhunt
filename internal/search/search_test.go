@@ -273,3 +273,16 @@ func TestEngineCompanyFilter(t *testing.T) {
 		t.Error("company filter without a store should fail")
 	}
 }
+
+func TestEnginePrepare(t *testing.T) {
+	src := &fakeSource{name: "src", supports: true, jobs: []model.Job{job("src:1", "Backend Intern", "Pune")}}
+	calls := 0
+	eng := &Engine{Sources: []sources.Source{src}, Classifier: classify.Default(), Prepare: func(context.Context) error {
+		calls++
+		return errors.New("db busy") // not fatal
+	}}
+	res, err := eng.Run(context.Background(), model.Filters{Countries: []string{"IN"}})
+	if err != nil || len(res.Jobs) != 1 || calls != 1 {
+		t.Errorf("jobs=%v err=%v calls=%d", res, err, calls)
+	}
+}
