@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/company"
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/sources"
+	"github.com/itxkarthik/jobhunt/internal/sources/ats"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
+	"github.com/itxkarthik/jobhunt/internal/sources/hn"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
 
@@ -86,7 +90,7 @@ func ImportEDGAR(ctx context.Context, st *store.Store, im *edgar.Importer, o edg
 // nothing is marked done and the next run tries again.
 func saveCompanies(ctx context.Context, st *store.Store, cs []model.Company, sum *ImportSummary) error {
 	for _, c := range cs {
-		got, created, err := UpsertCompany(ctx, st, c, company.Removal{})
+		got, created, err := ImportCompany(ctx, st, c)
 		_, invalid := errors.AsType[*InvalidError](err)
 		switch {
 		case invalid:
@@ -100,4 +104,89 @@ func saveCompanies(ctx context.Context, st *store.Store, cs []model.Company, sum
 		}
 	}
 	return nil
+}
+
+// HNOptions bound one HN leads import.
+type HNOptions struct {
+	CheckBoards bool // fetch each new board once and drop dead ones; off keeps no boards
+	Redo        bool // read posts already imported again
+}
+
+// HNSource builds the HN leads reader.
+func (a *App) HNSource() *hn.Source {
+	return hn.New(sources.NewClient(a.Config.UserAgent, 2))
+}
+
+// ImportHN turns the latest "Who is hiring?" thread into company leads.
+// Finished posts are recorded, so a rerun only reads posts added since.
+// Boards found in a post are checked with check before they're kept.
+func ImportHN(ctx context.Context, st *store.Store, src *hn.Source, check BoardChecker, o HNOptions, dryRun bool) (*ImportSummary, error) {
+	sum := &ImportSummary{Source: "hn", DryRun: dryRun, Complete: true}
+	th, err := src.Latest(ctx)
+	if err != nil {
+		return sum, err
+	}
+	scope := "hn:" + th.ID
+	done, err := st.ImportedItems(ctx, scope)
+	if err != nil {
+		return sum, err
+	}
+	if o.Redo {
+		done = map[string]bool{}
+	}
+	sum.Read = 1
+	leads := th.Leads(func(id int64) bool { return done[postItem(id)] })
+	sum.Found = len(leads)
+	var cs []model.Company
+	var items []string
+	for _, l := range leads {
+		c := l.Company
+		if !dryRun {
+			c.Boards = liveBoards(ctx, st, c, check, o.CheckBoards, sum)
+			if ctx.Err() != nil {
+				return sum, ctx.Err()
+			}
+		}
+		cs = append(cs, c)
+		items = append(items, postItem(l.PostID))
+	}
+	if dryRun {
+		for _, c := range cs {
+			sum.Added = append(sum.Added, c.Name)
+		}
+		return sum, nil
+	}
+	if err := saveCompanies(ctx, st, cs, sum); err != nil {
+		return sum, err
+	}
+	return sum, st.MarkImported(ctx, scope, items, time.Now())
+}
+
+func postItem(id int64) string { return "post:" + strconv.FormatInt(id, 10) }
+
+// liveBoards keeps the boards of c that are already stored or pass check.
+func liveBoards(ctx context.Context, st *store.Store, c model.Company, check BoardChecker, enabled bool, sum *ImportSummary) []model.Board {
+	if len(c.Boards) == 0 || !enabled {
+		return nil
+	}
+	var have []model.Board
+	if old, err := st.Company(ctx, company.Key(c.Name)); err == nil && old != nil {
+		have = old.Boards
+	}
+	var keep []model.Board
+	for _, b := range c.Boards {
+		if slices.Contains(have, b) {
+			keep = append(keep, b)
+			continue
+		}
+		sum.Fetched++
+		n, err := check(ctx, ats.Company{Name: c.Name, ATS: b.ATS, Slug: b.Slug})
+		switch {
+		case err != nil:
+			sum.Errors = append(sum.Errors, (&BoardError{Board: b, Err: err}).Error())
+		case n > 0:
+			keep = append(keep, b)
+		}
+	}
+	return keep
 }

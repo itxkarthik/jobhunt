@@ -191,3 +191,15 @@ func TestFilter(t *testing.T) {
 		t.Errorf("sort: %s %s %s", cs[0].Name, cs[1].Name, cs[2].Name)
 	}
 }
+
+func TestFillOnly(t *testing.T) {
+	old := &model.Company{Website: "https://acme.io", Country: "IN", Stage: model.StageSeed, Headcount: model.HeadcountUnknown}
+	in := model.Company{Website: "https://acme.com", Country: "US", City: "Austin", Stage: model.StageSeriesA, Headcount: model.Headcount11to50, Tags: []string{"hn-hiring"}}
+	got := FillOnly(old, in)
+	if got.Website != "" || got.Country != "" || got.Stage != "" || got.City != "Austin" || got.Headcount != model.Headcount11to50 || len(got.Tags) != 1 {
+		t.Errorf("FillOnly = %+v", got)
+	}
+	if got := FillOnly(nil, in); got.Website != in.Website {
+		t.Errorf("new company: %+v", got)
+	}
+}

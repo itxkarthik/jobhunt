@@ -45,6 +45,17 @@ func UpsertCompany(ctx context.Context, st *store.Store, in model.Company, rm co
 	})
 }
 
+// ImportCompany saves a company from an importer: like UpsertCompany, but
+// it only fills fields the stored record leaves empty (company.FillOnly).
+func ImportCompany(ctx context.Context, st *store.Store, in model.Company) (model.Company, bool, error) {
+	if err := company.Clean(&in); err != nil {
+		return model.Company{}, false, &InvalidError{err}
+	}
+	return st.UpdateCompany(ctx, in.Key, func(old *model.Company) (model.Company, error) {
+		return company.Merge(old, company.FillOnly(old, in), company.Removal{}, time.Now()), nil
+	})
+}
+
 // InvalidError means a company update failed validation; nothing was
 // stored. Other errors from UpsertCompany are storage failures.
 type InvalidError struct{ Err error }

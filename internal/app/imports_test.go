@@ -7,8 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/itxkarthik/jobhunt/internal/company"
 	"github.com/itxkarthik/jobhunt/internal/model"
+	"github.com/itxkarthik/jobhunt/internal/sources"
+	"github.com/itxkarthik/jobhunt/internal/sources/ats"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
+	"github.com/itxkarthik/jobhunt/internal/sources/hn"
 	"github.com/itxkarthik/jobhunt/internal/sources/sourcetest"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
@@ -108,5 +112,52 @@ func TestSaveCompaniesStorageError(t *testing.T) {
 	sum = &ImportSummary{}
 	if err := saveCompanies(ctx, st, []model.Company{{Name: "Acme"}}, sum); err == nil || len(sum.Skipped) != 0 {
 		t.Errorf("storage error was not returned: %v, %+v", err, sum)
+	}
+}
+
+func TestImportHN(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	td := "../sources/hn/testdata/"
+	srv := sourcetest.Serve(t, map[string]string{
+		"/api/v1/search_by_date": td + "search.json",
+		"/api/v1/items/49922569": td + "leads.json",
+	})
+	src := hn.New(sourcetest.Client())
+	src.BaseURL = srv.URL + "/api/v1"
+	checks := 0
+	check := func(_ context.Context, c ats.Company) (int, error) {
+		checks++
+		if c.Slug == "plainview" {
+			return 0, &sources.StatusError{Code: 404}
+		}
+		return 2, nil
+	}
+	// A company the user already described keeps its own website.
+	if _, _, err := UpsertCompany(ctx, st, model.Company{Name: "Kestrel Labs", Website: "https://kestrel.example"}, company.Removal{}); err != nil {
+		t.Fatal(err)
+	}
+
+	sum, err := ImportHN(ctx, st, src, check, HNOptions{CheckBoards: true}, false)
+	if err != nil || len(sum.Added) != 2 || len(sum.Updated) != 1 || checks != 2 || len(sum.Errors) != 1 {
+		t.Fatalf("import: %+v, %v, %d checks", sum, err, checks)
+	}
+	k, _ := FindCompany(ctx, st, "kestrel")
+	if k.Website != "https://kestrel.example" || len(k.Boards) != 1 || len(k.Contacts) != 1 || k.Country != "IN" {
+		t.Errorf("kestrel = %+v", k)
+	}
+	p, _ := FindCompany(ctx, st, "plainview")
+	if len(p.Boards) != 0 || len(p.Contacts) != 1 {
+		t.Errorf("plainview kept its dead board: %+v", p)
+	}
+
+	// The second run fetches the thread again but adds nothing.
+	sum, err = ImportHN(ctx, st, src, check, HNOptions{CheckBoards: true}, false)
+	if err != nil || sum.Found != 0 || len(sum.Added)+len(sum.Updated) != 0 || checks != 2 {
+		t.Errorf("repeat: %+v, %v", sum, err)
 	}
 }

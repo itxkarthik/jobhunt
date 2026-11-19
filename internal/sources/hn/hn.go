@@ -5,7 +5,6 @@ package hn
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"html"
 	"regexp"
@@ -52,25 +51,11 @@ type item struct {
 }
 
 func (s *Source) Fetch(ctx context.Context, _ model.Filters) ([]model.Job, error) {
-	var sr searchResp
-	if err := s.Client.GetJSON(ctx, s.BaseURL+"/search_by_date?tags=story,author_whoishiring&hitsPerPage=10", nil, &sr); err != nil {
+	t, err := s.Latest(ctx)
+	if err != nil {
 		return nil, err
 	}
-	id := ""
-	for _, h := range sr.Hits {
-		if strings.HasPrefix(h.Title, "Ask HN: Who is hiring?") {
-			id = h.ObjectID
-			break
-		}
-	}
-	if id == "" {
-		return nil, errors.New(`no recent "Who is hiring?" thread found`)
-	}
-	var thread item
-	if err := s.Client.GetJSON(ctx, s.BaseURL+"/items/"+id, nil, &thread); err != nil {
-		return nil, err
-	}
-	return parse(thread), nil
+	return parse(t.item), nil
 }
 
 var (

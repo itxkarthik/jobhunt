@@ -11,6 +11,7 @@ import (
 
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
+	"github.com/itxkarthik/jobhunt/internal/sources/links"
 )
 
 func newCompanyImportCmd() *cobra.Command {
@@ -21,7 +22,7 @@ func newCompanyImportCmd() *cobra.Command {
 Each run only fetches what's new since the last one; --dry-run shows what
 would be added without saving anything.`,
 	}
-	cmd.AddCommand(newImportEDGARCmd())
+	cmd.AddCommand(newImportEDGARCmd(), newImportHNCmd())
 	return cmd
 }
 
@@ -89,6 +90,86 @@ JOBHUNT_EDGAR_USER_AGENT first. Requests stay at 5 a second.`,
 	fs.BoolVar(&dryRun, "dry-run", false, "show what would be added; save nothing")
 	fs.BoolVar(&o.Redo, "redo", false, "read the whole --since window again: forget what earlier runs finished there (a run cut short by --max-filings continues on the next run)")
 	fs.BoolVar(&asJSON, "json", false, "print the summary as JSON")
+	return cmd
+}
+
+func newImportHNCmd() *cobra.Command {
+	var (
+		o              app.HNOptions
+		noBoards       bool
+		dryRun, asJSON bool
+	)
+	cmd := &cobra.Command{
+		Use:   "hn",
+		Short: `Company leads from the latest Hacker News "Who is hiring?" thread`,
+		Long: `Reads the latest "Who is hiring?" thread through the HN Algolia API and
+adds each posting company as a lead: name, location, website, its ATS job
+board if the post links one, and an email only when the poster wrote it in
+the post (plain or as "name [at] co [dot] com"), with the post as source.
+No address is ever guessed.
+
+Each board is fetched once to check it before it's kept (--no-boards skips
+boards). Posts already imported are skipped, so a rerun during the month
+reads only new ones.`,
+		Example: `  jobhunt companies import hn
+  jobhunt companies import hn --dry-run
+  jobhunt companies --tag hn-hiring --has-contact`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			a, err := app.Open()
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			o.CheckBoards = !noBoards
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+			defer stop()
+			sum, err := app.ImportHN(ctx, a.Store, a.HNSource(), a.CheckBoard, o, dryRun)
+			if sum != nil {
+				if asJSON {
+					if jerr := writeJSON(cmd.OutOrStdout(), sum); jerr != nil {
+						return jerr
+					}
+				} else {
+					printImport(cmd.OutOrStdout(), sum, "thread", "new posts")
+				}
+			}
+			return err
+		},
+	}
+	fs := cmd.Flags()
+	fs.BoolVar(&noBoards, "no-boards", false, "don't keep job boards linked in posts (saves one request per new board)")
+	fs.BoolVar(&o.Redo, "redo", false, "read posts already imported again")
+	fs.BoolVar(&dryRun, "dry-run", false, "show what would be added; save nothing and fetch no boards")
+	fs.BoolVar(&asJSON, "json", false, "print the summary as JSON")
+	return cmd
+}
+
+func newCompanyLinksCmd() *cobra.Command {
+	var countries []string
+	cmd := &cobra.Command{
+		Use:   "links",
+		Short: "Startup directories to browse by hand (never fetched)",
+		Long: `Prints startup directories and funding news sites whose terms forbid
+automated access, for browsing yourself or for an agent to cite through
+search. jobhunt never fetches them.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if len(countries) == 0 {
+				a, err := app.Open()
+				if err != nil {
+					return err
+				}
+				countries = a.Config.Defaults.Countries
+				a.Close()
+			}
+			for _, l := range links.Directories(countries) {
+				fmt.Fprintf(cmd.OutOrStdout(), "%-28s %s\n", l.Site, l.URL)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringSliceVarP(&countries, "country", "c", nil, "countries (default from config)")
 	return cmd
 }
 
