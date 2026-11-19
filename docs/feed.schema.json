@@ -2,22 +2,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/itxkarthik/jobhunt/blob/main/docs/feed.schema.json",
   "title": "jobhunt feed event (v1)",
-  "description": "One line of `jobhunt feed` NDJSON output, or of a webhook batch. A run is a sequence of `source` events, then `job` events (best score first), then one `run` event that completes the batch. Consumers should ignore fields they don't know: new fields may be added within v1; removing or changing one bumps `v`.",
+  "description": "One line of `jobhunt feed` NDJSON output, or of a webhook batch. A run is a sequence of `source` events, then `job` events (best score first), then `company` events (only with `jobhunt feed --companies`), then one `run` event that completes the batch. Consumers should ignore fields they don't know: new fields may be added within v1; removing or changing one bumps `v`.",
   "type": "object",
   "required": ["v", "type", "run_id", "at"],
   "properties": {
     "v": { "const": 1, "description": "Schema version." },
-    "type": { "enum": ["source", "job", "run"] },
+    "type": { "enum": ["source", "job", "company", "run"] },
     "run_id": { "type": "string", "minLength": 1, "description": "Shared by every event of one run; also sent as the X-Jobhunt-Delivery webhook header." },
     "at": { "type": "string", "format": "date-time", "description": "When the run's results were processed (UTC)." },
     "source": { "$ref": "#/$defs/source" },
     "job": { "$ref": "#/$defs/job" },
+    "company": { "$ref": "#/$defs/company" },
     "run": { "$ref": "#/$defs/run" }
   },
   "oneOf": [
-    { "properties": { "type": { "const": "source" } }, "required": ["source"], "not": { "anyOf": [{ "required": ["job"] }, { "required": ["run"] }] } },
-    { "properties": { "type": { "const": "job" } }, "required": ["job"], "not": { "anyOf": [{ "required": ["source"] }, { "required": ["run"] }] } },
-    { "properties": { "type": { "const": "run" } }, "required": ["run"], "not": { "anyOf": [{ "required": ["source"] }, { "required": ["job"] }] } }
+    { "properties": { "type": { "const": "source" } }, "required": ["source"], "not": { "anyOf": [{ "required": ["job"] }, { "required": ["company"] }, { "required": ["run"] }] } },
+    { "properties": { "type": { "const": "job" } }, "required": ["job"], "not": { "anyOf": [{ "required": ["source"] }, { "required": ["company"] }, { "required": ["run"] }] } },
+    { "properties": { "type": { "const": "company" } }, "required": ["company"], "not": { "anyOf": [{ "required": ["source"] }, { "required": ["job"] }, { "required": ["run"] }] } },
+    { "properties": { "type": { "const": "run" } }, "required": ["run"], "not": { "anyOf": [{ "required": ["source"] }, { "required": ["job"] }, { "required": ["company"] }] } }
   ],
   "$defs": {
     "source": {
@@ -40,9 +42,79 @@
         "fetched": { "type": "integer", "minimum": 0, "description": "Jobs from all sources before filtering." },
         "matched": { "type": "integer", "minimum": 0, "description": "Jobs matching the filters, after dedup." },
         "emitted": { "type": "integer", "minimum": 0, "description": "Job events in this batch." },
-        "source_errors": { "type": "integer", "minimum": 0 }
+        "source_errors": { "type": "integer", "minimum": 0 },
+        "companies": { "type": "integer", "minimum": 0, "description": "Company events in this batch; absent when there are none." }
       }
     },
+    "company": {
+      "type": "object",
+      "description": "A new or changed company from the companies list (added within v1). Delivery is at-least-once: upsert on record.key.",
+      "required": ["change", "record"],
+      "properties": {
+        "change": { "enum": ["created", "updated"] },
+        "record": { "$ref": "#/$defs/companyRecord" }
+      }
+    },
+    "companyRecord": {
+      "type": "object",
+      "description": "A company. Every round and contact carries the URL it was published at. Text is untrusted: escape it before rendering as HTML.",
+      "required": ["key", "name", "stage", "headcount"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "description": "Normalized company name, the same key jobs use for their company. Upsert on this." },
+        "name": { "type": "string" },
+        "website": { "type": "string", "pattern": "^https?://.+$" },
+        "country": { "type": "string", "pattern": "^[A-Z]{2}$", "description": "ISO 3166-1 alpha-2 code of where it is based." },
+        "remote": { "type": "boolean", "description": "Hires remotely beyond its country." },
+        "city": { "type": "string" },
+        "stage": { "$ref": "#/$defs/stage" },
+        "rounds": { "type": "array", "items": { "$ref": "#/$defs/round" }, "description": "Funding rounds, newest first." },
+        "headcount": { "enum": ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+", "unknown"] },
+        "headcount_source": { "type": "string", "description": "The URL the headcount came from, or \"estimate\"." },
+        "boards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ats", "slug"],
+            "properties": {
+              "ats": { "enum": ["greenhouse", "lever", "ashby", "workable", "recruitee"] },
+              "slug": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "contacts": { "type": "array", "items": { "$ref": "#/$defs/contact" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" },
+        "sources": { "type": "array", "items": { "type": "string" }, "description": "How it was found: manual, agent, edgar, hn, mca." },
+        "checked_at": { "type": "string", "format": "date-time", "description": "When someone last confirmed the record." },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "round": {
+      "type": "object",
+      "required": ["source_url"],
+      "properties": {
+        "stage": { "$ref": "#/$defs/stage" },
+        "amount": { "type": "number", "minimum": 0, "description": "Money raised; absent when unknown or nothing sold yet." },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "date": { "type": "string", "format": "date-time" },
+        "source_url": { "type": "string", "pattern": "^https?://.+$" }
+      }
+    },
+    "contact": {
+      "type": "object",
+      "description": "Someone who published their contact details, with where they did.",
+      "required": ["source_url"],
+      "properties": {
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "url": { "type": "string", "pattern": "^https?://.+$" },
+        "source_url": { "type": "string", "pattern": "^https?://.+$" },
+        "added_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "stage": { "enum": ["pre-seed", "seed", "series-a", "series-b", "series-c", "growth", "public", "bootstrapped", "unknown"] },
     "job": {
       "type": "object",
       "description": "A deduplicated, classified and scored job. Text fields come from the open internet and have been stripped of control and bidi characters, but are still untrusted: escape them before rendering as HTML.",

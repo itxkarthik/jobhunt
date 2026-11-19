@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/model"
@@ -24,18 +25,52 @@ const (
 	TypeSource Type = "source" // one per source, in source order
 	TypeJob    Type = "job"    // one per emitted job, best score first
 	TypeRun    Type = "run"    // last event of a run; marks the batch complete
+	// TypeCompany is one per new or changed company (with --companies),
+	// after the job events. Added within v1.
+	TypeCompany Type = "company"
 )
 
-// Event is one NDJSON line. Exactly one of Source, Job or Run is set,
-// matching Type.
+// Event is one NDJSON line. Exactly one of Source, Job, Company or Run
+// is set, matching Type.
 type Event struct {
-	V      int          `json:"v"`
-	Type   Type         `json:"type"`
-	RunID  string       `json:"run_id"`
-	At     time.Time    `json:"at"`
-	Source *SourceEvent `json:"source,omitempty"`
-	Job    *model.Job   `json:"job,omitempty"`
-	Run    *RunEvent    `json:"run,omitempty"`
+	V       int           `json:"v"`
+	Type    Type          `json:"type"`
+	RunID   string        `json:"run_id"`
+	At      time.Time     `json:"at"`
+	Source  *SourceEvent  `json:"source,omitempty"`
+	Job     *model.Job    `json:"job,omitempty"`
+	Company *CompanyEvent `json:"company,omitempty"`
+	Run     *RunEvent     `json:"run,omitempty"`
+}
+
+// Change says whether a company event is a new record or a changed one.
+type Change string
+
+const (
+	Created Change = "created"
+	Updated Change = "updated"
+)
+
+// CompanyEvent carries a new or changed company record. Consumers should
+// upsert by record.key: the same version may arrive twice (at-least-once).
+type CompanyEvent struct {
+	Change Change        `json:"change"`
+	Record model.Company `json:"record"`
+}
+
+// ChangeOf tells a new company from an updated one: a record nothing has
+// changed since it was created is new.
+func ChangeOf(c *model.Company) Change {
+	if c.UpdatedAt.Equal(c.CreatedAt) {
+		return Created
+	}
+	return Updated
+}
+
+// CompanyVersion identifies one version of a company for delivery
+// tracking: "co:<key>@<updated unix nanos>".
+func CompanyVersion(c *model.Company) string {
+	return "co:" + c.Key + "@" + strconv.FormatInt(c.UpdatedAt.UnixNano(), 10)
 }
 
 // SourceEvent reports what one source did during the run.
@@ -53,6 +88,7 @@ type RunEvent struct {
 	Matched      int `json:"matched"` // jobs matching the filters, after dedup
 	Emitted      int `json:"emitted"` // job events in this batch
 	SourceErrors int `json:"source_errors"`
+	Companies    int `json:"companies,omitempty"` // company events in this batch
 }
 
 // Options choose which matched jobs become events.
@@ -69,6 +105,10 @@ type Options struct {
 
 	// Delivered holds keys the consumer already has; they're left out.
 	Delivered map[string]bool
+	// Companies become company events, after the jobs, in the order given.
+	// The caller selects them (new for a cursor, or changed since a time).
+	Companies []model.Company
+
 	// Pending jobs went out in an earlier batch that wasn't accepted. They
 	// were already selected, so they're emitted first and never filtered
 	// again, even if they've since left the source. A pending job that's
@@ -125,6 +165,13 @@ func Build(res *search.Result, runID string, opts Options) []Event {
 		if !pending[j.Key] && !opts.Delivered[j.Key] && opts.keep(j) {
 			emit(*j)
 		}
+	}
+	for _, c := range opts.Companies {
+		c.CheckedAt, c.CreatedAt, c.UpdatedAt = c.CheckedAt.UTC(), c.CreatedAt.UTC(), c.UpdatedAt.UTC()
+		e := ev(TypeCompany)
+		e.Company = &CompanyEvent{Change: ChangeOf(&c), Record: c}
+		events = append(events, e)
+		run.Companies++
 	}
 	e := ev(TypeRun)
 	e.Run = run

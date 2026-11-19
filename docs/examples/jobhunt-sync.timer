@@ -1,0 +1,11 @@
+# Every 6 hours, and once soon after boot if a run was missed.
+[Unit]
+Description=jobhunt: sync the companies list every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00/6:15:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

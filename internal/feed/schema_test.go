@@ -80,6 +80,10 @@ func TestSchemaMatchesTypes(t *testing.T) {
 		{"source", s.Defs["source"], reflect.TypeFor[SourceEvent]()},
 		{"run", s.Defs["run"], reflect.TypeFor[RunEvent]()},
 		{"job", s.Defs["job"], reflect.TypeFor[model.Job]()},
+		{"company", s.Defs["company"], reflect.TypeFor[CompanyEvent]()},
+		{"companyRecord", s.Defs["companyRecord"], reflect.TypeFor[model.Company]()},
+		{"round", s.Defs["round"], reflect.TypeFor[model.Round]()},
+		{"contact", s.Defs["contact"], reflect.TypeFor[model.Contact]()},
 	}
 	for _, o := range objects {
 		fields := jsonFields(o.typ)
@@ -110,7 +114,10 @@ func TestSchemaEnums(t *testing.T) {
 		schema []string
 		want   []string
 	}{
-		{"type", prop(t, s.schemaObject, "type").Enum, strs(string(TypeSource), string(TypeJob), string(TypeRun))},
+		{"type", prop(t, s.schemaObject, "type").Enum, strs(string(TypeSource), string(TypeJob), string(TypeCompany), string(TypeRun))},
+		{"company.change", prop(t, s.Defs["company"], "change").Enum, strs(string(Created), string(Updated))},
+		{"stage", s.Defs["stage"].Enum, enumOf(model.AllStages, model.StageUnknown)},
+		{"companyRecord.headcount", prop(t, s.Defs["companyRecord"], "headcount").Enum, enumOf(model.AllHeadcounts, model.HeadcountUnknown)},
 		{"source.status", prop(t, s.Defs["source"], "status").Enum,
 			strs(string(search.StatusOK), string(search.StatusCached), string(search.StatusSkipped), string(search.StatusError))},
 		{"job.work_mode", prop(t, job, "work_mode").Enum, enumOf(model.AllWorkModes, model.ModeUnknown)},

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -167,8 +168,43 @@ func TestEncodeOneObjectPerLine(t *testing.T) {
 	}
 }
 
+// goldenCompanies are the company events in the golden batch: one new,
+// one changed.
+func goldenCompanies() []model.Company {
+	created := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	src := "https://example.com/news/acme-seed"
+	return []model.Company{
+		{Key: "acme ai", Name: "Acme AI", Website: "https://acme.ai", Country: "IN", City: "Bengaluru", Stage: model.StageSeed,
+			Rounds:    []model.Round{{Stage: model.StageSeed, Amount: 3e6, Currency: "USD", Date: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC), SourceURL: src}},
+			Headcount: model.Headcount11to50, HeadcountSource: "estimate",
+			Boards:   []model.Board{{ATS: "ashby", Slug: "acme"}},
+			Contacts: []model.Contact{{Name: "Asha Rao", Role: "CEO", URL: "https://x.com/asha", SourceURL: src, AddedAt: created}},
+			Tags:     []string{"go"}, Sources: []string{"agent"}, CreatedAt: created, UpdatedAt: created},
+		{Key: "kestrel", Name: "Kestrel", Country: "US", Stage: model.StageUnknown, Headcount: model.HeadcountUnknown,
+			Sources: []string{"edgar"}, CreatedAt: created, UpdatedAt: created.Add(24 * time.Hour)},
+	}
+}
+
+func TestBuildCompanies(t *testing.T) {
+	events := Build(result(), "run1", Options{Companies: goldenCompanies()})
+	var changes []Change
+	for _, e := range events {
+		if e.Type == TypeCompany {
+			changes = append(changes, e.Company.Change)
+		}
+	}
+	run := events[len(events)-1]
+	if !slices.Equal(changes, []Change{Created, Updated}) || run.Type != TypeRun || run.Run.Companies != 2 {
+		t.Errorf("changes %v, last event %+v", changes, run)
+	}
+	c := goldenCompanies()[0]
+	if v := CompanyVersion(&c); v != "co:acme ai@"+strconv.FormatInt(c.UpdatedAt.UnixNano(), 10) {
+		t.Errorf("version %s", v)
+	}
+}
+
 func TestEncodeGolden(t *testing.T) {
-	got, err := Marshal(Build(result(), "run1", Options{}))
+	got, err := Marshal(Build(result(), "run1", Options{Companies: goldenCompanies()}))
 	if err != nil {
 		t.Fatal(err)
 	}
