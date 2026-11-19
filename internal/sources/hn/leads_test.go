@@ -117,6 +117,8 @@ func TestLeadName(t *testing.T) {
 		{"Scale AI", "Scale AI"},
 		{"Data Engineering Co", "Data Engineering Co"},
 		{"Confidential", ""},
+		{"Apply here", ""},
+		{"Hiring", ""},
 		{"*Confidential Healthcare AI Startup", ""},
 		{"Stealth", ""},
 		{"Early-stage Startup", ""},

@@ -603,6 +603,32 @@ main { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .ext p { font-size: 12.5px; color: var(--color-neutral-700); }
 .src-list { display: none; }
 
+/* ---- Companies ------------------------------------------------------------ */
+
+.co-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.co-filters input[type="search"] { flex: 1 1 220px; max-width: 360px; }
+.co-filters select { width: auto; }
+.co-table tbody tr { cursor: pointer; }
+.co-table tbody tr:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.co-list { display: none; }
+.co-card {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; width: 100%;
+  padding: 14px 0; border: 0; border-bottom: 1px solid var(--color-divider); background: none; color: inherit; font: inherit; cursor: pointer;
+}
+.co-card .top { display: flex; justify-content: space-between; gap: 12px; }
+.co-card b { font-weight: 500; overflow-wrap: anywhere; }
+.co-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--color-divider); padding-top: 16px; }
+.co-add .label { width: 100%; }
+.co-add .input { width: auto; flex: 1 1 140px; }
+.co-section { display: flex; flex-direction: column; gap: 8px; }
+.co-section h5 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--color-neutral-700); }
+.co-drawer .timeline li { grid-template-columns: 112px minmax(0, 1fr); }
+.co-drawer .timeline .btn-ghost { padding: 2px 6px; font-size: 12px; gap: 4px; }
+.co-draft { display: flex; flex-direction: column; gap: 8px; }
+.co-draft textarea { font: 13px/1.5 var(--font-mono); }
+.co-drawer .detail-foot { align-items: center; }
+.co-drawer .detail-foot .btn { margin-left: auto; }
+
 /* ---- Narrow desktop: the filter rail becomes an overlay ------------------- */
 
 @media (max-width: 1199px) {
@@ -636,7 +662,7 @@ main { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   /* Tabs move to a bottom bar. */
   .tabs {
     grid-row: 3; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    display: grid; grid-template-columns: repeat(3, 1fr);
+    display: grid; grid-template-columns: repeat(4, 1fr);
     border-top: 1px solid var(--color-divider); background: var(--color-bg);
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -784,6 +810,12 @@ main { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .sources-grid { order: 3; gap: 18px; }
   .table { display: none; }
   .src-list { display: flex; flex-direction: column; border-top: 1px solid var(--color-divider); }
+  .companies .sources-title { order: 0; }
+  .co-list { display: flex; flex-direction: column; border-top: 1px solid var(--color-divider); }
+  .co-filters input[type="search"] { max-width: none; flex-basis: 100%; height: 44px; font-size: 16px; }
+  .co-filters select { flex: 1 1 40%; }
+  .co-add .input { flex-basis: 100%; height: 44px; font-size: 16px; }
+  .co-add .btn { width: 100%; height: 44px; justify-content: center; }
   .src-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px 0; border-bottom: 1px solid var(--color-divider); }
   .src-row.off { opacity: .55; }
   .src-row .top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }

@@ -140,7 +140,7 @@ var (
 	// hiring thread. They name a person, so they're never imported.
 	seekerRe = regexp.MustCompile(`(?i)^\s*(location|remote|willing to relocate|résumé|resume|cv)\s*:|\bseeking (freelance|work|a (job|role|position)|employment|opportunities)\b|\bfor hire\b|\bavailable for (work|hire|contracts?)\b|\blooking for (work|a (job|role))\b`)
 	// Placeholders and job titles where the company name should be.
-	noNameRe  = regexp.MustCompile(`(?i)\b(confidential|stealth|undisclosed|unnamed)\b|^(an? )?(early[- ]stage |seed[- ]stage |funded |yc[- ]backed |series [a-c] )?(startup|company)$|^(senior |staff |lead |principal |founding )?(software|backend|frontend|full[- ]?stack|ml|data|platform|devops|mobile)?\s*(engineers?|developers?)$`)
+	noNameRe  = regexp.MustCompile(`(?i)\b(confidential|stealth|undisclosed|unnamed)\b|^(apply|hiring)( here| now)?$|^(an? )?(early[- ]stage |seed[- ]stage |funded |yc[- ]backed |series [a-c] )?(startup|company)$|^(senior |staff |lead |principal |founding )?(software|backend|frontend|full[- ]?stack|ml|data|platform|devops|mobile)?\s*(engineers?|developers?)$`)
 	nameURLRe = regexp.MustCompile(`(?i)[:\s(]*https?://.*$`)
 )
 

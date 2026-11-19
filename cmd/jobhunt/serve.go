@@ -66,6 +66,9 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 				Hosts:    hosts,
 				Static:   web.FS(),
 				Logger:   slog.New(slog.NewTextHandler(log, nil)),
+
+				CheckBoard:    a.CheckBoard,
+				RefreshBoards: a.RefreshBoards,
 			})
 			if err != nil {
 				return err

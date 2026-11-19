@@ -477,6 +477,12 @@ func TestEveryRouteIsLocked(t *testing.T) {
 		{http.MethodPut, "/api/presets/x", `{}`},
 		{http.MethodDelete, "/api/presets/x", ""},
 		{http.MethodGet, "/api/sources", ""},
+		{http.MethodGet, "/api/companies", ""},
+		{http.MethodGet, "/api/companies/acme", ""},
+		{http.MethodPut, "/api/companies/acme", `{"name":"Acme"}`},
+		{http.MethodDelete, "/api/companies/acme", ""},
+		{http.MethodGet, "/api/companies/acme/draft", ""},
+		{http.MethodPost, "/api/boards", `{"company":"Acme","ats":"lever","slug":"acme"}`},
 	}
 	for _, rt := range routes {
 		r := req(rt.method, rt.path, rt.body)

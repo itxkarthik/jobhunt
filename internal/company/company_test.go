@@ -203,3 +203,34 @@ func TestFillOnly(t *testing.T) {
 		t.Errorf("new company: %+v", got)
 	}
 }
+
+func TestDraft(t *testing.T) {
+	now := time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)
+	src := "https://acme.ai/careers"
+	c := &model.Company{Name: "Acme AI", Stage: model.StageSeed,
+		Rounds: []model.Round{{Stage: model.StageSeriesA, Date: now.AddDate(0, -4, 0), SourceURL: src}},
+		Contacts: []model.Contact{
+			{Email: "jobs@acme.ai", Role: "hiring contact", SourceURL: src},
+			{Name: "Asha Rao", Role: "CEO & Co-founder", Email: "asha@acme.ai", SourceURL: src},
+			{Name: "Ravi", Role: "CTO", URL: "https://x.com/ravi", SourceURL: src}, // no email: never the recipient
+		}}
+	job := &model.Job{Title: "Backend Intern", URL: "https://jobs.ashbyhq.com/acme/1"}
+	d := NewDraft(c, job, DraftOptions{Stack: []string{"Go", "Rust"}, Now: now})
+	if d.To != "asha@acme.ai" || d.SourceURL != src || d.Subject != "Backend Intern at Acme AI" {
+		t.Errorf("draft = %+v", d)
+	}
+	for _, want := range []string{"Hi Asha,", "the Backend Intern role", "https://jobs.ashbyhq.com/acme/1", "recent series a round", "Go and Rust", "[Your name]"} {
+		if !strings.Contains(d.Body, want) {
+			t.Errorf("body lacks %q:\n%s", want, d.Body)
+		}
+	}
+	if !strings.HasPrefix(d.Mailto, "mailto:asha@acme.ai?subject=Backend%20Intern%20at%20Acme%20AI&body=Hi%20Asha%2C") || strings.Contains(d.Mailto, "+") {
+		t.Errorf("mailto = %s", d.Mailto)
+	}
+
+	// No published email: a draft to copy, without a recipient or mailto.
+	d = NewDraft(&model.Company{Name: "Kestrel"}, nil, DraftOptions{Now: now})
+	if d.To != "" || d.Mailto != "" || !strings.HasPrefix(d.Body, "Hi Kestrel team,") || strings.Contains(d.Body, "round") {
+		t.Errorf("no-contact draft = %+v", d)
+	}
+}

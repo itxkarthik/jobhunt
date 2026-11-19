@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
 
@@ -40,10 +41,18 @@ func (s *Server) handle(fn func(http.ResponseWriter, *http.Request) error) http.
 			writeError(w, ae.code, ae.msg)
 			return
 		}
+		if ie, ok := errors.AsType[*app.InvalidError](err); ok {
+			writeError(w, http.StatusBadRequest, ie.Error())
+			return
+		}
+		if be, ok := errors.AsType[*app.BoardError](err); ok {
+			writeError(w, http.StatusBadRequest, be.Error())
+			return
+		}
 		switch {
 		case isTooBig(err):
 			writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
-		case errors.Is(err, store.ErrNoJob), errors.Is(err, store.ErrNoPreset), errors.Is(err, store.ErrNotTracked):
+		case errors.Is(err, store.ErrNoJob), errors.Is(err, store.ErrNoPreset), errors.Is(err, store.ErrNotTracked), errors.Is(err, store.ErrNoCompany):
 			writeError(w, http.StatusNotFound, err.Error())
 		case errors.Is(err, store.ErrAmbiguousKey):
 			writeError(w, http.StatusConflict, err.Error())

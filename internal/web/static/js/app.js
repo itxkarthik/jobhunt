@@ -1,5 +1,5 @@
 // Entry point: token handling, hash routing, the tab bar, the theme and
-// the keys that work on every tab (1 2 3, t, r).
+// the keys that work on every tab (1–4, t, r).
 import { api, takeToken, token, setToken, whenUnauthorized } from "./api.js";
 import { h, icon, corners, replace, typing } from "./dom.js";
 import * as shell from "./shell.js";
@@ -11,6 +11,7 @@ import * as runlog from "./runlog.js";
 const views = {
   search: { load: () => import("./search.js"), label: "Search", icon: "search", sub: "" },
   tracker: { load: () => import("./tracker.js"), label: "Tracker", icon: "kanban", sub: "pipeline" },
+  companies: { load: () => import("./companies.js"), label: "Companies", icon: "building-2", sub: "companies" },
   sources: { load: () => import("./sources.js"), label: "Sources", icon: "database", sub: "sources" },
 };
 
@@ -162,7 +163,7 @@ function initFetch() {
 function onKey(e) {
   if (e.ctrlKey || e.metaKey || e.altKey || typing(e) || !token()) return;
   if (document.querySelector(".drawer-backdrop")) return;
-  const tab = { 1: "search", 2: "tracker", 3: "sources" }[e.key];
+  const tab = { 1: "search", 2: "tracker", 3: "companies", 4: "sources" }[e.key];
   if (tab) { e.preventDefault(); go(tab); return; }
   if (e.key === "t") { e.preventDefault(); toggleTheme(); return; }
   if (e.key === "r") { e.preventDefault(); shell.runFetch(); }
