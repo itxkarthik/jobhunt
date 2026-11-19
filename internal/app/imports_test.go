@@ -163,6 +163,52 @@ func TestImportHN(t *testing.T) {
 	}
 }
 
+// A board check that fails for now (not a 404) leaves its post to be read
+// again, so the board gets another chance; the lead is saved meanwhile.
+func TestImportHNRetriesFailedBoards(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	td := "../sources/hn/testdata/"
+	srv := sourcetest.Serve(t, map[string]string{
+		"/api/v1/search_by_date": td + "search.json",
+		"/api/v1/items/49922569": td + "leads.json",
+	})
+	src := hn.New(sourcetest.Client())
+	src.BaseURL = srv.URL + "/api/v1"
+	down := true
+	check := func(_ context.Context, c ats.Company) (int, error) {
+		if c.Slug == "plainview" {
+			return 0, &sources.StatusError{Code: 404}
+		}
+		if down {
+			return 0, &sources.StatusError{Code: 503}
+		}
+		return 2, nil
+	}
+	if _, err := ImportHN(ctx, st, src, check, HNOptions{CheckBoards: true}, false); err != nil {
+		t.Fatal(err)
+	}
+	k, _ := FindCompany(ctx, st, "kestrel")
+	if k == nil || len(k.Boards) != 0 {
+		t.Fatalf("kestrel after outage = %+v", k)
+	}
+	down = false
+	sum, err := ImportHN(ctx, st, src, check, HNOptions{CheckBoards: true}, false)
+	if err != nil || sum.Found != 1 { // only the post whose board check failed
+		t.Fatalf("retry: %+v, %v", sum, err)
+	}
+	if k, _ = FindCompany(ctx, st, "kestrel"); len(k.Boards) != 1 || len(k.Contacts) != 1 {
+		t.Errorf("kestrel after retry = %+v", k)
+	}
+	if sum, _ = ImportHN(ctx, st, src, check, HNOptions{CheckBoards: true}, false); sum.Found != 0 {
+		t.Errorf("third run found %d", sum.Found)
+	}
+}
+
 func TestImportMCA(t *testing.T) {
 	ctx := context.Background()
 	st, err := store.Open(":memory:")
@@ -193,6 +239,11 @@ func TestImportMCA(t *testing.T) {
 	if err != nil || !slices.Contains(c.Tags, "capital-increase") || len(c.Rounds) != 0 ||
 		!strings.Contains(c.Notes, "Registered 2026-08-05") || !strings.Contains(c.Notes, "possibly a raise, not confirmed") {
 		t.Errorf("jumped company = %+v, %v", c, err)
+	}
+	// A small rise isn't a jump, but it's remembered: the next comparison
+	// starts from the latest amount.
+	if vals, _ := st.ImportedValues(ctx, "mca"); vals["cin:U63119KA2026PTC224001"] != "600000" {
+		t.Errorf("Kestrel's capital stored as %q, want 600000", vals["cin:U63119KA2026PTC224001"])
 	}
 	// The stored capital moved, so the same data again is quiet.
 	if sum, _ = ImportMCA(ctx, st, serve("karnataka_later.json"), o, false); len(sum.Added)+len(sum.Updated) != 0 {

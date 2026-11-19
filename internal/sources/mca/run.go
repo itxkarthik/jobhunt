@@ -29,9 +29,13 @@ type Lead struct {
 
 // Result is what a run found.
 type Result struct {
-	Read     int // records read
-	Matched  int // records in the chosen industries
-	Leads    []Lead
+	Read    int // records read
+	Matched int // records in the chosen industries
+	Leads   []Lead
+	// Changed holds known companies whose capital moved without jumping
+	// (CIN to capital). Saving them keeps the next comparison against the
+	// latest amount, so small steps never add up to a false jump.
+	Changed  map[string]float64
 	Errors   []string
 	Complete bool
 }
@@ -97,6 +101,12 @@ func (c *Client) state(ctx context.Context, state string, o Options, known func(
 				l.Company.Tags = append(l.Company.Tags, "capital-increase")
 				l.Company.Notes = "" // the registration note is already stored
 			default:
+				if capital != prev && capital > 0 {
+					if res.Changed == nil {
+						res.Changed = map[string]float64{}
+					}
+					res.Changed[r.CIN] = capital
+				}
 				continue
 			}
 			res.Leads = append(res.Leads, l)

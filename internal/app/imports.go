@@ -142,14 +142,17 @@ func ImportHN(ctx context.Context, st *store.Store, src *hn.Source, check BoardC
 	var items []string
 	for _, l := range leads {
 		c := l.Company
+		retry := false
 		if !dryRun {
-			c.Boards = liveBoards(ctx, st, c, check, o.CheckBoards, sum)
+			c.Boards, retry = liveBoards(ctx, st, c, check, o.CheckBoards, sum)
 			if ctx.Err() != nil {
 				return sum, ctx.Err()
 			}
 		}
 		cs = append(cs, c)
-		items = append(items, postItem(l.PostID))
+		if !retry { // a board check failed for now: read the post again next time
+			items = append(items, postItem(l.PostID))
+		}
 	}
 	if dryRun {
 		for _, c := range cs {
@@ -166,15 +169,16 @@ func ImportHN(ctx context.Context, st *store.Store, src *hn.Source, check BoardC
 func postItem(id int64) string { return "post:" + strconv.FormatInt(id, 10) }
 
 // liveBoards keeps the boards of c that are already stored or pass check.
-func liveBoards(ctx context.Context, st *store.Store, c model.Company, check BoardChecker, enabled bool, sum *ImportSummary) []model.Board {
+// retry reports a check that failed for a reason other than the board
+// being gone (a timeout, rate limit or server error), worth trying again.
+func liveBoards(ctx context.Context, st *store.Store, c model.Company, check BoardChecker, enabled bool, sum *ImportSummary) (keep []model.Board, retry bool) {
 	if len(c.Boards) == 0 || !enabled {
-		return nil
+		return nil, false
 	}
 	var have []model.Board
 	if old, err := st.Company(ctx, company.Key(c.Name)); err == nil && old != nil {
 		have = old.Boards
 	}
-	var keep []model.Board
 	for _, b := range c.Boards {
 		if slices.Contains(have, b) {
 			keep = append(keep, b)
@@ -185,11 +189,12 @@ func liveBoards(ctx context.Context, st *store.Store, c model.Company, check Boa
 		switch {
 		case err != nil:
 			sum.Errors = append(sum.Errors, (&BoardError{Board: b, Err: err}).Error())
+			retry = retry || !ats.Gone(err)
 		case n > 0:
 			keep = append(keep, b)
 		}
 	}
-	return keep
+	return keep, retry
 }
 
 // MCAClient builds the MCA reader from config, or explains what is missing.
@@ -233,6 +238,9 @@ func ImportMCA(ctx context.Context, st *store.Store, c *mca.Client, o mca.Option
 	for _, l := range res.Leads {
 		cs = append(cs, l.Company)
 		seen["cin:"+l.CIN] = l.Value()
+	}
+	for cin, v := range res.Changed {
+		seen["cin:"+cin] = strconv.FormatFloat(v, 'f', 0, 64)
 	}
 	if err := saveCompanies(ctx, st, cs, sum); err != nil {
 		return sum, err
