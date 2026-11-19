@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 
@@ -184,11 +185,14 @@ func FromYAML(b []byte) (*Classifier, error) {
 // new-grad title overrides a generic "full-time" from the source.
 func (c *Classifier) Classify(j *model.Job) {
 	title := c.lex.mark(Tokenize(j.Title))
-	desc := c.lex.mark(Tokenize(j.Description))
+	// One lower-cased copy of the description serves the tokens and the
+	// "N years" checks.
+	lowerDesc := strings.ToLower(j.Description)
+	desc := c.lex.mark(tokenizeLower(lowerDesc))
 	loc := c.lex.mark(Tokenize(j.Location))
 
 	j.JobType = c.jobType(j.JobType, title)
-	j.Experience = c.experienceLevel(j.Experience, j.JobType, title, j.Description)
+	j.Experience = c.experienceLevel(j.Experience, j.JobType, title, lowerDesc)
 	j.WorkMode = c.workMode(j.WorkMode, title, loc, desc)
 	if j.VisaSponsorship == nil {
 		j.VisaSponsorship = c.visa(desc)
@@ -199,7 +203,7 @@ func (c *Classifier) Classify(j *model.Job) {
 			j.Tags = append(j.Tags, GenericTag)
 		}
 	}
-	if c.requiresExperience(desc, j.Description) && !hasTag(j.Tags, RequiresExperienceTag) {
+	if c.requiresExperience(desc, lowerDesc) && !hasTag(j.Tags, RequiresExperienceTag) {
 		j.Tags = append(j.Tags, RequiresExperienceTag)
 	}
 	if j.WorkMode == "" {
@@ -221,7 +225,7 @@ const RequiresExperienceTag = "requires-experience"
 // industry experience": a number of years followed closely by "experience".
 var expYearsRe = regexp.MustCompile(`(\d{1,2})\s*(?:\+|plus)?\s*(?:(?:-|–|to)\s*\d{1,2}\s*)?\+?\s*(?:years?|yrs)\b(?:\s+of)?(?:\s+[a-z-]+){0,3}?\s+experience`)
 
-func (c *Classifier) requiresExperience(desc marks, rawDesc string) bool {
+func (c *Classifier) requiresExperience(desc marks, lowerDesc string) bool {
 	if c.reqExpNo.any(desc) {
 		return false
 	}
@@ -232,13 +236,73 @@ func (c *Classifier) requiresExperience(desc marks, rawDesc string) bool {
 	if !c.expWord.any(desc) || !c.yearWord.any(desc) {
 		return false
 	}
-	for _, m := range expYearsRe.FindAllStringSubmatch(strings.ToLower(rawDesc), -1) {
-		if n, err := strconv.Atoi(m[1]); err == nil && n >= 1 && n <= 30 {
-			return true
+	for _, snip := range yearSnippets(lowerDesc) {
+		for _, m := range expYearsRe.FindAllStringSubmatch(snip, -1) {
+			if n, err := strconv.Atoi(m[1]); err == nil && n >= 1 && n <= 30 {
+				return true
+			}
 		}
 	}
 	return false
 }
+
+// Every match of expYearsRe and yearsRe contains "year" or "yrs", with at
+// most a short number range before it and a few words after. Running them
+// over the text around those words finds the same phrases as running them
+// over a whole description, which is thousands of characters on most
+// postings and made the regexes most of a search's CPU time.
+const (
+	snipBefore = 32  // "10 plus - 12 + " and some spacing
+	snipAfter  = 160 // "years of" plus three words and "experience"
+)
+
+// yearSnippets returns the parts of lower around each "year" and "yrs",
+// with overlapping parts merged. A part never starts inside a number or a
+// UTF-8 sequence.
+func yearSnippets(lower string) []string {
+	type span struct{ lo, hi int }
+	var spans []span
+	add := func(word string) {
+		for off := 0; ; {
+			i := strings.Index(lower[off:], word)
+			if i < 0 {
+				return
+			}
+			i += off
+			lo := max(0, i-snipBefore)
+			for lo > 0 && (isDigit(lower[lo-1]) || !utf8.RuneStart(lower[lo])) {
+				lo--
+			}
+			hi := min(len(lower), i+len(word)+snipAfter)
+			for hi < len(lower) && !utf8.RuneStart(lower[hi]) {
+				hi++
+			}
+			spans = append(spans, span{lo, hi})
+			off = i + len(word)
+		}
+	}
+	add("year")
+	add("yrs")
+	if len(spans) == 0 {
+		return nil
+	}
+	slices.SortFunc(spans, func(a, b span) int { return a.lo - b.lo })
+	merged := spans[:1]
+	for _, sp := range spans[1:] {
+		if last := &merged[len(merged)-1]; sp.lo <= last.hi {
+			last.hi = max(last.hi, sp.hi)
+		} else {
+			merged = append(merged, sp)
+		}
+	}
+	out := make([]string, len(merged))
+	for i, sp := range merged {
+		out[i] = lower[sp.lo:sp.hi]
+	}
+	return out
+}
+
+func isDigit(b byte) bool { return '0' <= b && b <= '9' }
 
 func (c *Classifier) jobType(cur model.JobType, title marks) model.JobType {
 	// Title signals, most specific first.
@@ -257,7 +321,7 @@ func (c *Classifier) jobType(cur model.JobType, title marks) model.JobType {
 
 var yearsRe = regexp.MustCompile(`(\d{1,2})\s*(?:\+|plus)?\s*(?:-|–|to)?\s*(?:\d{1,2})?\s*\+?\s*(?:years|yrs|year)`)
 
-func (c *Classifier) experienceLevel(cur model.Experience, t model.JobType, title marks, rawDesc string) model.Experience {
+func (c *Classifier) experienceLevel(cur model.Experience, t model.JobType, title marks, lowerDesc string) model.Experience {
 	if cur != "" && cur != model.ExpUnknown {
 		return cur
 	}
@@ -274,17 +338,15 @@ func (c *Classifier) experienceLevel(cur model.Experience, t model.JobType, titl
 	}
 	// Fall back to the smallest "N years" requirement in the description.
 	minYears := -1
-	desc := strings.ToLower(rawDesc)
-	if !strings.Contains(desc, "year") && !strings.Contains(desc, "yrs") {
-		desc = "" // skip the regex on the common case
-	}
-	for _, m := range yearsRe.FindAllStringSubmatch(desc, -1) {
-		n, err := strconv.Atoi(m[1])
-		if err != nil || n > 30 {
-			continue
-		}
-		if minYears < 0 || n < minYears {
-			minYears = n
+	for _, snip := range yearSnippets(lowerDesc) {
+		for _, m := range yearsRe.FindAllStringSubmatch(snip, -1) {
+			n, err := strconv.Atoi(m[1])
+			if err != nil || n > 30 {
+				continue
+			}
+			if minYears < 0 || n < minYears {
+				minYears = n
+			}
 		}
 	}
 	switch {

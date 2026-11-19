@@ -58,3 +58,20 @@ func BenchmarkClassify(b *testing.B) {
 		c.Classify(&j)
 	}
 }
+
+// BenchmarkClassifyExperience is a long posting that mentions experience
+// and years, as about half of real ones do, so the "N years of
+// experience" checks run. Scanning whole descriptions with those regexes
+// once took most of a search's CPU time.
+func BenchmarkClassifyExperience(b *testing.B) {
+	c := Default()
+	para := "You will design, build and operate services used by millions of customers, working closely with product, design and data teams. " +
+		"We value clear writing, careful reviews and ownership of what you ship. Our stack includes Go, Kotlin, PostgreSQL and Kubernetes. "
+	desc := strings.Repeat(para, 20) +
+		"Requirements: 3+ years of professional software engineering experience. Experience with distributed systems is a plus. " +
+		strings.Repeat(para, 10) + "We have been building this platform for over ten years."
+	for b.Loop() {
+		j := model.Job{Title: "Software Engineer, Platform", Description: desc, Location: "Bengaluru, India"}
+		c.Classify(&j)
+	}
+}
