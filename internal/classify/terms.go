@@ -10,6 +10,11 @@ import (
 // survive while "back-end", "ci/cd" and "100%" split into separate words.
 // Terms are tokenized the same way, so "back-end" matches "back end".
 func Tokenize(s string) []string {
+	return tokenizeLower(strings.ToLower(s))
+}
+
+// tokenizeLower is Tokenize for text that is already lower-cased.
+func tokenizeLower(s string) []string {
 	toks := make([]string, 0, len(s)/5)
 	start := -1
 	flush := func(end int) {
@@ -22,7 +27,6 @@ func Tokenize(s string) []string {
 		}
 		start = -1
 	}
-	s = strings.ToLower(s)
 	for i, r := range s {
 		word := unicode.IsLetter(r) || unicode.IsDigit(r) || r == '+' || r == '#' || r == '.'
 		if word {

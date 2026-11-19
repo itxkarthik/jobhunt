@@ -13,7 +13,9 @@ These keep the project legal, safe and easy to maintain. Pull requests that brea
 2. **Respect each source's terms.** Rate limits, minimum refresh intervals (`MinTTL`), link-back and attribution rules all apply, and the source's package doc comment must say what its terms require.
 3. **No secrets in the repo.** API keys come from `~/.config/jobhunt/config.yaml` or `JOBHUNT_*` env vars. Never commit keys, `config.yaml`, `.env` or `*.db`, and never put keys in test fixtures.
 4. **Tests never touch the network.** Record a real response into `testdata/`, trim it, remove anything personal, and serve it with `sourcetest.Serve`.
-5. **Treat fetched data as untrusted.** Every job passes through `sources.SanitizeJob` in the engine. Don't print or export source text by any path that skips it.
+5. **Treat fetched data as untrusted.** Every job passes through `sources.SanitizeJob` in the engine, and every company record through `company.Clean`. Don't print, export or render source text by any path that skips them.
+6. **Contacts only as published.** A contact is stored only when the person published it themselves, always with the `source_url` of that page. No guessed addresses, email finders or enrichment services, and nothing that sends email or messages: jobhunt drafts outreach for the user to send.
+7. **The feed and API are contracts.** `docs/feed.schema.json` and `feed.Version` change together (adding a field is fine; removing, renaming or retyping one needs a version bump), and every endpoint is documented in `docs/api.md`.
 
 ## Setup
 
@@ -68,6 +70,25 @@ Only add boards that list real jobs for the company itself. Agencies that repost
 4. Register it in `internal/app/catalog.go` and `internal/config/config.example.yaml`.
 5. Paid or key-based sources must be **off by default** and report a missing key via `Ready()`.
 
+### Add a company importer
+
+Importers fill the companies list from sources jobhunt may fetch automatically (official filings, public APIs). Look at `internal/sources/edgar` and `internal/sources/mca`:
+
+1. Check the source's terms and `robots.txt`, and write down what they allow in the package doc comment, with the date you checked.
+2. Use the shared `*sources.Client`, stay well under the published rate limit, and keep a position (cursor, date or ID) so each run fetches only what's new.
+3. Return records with a `SourceURL` on every round, and store them with `app.ImportCompany`, which runs `company.Clean` and merges with what's already known.
+4. Wire it into `internal/app/imports.go`, `jobhunt companies import` and `companies sync`. If it needs a key or contact, it stays skipped until configured, with the setting in `config.example.yaml`.
+5. Test it offline against recorded fixtures with `sourcetest.Serve`.
+
+### Change the web UI
+
+The web UI in `internal/web/static` is plain ES modules embedded in the binary: no build step, no framework and nothing loaded from a CDN.
+
+- Build DOM with `h()` from `dom.js` and text nodes. Never use `innerHTML`; job and company text is untrusted.
+- Pass every link through `safeURL` (http and https only).
+- New API endpoints go through `s.handle` and `decode` in `internal/server`, need tests for missing and wrong tokens (401) and foreign origins (403), and are documented in `docs/api.md`.
+- Check both themes and a phone-width window.
+
 ### Improve classification
 
 Rules live in `internal/classify/keywords.yaml`. Add a case to the classifier's table tests showing the job that was misclassified before your change and is correct after it.
@@ -87,7 +108,7 @@ Rules live in `internal/classify/keywords.yaml`. Add a case to the classifier's 
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat(sources): …`, `fix(tui): …`, `docs: …`, `test: …`, `chore: …`.
 - Keep each pull request focused on one source, feature or fix.
 - In the description, say what changed and why. For a new source, also link its terms or API docs and say how you verified that automated access is allowed.
-- Update `README.md` when you change user-facing behaviour (flags, sources, config).
+- Update `README.md` when you change user-facing behaviour (flags, sources, config), and keep commands and flags in the docs matching `--help`.
 
 ## Reporting bugs and security issues
 
