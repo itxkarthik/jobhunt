@@ -14,7 +14,10 @@ const ATS = ["greenhouse", "lever", "ashby", "workable", "recruitee"];
 const WINDOWS = [["", "Any time"], ["90d", "Last 3 months"], ["180d", "Last 6 months"], ["270d", "Last 9 months"], ["365d", "Last year"]];
 const FILTERS = "jobhunt.v1.companies";
 
-const stageLabel = (s) => (!s || s === "unknown" ? "—" : s.replace("series-", "Series ").replace(/^./, (c) => c.toUpperCase()));
+// "series-a" → "Series A", "pre-seed" → "Pre-seed".
+const stageLabel = (s) => (!s || s === "unknown" ? "—"
+  : s.startsWith("series-") ? `Series ${s.slice(7).toUpperCase()}`
+  : s.replace(/^./, (c) => c.toUpperCase()));
 
 function money(r) {
   if (!r?.amount) return "";
