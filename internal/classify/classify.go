@@ -246,15 +246,23 @@ func (c *Classifier) requiresExperience(desc marks, lowerDesc string) bool {
 	return false
 }
 
-// Every match of expYearsRe and yearsRe contains "year" or "yrs", with at
-// most a short number range before it and a few words after. Running them
-// over the text around those words finds the same phrases as running them
-// over a whole description, which is thousands of characters on most
-// postings and made the regexes most of a search's CPU time.
+// Every match of expYearsRe and yearsRe contains "year" or "yrs". Before
+// it comes a number range of at most about a dozen non-space bytes ("12
+// plus – 15 +"); after it, expYearsRe reads at most five more words ("of",
+// three words, "experience"). Any amount of whitespace may separate the
+// parts, so the snippets are bounded by non-space bytes and words, not by
+// a byte count. Running the regexes over these snippets finds the same
+// phrases as running them over a whole description, which is thousands of
+// characters on most postings and made them most of a search's CPU time.
 const (
-	snipBefore = 32  // "10 plus - 12 + " and some spacing
-	snipAfter  = 160 // "years of" plus three words and "experience"
+	snipBefore = 32 // non-space bytes kept before the word; a match needs about 12
+	snipWords  = 5  // whole words kept after the word: "of", three words, "experience"
 )
+
+// isSpace is the regexp package's \s: ASCII space, \t, \n, \f and \r.
+func isSpace(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\f' || b == '\r'
+}
 
 // yearSnippets returns the parts of lower around each "year" and "yrs",
 // with overlapping parts merged. A part never starts inside a number or a
@@ -269,13 +277,31 @@ func yearSnippets(lower string) []string {
 				return
 			}
 			i += off
-			lo := max(0, i-snipBefore)
+			// Back over snipBefore non-space bytes, then to the start of a
+			// number or UTF-8 sequence.
+			lo := i
+			for n := 0; lo > 0 && n < snipBefore; {
+				lo--
+				if !isSpace(lower[lo]) {
+					n++
+				}
+			}
 			for lo > 0 && (isDigit(lower[lo-1]) || !utf8.RuneStart(lower[lo])) {
 				lo--
 			}
-			hi := min(len(lower), i+len(word)+snipAfter)
-			for hi < len(lower) && !utf8.RuneStart(lower[hi]) {
+			// Forward to the end of the word holding it, then over
+			// snipWords more words and the whitespace between them.
+			hi := i + len(word)
+			for hi < len(lower) && !isSpace(lower[hi]) {
 				hi++
+			}
+			for range snipWords {
+				for hi < len(lower) && isSpace(lower[hi]) {
+					hi++
+				}
+				for hi < len(lower) && !isSpace(lower[hi]) {
+					hi++
+				}
 			}
 			spans = append(spans, span{lo, hi})
 			off = i + len(word)
