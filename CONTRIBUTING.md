@@ -117,4 +117,4 @@ Rules live in `internal/classify/keywords.yaml`. Add a case to the classifier's 
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions are licensed under the [GNU AGPL-3.0](LICENSE), with the additional terms in [NOTICE](NOTICE).

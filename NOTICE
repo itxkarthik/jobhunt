@@ -1,0 +1,34 @@
+jobhunt
+Copyright (C) 2026 itxkarthik <https://github.com/itxkarthik>
+Source: https://github.com/itxkarthik/jobhunt
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License, version 3 only,
+as published by the Free Software Foundation (see LICENSE), with the
+additional terms below.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+License for more details.
+
+Additional terms under section 7 of the GNU Affero General Public License
+
+These terms apply to every copy and every modified version of this
+program, as permitted by section 7(b) and 7(c) of the license.
+
+1. Attribution (section 7(b)). You must keep this NOTICE file, the
+   copyright notice above and the author attribution "Originally created
+   by itxkarthik (https://github.com/itxkarthik/jobhunt)" in the source,
+   in the documentation, and wherever the program shows its own about,
+   help or credits information.
+
+2. Origin (section 7(c)). You must not misrepresent the origin of this
+   program or claim it as your own work. A modified version must be
+   marked as changed, with the date, so it is not mistaken for the
+   original.
+
+Under section 13 of the license, if you run a modified version that users
+interact with over a network (for example `jobhunt serve` offered to other
+people), you must offer those users the complete source of your version
+under the same license.

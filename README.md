@@ -399,4 +399,6 @@ Contributions are welcome: new legal sources, company boards and classifier rule
 
 ## License
 
-[MIT](LICENSE) © 2026 itxkarthik
+[GNU AGPL-3.0](LICENSE) © 2026 itxkarthik, with the additional terms in [NOTICE](NOTICE).
+
+You're free to use, study, change and share jobhunt. If you give copies to others, or run a modified version that other people use over a network (such as a hosted `jobhunt serve`), you must share its full source under the same license. You must also keep the attribution to the original author and must not present the program as your own work.
