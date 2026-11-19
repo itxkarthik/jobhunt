@@ -48,7 +48,7 @@
     },
     "company": {
       "type": "object",
-      "description": "A new or changed company from the companies list (added within v1). Delivery is at-least-once: upsert on record.key.",
+      "description": "A new or changed company from the companies list (added within v1): a snapshot of its current record. Upsert on record.key. A consumer always gets the latest version; one superseded before delivery may be skipped. Deletions send no event.",
       "required": ["change", "record"],
       "properties": {
         "change": { "enum": ["created", "updated"] },

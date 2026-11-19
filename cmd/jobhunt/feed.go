@@ -66,9 +66,12 @@ once stdout and the webhook (if any) accept it; until then its jobs stay
 pending and are resent, even if a posting has since left its source.
 
 --companies adds a "company" event for each new or changed company on the
-companies list (see jobhunt companies sync): with --cursor, every version
-the consumer hasn't received; with --since, those changed since then;
-otherwise all of them.
+companies list (see jobhunt companies sync). Company events are snapshots
+of the current record, to upsert on record.key: with --cursor, each
+company whose current version the consumer hasn't received; with --since,
+those changed since then; otherwise all of them. If a delivery fails, the
+next run sends the company as it is by then, which supersedes the missed
+version. Deleting a company sends no event.
 
 --webhook (or feed.webhook_url / JOBHUNT_WEBHOOK_URL) also POSTs each batch.
 Set JOBHUNT_WEBHOOK_SECRET to sign requests with HMAC-SHA256.`,
