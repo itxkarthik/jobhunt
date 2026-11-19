@@ -565,7 +565,7 @@ export async function mount(view, { live = () => true } = {}) {
         h("p", { class: "muted" }, "Pick a job to see why it scored what it did, and to save, apply or hide it."),
         h("dl", { class: "keys" },
           ...[["j k", "next / previous job"], ["o", "open the posting"], ["s", "save, again to unsave"], ["a", "mark applied"],
-            ["h", "hide"], ["/", "search"], ["r", "fetch again"], ["1 2 3", "tabs"], ["t", "theme"]]
+            ["h", "hide"], ["/", "search"], ["r", "fetch again"], ["1–4", "tabs"], ["t", "theme"]]
             .flatMap(([k, d]) => [h("dt", {}, h("kbd", {}, k)), h("dd", {}, d)]))));
       return;
     }
@@ -890,7 +890,7 @@ export async function mount(view, { live = () => true } = {}) {
 
   shell.setFetch(() => fetchNow({ refresh: true }), "Fetch");
   shell.setBusy(S.running);
-  shell.setStatus("BROWSE", [["j k", "move"], ["o", "open"], ["s", "save"], ["a", "applied"], ["h", "hide"], ["/", "search"], ["1 2 3", "tabs"], ["t", "theme"]]);
+  shell.setStatus("BROWSE", [["j k", "move"], ["o", "open"], ["s", "save"], ["a", "applied"], ["h", "hide"], ["/", "search"], ["1–4", "tabs"], ["t", "theme"]]);
 
   const setBusy = (b) => { if (live()) shell.setBusy(b); };
   ui = { setBusy, schedule, renderAll, renderList, renderDetail, renderLinks, reveal };

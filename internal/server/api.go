@@ -123,6 +123,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/presets/{name}", s.handle(s.presetPut))
 	mux.HandleFunc("DELETE /api/presets/{name}", s.handle(s.presetDelete))
 	mux.HandleFunc("GET /api/sources", s.handle(s.sourcesList))
+	s.companyRoutes(mux)
 }
 
 // meta describes what the UI can offer: defaults and allowed values.

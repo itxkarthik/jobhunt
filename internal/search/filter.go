@@ -80,6 +80,17 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex *clas
 		}
 	}
 
+	if f.SkipRequiresExperience && slices.Contains(j.Tags, classify.RequiresExperienceTag) {
+		return false
+	}
+	if len(f.SkipAreas) > 0 && slices.ContainsFunc(f.SkipAreas, j.HasArea) && !slices.ContainsFunc(f.Areas, j.HasArea) {
+		return false
+	}
+	if f.SkipOnsiteAbroad && (j.WorkMode == model.ModeOnsite || j.WorkMode == model.ModeHybrid) && len(f.Countries) > 0 &&
+		!slices.ContainsFunc(f.Countries, func(c string) bool { return slices.Contains(j.Countries, c) }) {
+		return false
+	}
+
 	if kw.Len() > 0 || ex.Len() > 0 {
 		text := classify.Tokenize(j.Title + "\n" + j.Description)
 		if kw.Len() > 0 && !kw.Any(text) && !kw.Any(classify.Tokenize(strings.Join(j.Tags, " | "))) {

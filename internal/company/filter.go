@@ -19,6 +19,11 @@ type Filter struct {
 	FundedBefore time.Duration // latest round at least this old
 	HasContact   bool
 	Query        string // case-insensitive substring of the name
+	// Cities narrows Countries to these cities (lower-case).
+	Cities []string
+	// RemoteOK also passes companies that hire remotely beyond their
+	// country, wherever they're based.
+	RemoteOK bool
 }
 
 // FilterInput is the user-facing form of Filter, shared by CLI flags, the
@@ -32,6 +37,8 @@ type FilterInput struct {
 	FundedBefore string   `json:"funded_before,omitempty"` // an age like 90d: raised at least this long ago
 	HasContact   bool     `json:"has_contact,omitempty"`
 	Query        string   `json:"q,omitempty"`
+	Cities       []string `json:"cities,omitempty"`
+	RemoteOK     bool     `json:"remote_ok,omitempty"`
 }
 
 // ParseFilter validates in. parseAge reads FundedWithin (app.ParseAge).
@@ -80,8 +87,24 @@ func ParseFilter(in FilterInput, parseAge func(string) (time.Duration, error)) (
 	if f.FundedWithin > 0 && f.FundedBefore >= f.FundedWithin {
 		return f, fmt.Errorf("funded_before (%s) must be shorter than funded_within (%s)", in.FundedBefore, in.FundedWithin)
 	}
-	f.HasContact, f.Query = in.HasContact, strings.ToLower(strings.TrimSpace(in.Query))
+	for _, c := range in.Cities {
+		if c = strings.ToLower(strings.TrimSpace(c)); c != "" {
+			f.Cities = append(f.Cities, c)
+		}
+	}
+	f.HasContact, f.Query, f.RemoteOK = in.HasContact, strings.ToLower(strings.TrimSpace(in.Query)), in.RemoteOK
 	return f, nil
+}
+
+// place checks Countries and Cities; RemoteOK lets remote hirers through.
+func (f Filter) place(c *model.Company) bool {
+	if f.RemoteOK && c.Remote {
+		return true
+	}
+	if len(f.Countries) > 0 && !slices.Contains(f.Countries, c.Country) {
+		return false
+	}
+	return len(f.Cities) == 0 || slices.Contains(f.Cities, strings.ToLower(c.City))
 }
 
 // Match reports whether c passes f at time now.
@@ -91,7 +114,7 @@ func (f Filter) Match(c *model.Company, now time.Time) bool {
 		return false
 	case len(f.Headcounts) > 0 && !slices.Contains(f.Headcounts, c.Headcount):
 		return false
-	case len(f.Countries) > 0 && !slices.Contains(f.Countries, c.Country):
+	case !f.place(c):
 		return false
 	case f.HasContact && len(c.Contacts) == 0:
 		return false

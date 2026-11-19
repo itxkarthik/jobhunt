@@ -1,0 +1,15 @@
+# Runs one `jobhunt companies sync`. Install both files in
+# ~/.config/systemd/user/, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now jobhunt-sync.timer
+# Keys and the EDGAR contact come from ~/.config/jobhunt/config.yaml, or
+# from an EnvironmentFile you keep private (chmod 600), e.g.:
+#   EnvironmentFile=%h/.config/jobhunt/env
+[Unit]
+Description=jobhunt: sync the companies list (EDGAR, MCA, HN leads, board checks)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/jobhunt companies sync

@@ -378,7 +378,7 @@ export async function mount(view, { live = () => true } = {}) {
   };
   hooks = mine;
   shell.setFetch(load, "Reload");
-  shell.setStatus("TRACK", [["drag", "move card"], ["← →", "move focused card"], ["enter", "details"], ["/", "filter"], ["1 2 3", "tabs"]]);
+  shell.setStatus("TRACK", [["drag", "move card"], ["← →", "move focused card"], ["enter", "details"], ["/", "filter"], ["1–4", "tabs"]]);
   await load();
 
   return () => {

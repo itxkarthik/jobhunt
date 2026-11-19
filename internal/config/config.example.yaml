@@ -86,3 +86,34 @@ importers:
     # user_agent: "Your Name you@example.com"   # or JOBHUNT_EDGAR_USER_AGENT
     # industries: [Computers, Telecommunications, Other Technology, Other]
     # all_entities: false   # true keeps LLCs and LPs (mostly funds)
+  mca:
+    # Indian companies registered recently, from the MCA company master
+    # data on data.gov.in (free key: https://www.data.gov.in, "My Account").
+    # Prefer the env var JOBHUNT_DATAGOV_API_KEY to putting the key here.
+    # api_key: ""
+    # states: [KA]          # codes or names, e.g. [KA, MH, TN, DL, TG]
+    # nic: ["62", "63"]     # industry codes: 62 software, 63 information services
+
+# What you're looking for. `jobhunt search --profile`, `jobhunt companies
+# --profile` and `jobhunt digest` use it; `jobhunt profile show` prints it.
+# Flags you pass still win. Uncomment and edit:
+# profile:
+#   types: [internship, new-grad]
+#   experience: [intern, entry]
+#   areas: [backend, systems, devops]
+#   skip_areas: [embedded]
+#   stack: [go, rust, node, python, java]   # earlier ones score higher
+#   projects: [microvm, firecracker, agent sandbox, kubernetes operator]
+#   countries: [IN]
+#   posted_within: 14d
+#   min_score: 50                           # the digest leaves out lower scores
+#   skip_requires_experience: true          # postings asking for prior work or internships
+#   skip_onsite_abroad: true                # onsite/hybrid roles not in your countries
+#   companies:
+#     stages: [seed, series-a]
+#     headcounts: [1-10, 11-50, 51-200]
+#     countries: [IN]
+#     cities: [Bengaluru]
+#     remote_ok: true                       # or hiring remotely
+#     funded_within: 270d                   # raised 3 to 9 months ago
+#     funded_before: 90d

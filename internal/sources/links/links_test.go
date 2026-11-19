@@ -71,3 +71,16 @@ func keys(m map[string]string) []string {
 	}
 	return out
 }
+
+func TestDirectories(t *testing.T) {
+	in := Directories([]string{"IN"})
+	us := Directories([]string{"US"})
+	if len(in) != len(us)+2 {
+		t.Errorf("India adds the Indian funding news sites: %d vs %d", len(in), len(us))
+	}
+	for _, l := range in {
+		if !strings.HasPrefix(l.URL, "https://") {
+			t.Errorf("%s: %s", l.Site, l.URL)
+		}
+	}
+}

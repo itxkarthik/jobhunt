@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type feedFlags struct {
 	every         time.Duration
 	webhook       string
 	noDescription bool
+	companies     bool
 }
 
 func (fl *feedFlags) validate() error {
@@ -63,12 +65,21 @@ matching jobs that consumer hasn't received yet. A batch counts as received
 once stdout and the webhook (if any) accept it; until then its jobs stay
 pending and are resent, even if a posting has since left its source.
 
+--companies adds a "company" event for each new or changed company on the
+companies list (see jobhunt companies sync). Company events are snapshots
+of the current record, to upsert on record.key: with --cursor, each
+company whose current version the consumer hasn't received; with --since,
+those changed since then; otherwise all of them. If a delivery fails, the
+next run sends the company as it is by then, which supersedes the missed
+version. Deleting a company sends no event.
+
 --webhook (or feed.webhook_url / JOBHUNT_WEBHOOK_URL) also POSTs each batch.
 Set JOBHUNT_WEBHOOK_SECRET to sign requests with HMAC-SHA256.`,
 		Example: `  jobhunt feed -p india-backend --new-only | jq -c 'select(.type=="job") | .job.title'
   jobhunt feed -p india-backend --cursor agent --min-score 60 | ./agent.py
   jobhunt feed -p india-backend --cursor db --every 6h | ./load-into-postgres.sh
-  JOBHUNT_WEBHOOK_URL=https://example.com/hook jobhunt feed -p india-backend --cursor n8n`,
+  JOBHUNT_WEBHOOK_URL=https://example.com/hook jobhunt feed -p india-backend --cursor n8n
+  jobhunt feed -p india-backend --companies --cursor crm --every 6h`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := fl.validate(); err != nil {
 				return err
@@ -102,6 +113,9 @@ Set JOBHUNT_WEBHOOK_SECRET to sign requests with HMAC-SHA256.`,
 				newID:   rand.Text,
 				now:     time.Now,
 			}
+			if fl.companies {
+				fd.companies = a.Store.Companies
+			}
 			if fl.every == 0 {
 				return fd.once(cmd.Context())
 			}
@@ -120,6 +134,7 @@ Set JOBHUNT_WEBHOOK_SECRET to sign requests with HMAC-SHA256.`,
 	fs.DurationVar(&fl.every, "every", 0, "keep running and emit a batch every interval (min 15m); default: run once")
 	fs.StringVar(&fl.webhook, "webhook", "", "also POST each batch to this http(s) URL (prefer JOBHUNT_WEBHOOK_URL if it holds a token)")
 	fs.BoolVar(&fl.noDescription, "no-description", false, "omit job descriptions from events")
+	fs.BoolVar(&fl.companies, "companies", false, "also emit new and changed companies from the companies list as company events")
 	// A cursor already means "jobs this consumer hasn't received", and
 	// --new-only would drop pending jobs that an earlier run marked seen.
 	cmd.MarkFlagsMutuallyExclusive("since", "cursor")
@@ -165,6 +180,8 @@ type feeder struct {
 	opts    feed.Options
 	newID   func() string
 	now     func() time.Time
+	// companies lists the companies list; nil leaves company events out.
+	companies func(context.Context) ([]model.Company, error)
 }
 
 func (fd *feeder) once(ctx context.Context) error {
@@ -177,6 +194,10 @@ func (fd *feeder) once(ctx context.Context) error {
 		}
 	}
 	res, err := fd.search(ctx)
+	if err != nil {
+		return err
+	}
+	versions, err := fd.selectCompanies(ctx, &opts)
 	if err != nil {
 		return err
 	}
@@ -208,13 +229,16 @@ func (fd *feeder) once(ctx context.Context) error {
 		notes = append(notes, "webhook delivered")
 	}
 	if fd.cursor != "" {
-		if err := fd.cursors.MarkDelivered(ctx, fd.cursor, keys, fd.now()); err != nil {
+		if err := fd.cursors.MarkDelivered(ctx, fd.cursor, slices.Concat(keys, versions), fd.now()); err != nil {
 			return err
 		}
 		notes = append(notes, "cursor "+fd.cursor+" updated")
 	}
 	run := events[len(events)-1].Run
 	line := fmt.Sprintf("%s  feed run %s: %d jobs emitted (%d matching)", stamp(fd.now()), runID, run.Emitted, run.Matched)
+	if run.Companies > 0 {
+		line += fmt.Sprintf(", %d companies", run.Companies)
+	}
 	if run.SourceErrors > 0 {
 		line += fmt.Sprintf(", %d source errors", run.SourceErrors)
 	}
@@ -223,6 +247,33 @@ func (fd *feeder) once(ctx context.Context) error {
 	}
 	fmt.Fprintln(fd.log, line)
 	return nil
+}
+
+// selectCompanies puts the companies this batch should carry in opts and
+// returns their versions, to record as delivered with the cursor. A failed
+// delivery records nothing, so the next run sends the then-current version.
+func (fd *feeder) selectCompanies(ctx context.Context, opts *feed.Options) ([]string, error) {
+	if fd.companies == nil {
+		return nil, nil
+	}
+	all, err := fd.companies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(all, func(a, b model.Company) int { return a.UpdatedAt.Compare(b.UpdatedAt) }) // oldest change first, like a queue
+	var versions []string
+	for _, c := range all {
+		v := feed.CompanyVersion(&c)
+		switch {
+		case fd.cursor != "" && opts.Delivered[v]:
+			continue
+		case !opts.Since.IsZero() && c.UpdatedAt.Before(opts.Since):
+			continue
+		}
+		opts.Companies = append(opts.Companies, c)
+		versions = append(versions, v)
+	}
+	return versions, nil
 }
 
 // records returns the full record behind each emitted key (the events may

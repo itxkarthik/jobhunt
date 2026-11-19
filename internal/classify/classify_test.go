@@ -149,3 +149,28 @@ func TestFromYAMLRejectsUnknownArea(t *testing.T) {
 		t.Error("expected error for unknown area")
 	}
 }
+
+func TestRequiresExperience(t *testing.T) {
+	c := Default()
+	tests := []struct {
+		desc string
+		want bool
+	}{
+		{"Candidates should have prior internship experience in backend development.", true},
+		{"You have 1+ years of experience building APIs in Go.", true},
+		{"2-3 years of relevant industry experience with Kubernetes.", true},
+		{"Requires at least one internship at a product company.", true},
+		{"No prior experience needed... we will train you. Freshers welcome!", false},
+		{"0-1 years of experience. Pursuing a 4 year degree in CS.", false},
+		{"Experience with Go or Rust is a plus.", false},
+		{"Final-year students graduating in 2027. 3 months, stipend provided.", false},
+		{"No prior work experience required; 2+ years of coursework in systems.", false},
+	}
+	for _, tt := range tests {
+		j := model.Job{Title: "Backend Intern", Description: tt.desc}
+		c.Classify(&j)
+		if got := slices.Contains(j.Tags, RequiresExperienceTag); got != tt.want {
+			t.Errorf("%q: requires experience = %v, want %v", tt.desc, got, tt.want)
+		}
+	}
+}

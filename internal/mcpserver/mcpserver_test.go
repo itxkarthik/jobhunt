@@ -36,6 +36,7 @@ type env struct {
 	st    *store.Store
 	log   *bytes.Buffer
 	check int // board checks made
+	app   *app.App
 }
 
 func newEnv(t *testing.T, readOnly bool) *env {
@@ -52,7 +53,7 @@ func newEnv(t *testing.T, readOnly bool) *env {
 		URL: "https://example.com/jobs/1", PostedAt: time.Now().Add(-time.Hour),
 	}}}
 	a := &app.App{Config: config.Default(), Store: st, Classifier: classify.Default(), Boards: ats.NewBoards(nil), Sources: []sources.Source{src}}
-	e := &env{t: t, st: st, log: &bytes.Buffer{}}
+	e := &env{t: t, st: st, log: &bytes.Buffer{}, app: a}
 	srv := New(Options{
 		App: a, ReadOnly: readOnly, Version: "test",
 		Log: slog.New(slog.NewTextHandler(e.log, nil)),
@@ -121,7 +122,7 @@ func TestTools(t *testing.T) {
 		slices.Sort(out)
 		return out
 	}
-	read := []string{"get_company", "get_job", "list_companies", "list_sources", "search_jobs"}
+	read := []string{"get_company", "get_job", "get_profile", "list_companies", "list_sources", "search_jobs"}
 	if got := names(newEnv(t, true)); !slices.Equal(got, read) {
 		t.Errorf("read-only tools = %v", got)
 	}
@@ -279,5 +280,19 @@ func TestListSources(t *testing.T) {
 		if strings.Contains(strings.ToLower(string(b)), bad) {
 			t.Errorf("list_sources output mentions %q", bad)
 		}
+	}
+}
+
+func TestGetProfile(t *testing.T) {
+	e := newEnv(t, true)
+	var out ProfileOutput
+	e.call("get_profile", map[string]any{}, &out)
+	if out.Set {
+		t.Errorf("empty profile reported as set: %+v", out)
+	}
+	e.app.Config.Profile = config.Profile{Stack: []string{"go", "rust"}, Companies: config.ProfileCompanies{Stages: []string{"seed"}, RemoteOK: true}}
+	e.call("get_profile", map[string]any{}, &out)
+	if !out.Set || out.Profile.Stack[0] != "go" || !out.Profile.Companies.RemoteOK {
+		t.Errorf("profile = %+v", out)
 	}
 }

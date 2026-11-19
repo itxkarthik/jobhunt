@@ -83,6 +83,13 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | `PUT /api/presets/{name}` | Save filters under a name: letters, digits, `.`, `_` and `-`, up to 64 characters |
 | `DELETE /api/presets/{name}` | Delete it (`204`) |
 | `GET /api/sources` | Every known source in `jobhunt sources` order, including disabled ones: `description`, `credential` (the config field it needs, never its value), `enabled` and `ready` state, `not_ready` (for example which key is missing), last run, last success and recent errors |
+| `GET /api/companies?…` | The companies list, filtered like `jobhunt companies` (see below) |
+| `GET /api/companies/{key}` | One company (key, key prefix or name) with `open_jobs` and its open `jobs` |
+| `PUT /api/companies/{key}` | Add or update a company (see below). `201` when created. |
+| `DELETE /api/companies/{key}` | Delete it (`204`) |
+| `GET /api/companies/{key}/draft[?job={job key}]` | An outreach email to edit and send yourself: `{to, to_name, subject, body, mailto, source_url}` |
+| `POST /api/boards` | `{"company": "…", "ats": "lever", "slug": "…", "country": "IN", "remote": false}`: check the job board once, then add it (the company is created if new). A dead or empty board is a `400`. |
+
 
 Tracker statuses are `saved`, `applied`, `oa`, `interview`, `offer` and `rejected`.
 
@@ -132,3 +139,14 @@ data: {"v":1,"type":"run","run_id":"…","at":"…","run":{"fetched":12097,"matc
 - **Cancellation:** closing the connection cancels the search.
 - **Browser clients:** `EventSource` can't send the `Authorization` header, so read the stream with `fetch()` instead.
 - **Extras:** the stream carries feed events only. For the "also search" links, call `GET /api/links` with the same query. For tracker statuses, use `GET /api/tracker`.
+
+### Companies
+
+`GET /api/companies` takes the `jobhunt companies` filters as query parameters, with lists comma-separated: `stages`, `headcounts`, `countries`, `tags`, `funded_within` and `funded_before` (ages like `90d`), `q` (text in the name, tags or notes), `hiring` (only companies with open jobs at these experience levels, or `any` for any level), `has_contact`, `jobs` (include each company's open jobs in the response; it doesn't filter) and `limit` (up to 500, the default). Each item is a company record as in [`feed.schema.json`](feed.schema.json)'s `companyRecord`, plus `open_jobs`.
+
+`PUT /api/companies/{key}` takes the same update as the MCP `upsert_company` tool: `name`, `website`, `country`, `city`, `remote`, `stage`, `headcount`, `headcount_source`, `rounds`, `contacts`, `boards` (`ats:slug`), `tags`, `notes` (replaces them; an empty string leaves them as they are), `checked` and `remove` (contacts, boards and tags to take off, and `"notes": true` to clear the notes). Only the fields sent change, and lists merge. `name` may be left out for an existing company; otherwise its key must be `{key}`.
+
+- Every round and contact needs a `source_url`. Contacts are only people who published their details.
+- New boards are checked once before they're saved, as in `POST /api/boards`.
+
+Drafts are text: jobhunt never sends email. `mailto` is set only when a contact published an email address, and `source_url` says where.

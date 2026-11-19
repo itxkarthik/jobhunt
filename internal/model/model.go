@@ -148,6 +148,25 @@ type Filters struct {
 	// stages or headcounts. Jobs at companies not on the list are dropped.
 	CompanyStages     []Stage     `json:"company_stages,omitempty" yaml:"company_stages,omitempty"`
 	CompanyHeadcounts []Headcount `json:"company_headcounts,omitempty" yaml:"company_headcounts,omitempty"`
+
+	// Profile skips, applied after fetching: jobs in these areas (unless
+	// they're also in a wanted area), jobs that ask for prior work or
+	// internship experience, and onsite or hybrid jobs not in one of
+	// Countries (including ones whose location is unknown).
+	SkipAreas              []Area `json:"skip_areas,omitempty" yaml:"skip_areas,omitempty"`
+	SkipRequiresExperience bool   `json:"skip_requires_experience,omitempty" yaml:"skip_requires_experience,omitempty"`
+	SkipOnsiteAbroad       bool   `json:"skip_onsite_abroad,omitempty" yaml:"skip_onsite_abroad,omitempty"`
+	// Ranking preferences: languages in priority order (an earlier one
+	// adds more to the match score) and project keywords that add to it.
+	Stack    []string `json:"stack,omitempty" yaml:"stack,omitempty"`
+	Projects []string `json:"projects,omitempty" yaml:"projects,omitempty"`
+}
+
+// Fetched returns f without the fields applied only after fetching, so
+// they don't split the source cache.
+func (f Filters) Fetched() Filters {
+	f.SkipAreas, f.SkipRequiresExperience, f.SkipOnsiteAbroad, f.Stack, f.Projects = nil, false, false, nil, nil
+	return f
 }
 
 // WantsCompanies reports whether f restricts jobs by company record.

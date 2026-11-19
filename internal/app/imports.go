@@ -4,12 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/company"
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/sources"
+	"github.com/itxkarthik/jobhunt/internal/sources/ats"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
+	"github.com/itxkarthik/jobhunt/internal/sources/hn"
+	"github.com/itxkarthik/jobhunt/internal/sources/mca"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
 
@@ -86,7 +91,7 @@ func ImportEDGAR(ctx context.Context, st *store.Store, im *edgar.Importer, o edg
 // nothing is marked done and the next run tries again.
 func saveCompanies(ctx context.Context, st *store.Store, cs []model.Company, sum *ImportSummary) error {
 	for _, c := range cs {
-		got, created, err := UpsertCompany(ctx, st, c, company.Removal{})
+		got, created, err := ImportCompany(ctx, st, c)
 		_, invalid := errors.AsType[*InvalidError](err)
 		switch {
 		case invalid:
@@ -100,4 +105,160 @@ func saveCompanies(ctx context.Context, st *store.Store, cs []model.Company, sum
 		}
 	}
 	return nil
+}
+
+// HNOptions bound one HN leads import.
+type HNOptions struct {
+	CheckBoards bool // fetch each new board once and drop dead ones; off keeps no boards
+	Redo        bool // read posts already imported again
+}
+
+// HNSource builds the HN leads reader.
+func (a *App) HNSource() *hn.Source {
+	return hn.New(sources.NewClient(a.Config.UserAgent, 2))
+}
+
+// ImportHN turns the latest "Who is hiring?" thread into company leads.
+// Finished posts are recorded, so a rerun only reads posts added since.
+// Boards found in a post are checked with check before they're kept.
+func ImportHN(ctx context.Context, st *store.Store, src *hn.Source, check BoardChecker, o HNOptions, dryRun bool) (*ImportSummary, error) {
+	sum := &ImportSummary{Source: "hn", DryRun: dryRun, Complete: true}
+	th, err := src.Latest(ctx)
+	if err != nil {
+		return sum, err
+	}
+	scope := "hn:" + th.ID
+	done, err := st.ImportedItems(ctx, scope)
+	if err != nil {
+		return sum, err
+	}
+	if o.Redo {
+		done = map[string]bool{}
+	}
+	sum.Read = 1
+	leads := th.Leads(func(id int64) bool { return done[postItem(id)] })
+	sum.Found = len(leads)
+	var cs []model.Company
+	var items []string
+	for _, l := range leads {
+		c := l.Company
+		retry := false
+		if !dryRun {
+			c.Boards, retry = liveBoards(ctx, st, c, check, o.CheckBoards, sum)
+			if ctx.Err() != nil {
+				return sum, ctx.Err()
+			}
+		}
+		cs = append(cs, c)
+		if !retry { // a board check failed for now: read the post again next time
+			items = append(items, postItem(l.PostID))
+		}
+	}
+	if dryRun {
+		for _, c := range cs {
+			sum.Added = append(sum.Added, c.Name)
+		}
+		return sum, nil
+	}
+	if err := saveCompanies(ctx, st, cs, sum); err != nil {
+		return sum, err
+	}
+	return sum, st.MarkImported(ctx, scope, items, time.Now())
+}
+
+func postItem(id int64) string { return "post:" + strconv.FormatInt(id, 10) }
+
+// liveBoards keeps the boards of c that are already stored or pass check.
+// retry reports a check that failed for a reason other than the board
+// being gone (a timeout, rate limit or server error), worth trying again.
+func liveBoards(ctx context.Context, st *store.Store, c model.Company, check BoardChecker, enabled bool, sum *ImportSummary) (keep []model.Board, retry bool) {
+	if len(c.Boards) == 0 || !enabled {
+		return nil, false
+	}
+	var have []model.Board
+	if old, err := st.Company(ctx, company.Key(c.Name)); err == nil && old != nil {
+		have = old.Boards
+	}
+	for _, b := range c.Boards {
+		if slices.Contains(have, b) {
+			keep = append(keep, b)
+			continue
+		}
+		sum.Fetched++
+		n, err := check(ctx, ats.Company{Name: c.Name, ATS: b.ATS, Slug: b.Slug})
+		switch {
+		case err != nil:
+			sum.Errors = append(sum.Errors, (&BoardError{Board: b, Err: err}).Error())
+			retry = retry || !ats.Gone(err)
+		case n > 0:
+			keep = append(keep, b)
+		}
+	}
+	return keep, retry
+}
+
+// MCAClient builds the MCA reader from config, or explains what is missing.
+func (a *App) MCAClient() (*mca.Client, error) {
+	if a.Config.Importers.MCA.APIKey == "" {
+		return nil, mca.ErrNoKey
+	}
+	return &mca.Client{HTTP: sources.NewClient(a.Config.UserAgent, mca.Rate), Base: mca.Base, Key: a.Config.Importers.MCA.APIKey}, nil
+}
+
+// ImportMCA adds recently registered Indian companies. Each company's
+// paid-up capital is remembered, so a rerun skips companies that haven't
+// changed and flags a large capital jump as a possible raise.
+func ImportMCA(ctx context.Context, st *store.Store, c *mca.Client, o mca.Options, dryRun bool) (*ImportSummary, error) {
+	const src = "mca"
+	values, err := st.ImportedValues(ctx, src)
+	if err != nil {
+		return nil, err
+	}
+	res, runErr := c.Run(ctx, o, func(cin string) (float64, bool) {
+		v, ok := values["cin:"+cin]
+		if !ok {
+			return 0, false
+		}
+		f, _ := strconv.ParseFloat(v, 64)
+		return f, true
+	})
+	sum := &ImportSummary{Source: src, DryRun: dryRun}
+	if res == nil {
+		return sum, runErr
+	}
+	sum.Read, sum.Found, sum.Errors, sum.Complete = res.Read, res.Matched, res.Errors, res.Complete && runErr == nil
+	if dryRun {
+		for _, l := range res.Leads {
+			sum.Added = append(sum.Added, l.Company.Name)
+		}
+		return sum, runErr
+	}
+	cs := make([]model.Company, 0, len(res.Leads))
+	seen := map[string]string{}
+	for _, l := range res.Leads {
+		cs = append(cs, l.Company)
+		seen["cin:"+l.CIN] = l.Value()
+	}
+	for cin, v := range res.Changed {
+		seen["cin:"+cin] = strconv.FormatFloat(v, 'f', 0, 64)
+	}
+	if err := saveCompanies(ctx, st, cs, sum); err != nil {
+		return sum, err
+	}
+	for _, l := range res.Leads {
+		if l.Jump {
+			if _, err := AppendNote(ctx, st, l.Company.Name, l.CapitalNote(), src, time.Now()); err != nil && !isInvalid(err) {
+				return sum, err
+			}
+		}
+	}
+	if err := st.SetImportValues(ctx, src, seen, time.Now()); err != nil {
+		return sum, err
+	}
+	return sum, runErr
+}
+
+func isInvalid(err error) bool {
+	_, ok := errors.AsType[*InvalidError](err)
+	return ok
 }

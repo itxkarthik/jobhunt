@@ -56,3 +56,50 @@ func TestPresetOverrides(t *testing.T) {
 		}
 	}
 }
+
+func TestProfileFlags(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	a := &app.App{Store: st, Config: &config.Config{
+		Defaults: config.Defaults{Countries: []string{"IN"}},
+		Profile:  config.Profile{Countries: []string{"IN"}, Areas: []string{"backend"}, Stack: []string{"go"}, SkipRequiresExperience: true},
+	}}
+	if err := st.SavePreset(context.Background(), "p", model.Filters{Types: []model.JobType{model.TypeInternship}}); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		args          []string
+		wantCountries []string
+		wantAreas     []model.Area
+	}{
+		{[]string{"--profile"}, []string{"IN"}, []model.Area{model.AreaBackend}},
+		{[]string{"--profile", "-c", "US"}, []string{"US"}, []model.Area{model.AreaBackend}},
+		{[]string{"--profile", "-c", "any", "-a", "any"}, nil, nil},
+		{[]string{"--profile", "-p", "p"}, []string{"IN"}, []model.Area{model.AreaBackend}},             // preset leaves them empty: profile fills
+		{[]string{"--profile", "-p", "p", "-c", "any", "-a", "any"}, nil, nil},                          // "any" stays any
+		{[]string{"--profile", "-p", "p", "-c", "US"}, []string{"US"}, []model.Area{model.AreaBackend}}, // flag > profile
+	}
+	for _, tt := range tests {
+		var ff filterFlags
+		var got model.Filters
+		cmd := &cobra.Command{Use: "x", RunE: func(cmd *cobra.Command, _ []string) error {
+			var err error
+			got, err = ff.resolve(cmd, a)
+			return err
+		}}
+		ff.register(cmd)
+		cmd.SetArgs(tt.args)
+		if err := cmd.ExecuteContext(context.Background()); err != nil {
+			t.Fatalf("%v: %v", tt.args, err)
+		}
+		if !slices.Equal(got.Countries, tt.wantCountries) || !slices.Equal(got.Areas, tt.wantAreas) {
+			t.Errorf("%v: countries=%v areas=%v", tt.args, got.Countries, got.Areas)
+		}
+		if !got.SkipRequiresExperience || len(got.Stack) != 1 {
+			t.Errorf("%v: profile extras missing: %+v", tt.args, got)
+		}
+	}
+}

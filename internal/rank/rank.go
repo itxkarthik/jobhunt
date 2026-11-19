@@ -6,6 +6,7 @@ package rank
 import (
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/classify"
@@ -30,6 +31,52 @@ type Ranker struct {
 	W          Weights
 	Classifier *classify.Classifier
 	Now        time.Time
+
+	prefsFor []string // the Stack and Projects prefs was built for
+	prefs    *prefs
+}
+
+// prefs are the term sets for a filter's Stack and Projects.
+type prefs struct {
+	stack    []*classify.TermSet // in priority order
+	projects *classify.TermSet
+}
+
+// languageTerms are the ways a stack language is written in postings.
+var languageTerms = map[string][]string{
+	"go":         {"go", "golang"},
+	"node":       {"node.js", "nodejs", "node"},
+	"javascript": {"javascript", "js"},
+	"typescript": {"typescript", "ts"},
+	"c++":        {"c++", "cpp"},
+	"c#":         {"c#", ".net", "dotnet"},
+}
+
+func (r *Ranker) prefsOf(f model.Filters) *prefs {
+	key := append(append([]string{}, f.Stack...), "\x00")
+	key = append(key, f.Projects...)
+	if r.prefs != nil && slices.Equal(key, r.prefsFor) {
+		return r.prefs
+	}
+	p := &prefs{projects: classify.NewTermSet(f.Projects)}
+	for _, l := range f.Stack {
+		terms, ok := languageTerms[strings.ToLower(strings.TrimSpace(l))]
+		if !ok {
+			terms = []string{l}
+		}
+		p.stack = append(p.stack, classify.NewTermSet(terms))
+	}
+	r.prefs, r.prefsFor = p, key
+	return p
+}
+
+// stackWeight is what a job using the i-th language of an n-language
+// stack adds: 1 for the first, falling to 0.4 for the last.
+func stackWeight(i, n int) float64 {
+	if n <= 1 {
+		return 1
+	}
+	return 1 - 0.6*float64(i)/float64(n-1)
 }
 
 // Factor names, as reported in model.ScorePart.
@@ -96,14 +143,32 @@ func (r *Ranker) match(j *model.Job, f model.Filters, kw *classify.TermSet) floa
 		}
 		parts = append(parts, best)
 	}
+	bonus := 0.0
+	if len(f.Stack) > 0 || len(f.Projects) > 0 {
+		p := r.prefsOf(f)
+		text := classify.Tokenize(j.Title + "\n" + j.Description)
+		if len(p.stack) > 0 {
+			best := 0.0
+			for i, ts := range p.stack {
+				if ts.Any(text) {
+					best = stackWeight(i, len(p.stack))
+					break
+				}
+			}
+			parts = append(parts, best)
+		}
+		if p.projects.Len() > 0 && p.projects.Any(text) {
+			bonus = 0.25 // a project you care about: a bonus, never a penalty
+		}
+	}
 	if len(parts) == 0 {
-		return 0.5 // nothing asked for: neutral
+		return min(0.5+bonus, 1) // nothing asked for: neutral
 	}
 	sum := 0.0
 	for _, p := range parts {
 		sum += p
 	}
-	return sum / float64(len(parts))
+	return min(sum/float64(len(parts))+bonus, 1)
 }
 
 func (r *Ranker) recency(j *model.Job) float64 {

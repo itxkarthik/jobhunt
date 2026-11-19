@@ -294,7 +294,7 @@ func cacheKey(src sources.Source, f model.Filters) string {
 	if k, ok := src.(sources.CacheKeyer); ok {
 		raw = k.CacheKey(f)
 	} else {
-		b, _ := json.Marshal(f)
+		b, _ := json.Marshal(f.Fetched())
 		raw = string(b)
 	}
 	sum := sha256.Sum256([]byte(raw))

@@ -37,11 +37,65 @@ type Config struct {
 
 	// Importers fill the companies list (`jobhunt companies import`).
 	Importers Importers `yaml:"importers"`
+
+	// Profile is what you're looking for; `--profile` and the digest use it.
+	Profile Profile `yaml:"profile"`
+}
+
+// Profile is what you want: roles, areas, stack, and the companies worth
+// your time. Every field is optional; values are validated where used.
+type Profile struct {
+	Types        []string `yaml:"types,omitempty" json:"types,omitempty"`                 // internship, new-grad, full-time…
+	Experience   []string `yaml:"experience,omitempty" json:"experience,omitempty"`       // intern, entry…
+	Areas        []string `yaml:"areas,omitempty" json:"areas,omitempty"`                 // backend, systems, devops…
+	SkipAreas    []string `yaml:"skip_areas,omitempty" json:"skip_areas,omitempty"`       // dropped unless also in a wanted area
+	Stack        []string `yaml:"stack,omitempty" json:"stack,omitempty"`                 // languages, most wanted first
+	Projects     []string `yaml:"projects,omitempty" json:"projects,omitempty"`           // keywords that add to the score
+	Countries    []string `yaml:"countries,omitempty" json:"countries,omitempty"`         // where you can work
+	Modes        []string `yaml:"modes,omitempty" json:"modes,omitempty"`                 // remote, hybrid, onsite
+	PostedWithin string   `yaml:"posted_within,omitempty" json:"posted_within,omitempty"` // e.g. 7d
+	MinScore     float64  `yaml:"min_score,omitempty" json:"min_score,omitempty"`         // digest: jobs below this are left out
+
+	SkipRequiresExperience bool `yaml:"skip_requires_experience,omitempty" json:"skip_requires_experience,omitempty"`
+	SkipOnsiteAbroad       bool `yaml:"skip_onsite_abroad,omitempty" json:"skip_onsite_abroad,omitempty"`
+
+	Companies ProfileCompanies `yaml:"companies,omitempty" json:"companies,omitzero"`
+}
+
+// ProfileCompanies picks companies from the companies list.
+type ProfileCompanies struct {
+	Stages       []string `yaml:"stages,omitempty" json:"stages,omitempty"`               // seed, series-a…
+	Headcounts   []string `yaml:"headcounts,omitempty" json:"headcounts,omitempty"`       // 1-10, 11-50, 51-200…
+	Countries    []string `yaml:"countries,omitempty" json:"countries,omitempty"`         // where they're based
+	Cities       []string `yaml:"cities,omitempty" json:"cities,omitempty"`               // narrows countries
+	RemoteOK     bool     `yaml:"remote_ok,omitempty" json:"remote_ok,omitempty"`         // also companies hiring remotely
+	FundedWithin string   `yaml:"funded_within,omitempty" json:"funded_within,omitempty"` // latest round at most this old, e.g. 270d
+	FundedBefore string   `yaml:"funded_before,omitempty" json:"funded_before,omitempty"` // and at least this old, e.g. 90d
+}
+
+// IsZero reports whether no profile is set.
+func (p Profile) IsZero() bool {
+	return len(p.Types)+len(p.Experience)+len(p.Areas)+len(p.SkipAreas)+len(p.Stack)+len(p.Projects)+len(p.Countries)+len(p.Modes) == 0 &&
+		p.PostedWithin == "" && p.MinScore == 0 && !p.SkipRequiresExperience && !p.SkipOnsiteAbroad && p.Companies.IsZero()
+}
+
+// IsZero reports whether no company preferences are set.
+func (c ProfileCompanies) IsZero() bool {
+	return len(c.Stages)+len(c.Headcounts)+len(c.Countries)+len(c.Cities) == 0 && !c.RemoteOK && c.FundedWithin == "" && c.FundedBefore == ""
 }
 
 // Importers configures the company importers.
 type Importers struct {
 	EDGAR EDGAR `yaml:"edgar"`
+	MCA   MCA   `yaml:"mca"`
+}
+
+// MCA configures the Indian company master data importer. It stays off
+// until APIKey is set (a free key from data.gov.in).
+type MCA struct {
+	APIKey string   `yaml:"api_key,omitempty"` // or JOBHUNT_DATAGOV_API_KEY
+	States []string `yaml:"states,omitempty"`  // codes or names; default KA
+	NIC    []string `yaml:"nic,omitempty"`     // industry code prefixes; default 62, 63
 }
 
 // EDGAR configures the SEC Form D importer. It stays off until UserAgent
@@ -204,6 +258,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("JOBHUNT_WEBHOOK_SECRET"); v != "" {
 		cfg.Feed.WebhookSecret = v
+	}
+	if v := os.Getenv("JOBHUNT_DATAGOV_API_KEY"); v != "" {
+		cfg.Importers.MCA.APIKey = v
 	}
 	if v := os.Getenv("JOBHUNT_EDGAR_USER_AGENT"); v != "" {
 		cfg.Importers.EDGAR.UserAgent = v

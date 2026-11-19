@@ -23,6 +23,7 @@ import (
 
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/company"
+	"github.com/itxkarthik/jobhunt/internal/config"
 	"github.com/itxkarthik/jobhunt/internal/feed"
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/search"
@@ -68,6 +69,9 @@ func New(o Options) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "list_companies", Annotations: ro, Description: "The companies list: funded startups and other companies the user watches, " +
 		"newest funding first, with open job counts (jobs seen in searches in the last 14 days). Filter by stage, headcount, country, tags, funding window, contacts or hiring level."}, h.listCompanies)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_company", Annotations: ro, Description: "One company by name, key or key prefix, with its rounds, boards, contacts (each with its source) and open jobs."}, h.getCompany)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_profile", Annotations: ro, Description: "What the user is looking for, from their config: roles and levels, areas, stack in priority order, " +
+		"project keywords, countries, and which companies are worth their time (stage, headcount, countries, cities, remote hiring, funding window). " +
+		"Use it to decide what to research. set is false when there is no profile."}, h.getProfile)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_sources", Annotations: ro, Description: "Job sources with whether each is enabled and ready and its last run. Never includes keys."}, h.listSources)
 	if o.ReadOnly {
 		return s
@@ -326,23 +330,7 @@ func (h *handlers) getCompany(ctx context.Context, _ *mcp.CallToolRequest, in Na
 }
 
 // CompanyInput is what an agent may set on a company.
-type CompanyInput struct {
-	Name            string           `json:"name" jsonschema:"company name"`
-	Website         string           `json:"website,omitempty" jsonschema:"http(s) URL"`
-	Country         string           `json:"country,omitempty" jsonschema:"where it is based: ISO code like IN or US, or a country name"`
-	City            string           `json:"city,omitempty"`
-	Remote          bool             `json:"remote,omitempty" jsonschema:"hires remotely beyond its country"`
-	Stage           string           `json:"stage,omitempty" jsonschema:"pre-seed, seed, series-a, series-b, series-c, growth, public or bootstrapped"`
-	Headcount       string           `json:"headcount,omitempty" jsonschema:"number of people, or a bucket: 1-10, 11-50, 51-200, 201-500, 501-1000, 1000+"`
-	HeadcountSource string           `json:"headcount_source,omitempty" jsonschema:"URL the headcount came from, or estimate"`
-	Rounds          []model.Round    `json:"rounds,omitempty" jsonschema:"funding rounds, each with source_url; date as RFC 3339, e.g. 2026-09-02T00:00:00Z"`
-	Contacts        []model.Contact  `json:"contacts,omitempty" jsonschema:"people who published their contact, each with source_url"`
-	Boards          []string         `json:"boards,omitempty" jsonschema:"job boards as ats:slug; prefer add_board, which checks them"`
-	Tags            []string         `json:"tags,omitempty"`
-	Notes           string           `json:"notes,omitempty" jsonschema:"replaces the notes; use add_note to append"`
-	Checked         bool             `json:"checked,omitempty" jsonschema:"mark the record as checked now"`
-	Remove          *company.Removal `json:"remove,omitempty" jsonschema:"entries to take off"`
-}
+type CompanyInput = app.CompanyInput
 
 type CompanyOutput struct {
 	Company model.Company `json:"company"`
@@ -350,27 +338,9 @@ type CompanyOutput struct {
 }
 
 func (h *handlers) upsertCompany(ctx context.Context, _ *mcp.CallToolRequest, in CompanyInput) (*mcp.CallToolResult, CompanyOutput, error) {
-	c := model.Company{
-		Name: in.Name, Website: in.Website, Country: in.Country, City: in.City, Remote: in.Remote,
-		Stage: model.Stage(in.Stage), Headcount: model.Headcount(in.Headcount), HeadcountSource: in.HeadcountSource,
-		Rounds: in.Rounds, Contacts: in.Contacts, Tags: in.Tags, Notes: in.Notes, Sources: []string{"agent"},
-	}
-	for i := range c.Contacts {
-		c.Contacts[i].AddedAt = time.Time{} // set by the merge
-	}
-	for _, b := range in.Boards {
-		bd, err := company.ParseBoard(b)
-		if err != nil {
-			return nil, CompanyOutput{}, invalid("%v", err)
-		}
-		c.Boards = append(c.Boards, bd)
-	}
-	if in.Checked {
-		c.CheckedAt = time.Now()
-	}
-	var rm company.Removal
-	if in.Remove != nil {
-		rm = *in.Remove
+	c, rm, err := in.Company("agent", time.Now())
+	if err != nil {
+		return nil, CompanyOutput{}, invalid("%v", err)
 	}
 	return h.save(ctx, "upsert_company", c, rm, false)
 }
@@ -513,6 +483,17 @@ type SourceInfo struct {
 type SourcesOutput struct {
 	Sources []SourceInfo `json:"sources"`
 	Boards  int          `json:"boards"`
+}
+
+// ProfileOutput is the user's profile. It holds no secrets.
+type ProfileOutput struct {
+	Set     bool           `json:"set"`
+	Profile config.Profile `json:"profile"`
+}
+
+func (h *handlers) getProfile(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, ProfileOutput, error) {
+	p := h.o.App.Config.Profile
+	return nil, ProfileOutput{Set: !p.IsZero(), Profile: p}, nil
 }
 
 func (h *handlers) listSources(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, SourcesOutput, error) {

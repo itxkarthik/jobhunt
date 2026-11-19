@@ -27,6 +27,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/search"
 	"github.com/itxkarthik/jobhunt/internal/sources"
+	"github.com/itxkarthik/jobhunt/internal/sources/ats"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
 
@@ -65,6 +66,14 @@ type Options struct {
 	Hosts    []string         // extra allowed Host names besides loopback
 	Static   fs.FS            // web UI files; nil serves a short notice at /
 	Logger   *slog.Logger
+
+	// CheckBoard fetches a new job board once before it's saved; nil
+	// refuses new boards.
+	CheckBoard func(ctx context.Context, b ats.Company) (int, error)
+	// RefreshBoards makes the ATS sources pick up changed boards.
+	RefreshBoards func(ctx context.Context) error
+	// Stack is the user's languages in priority order, for outreach drafts.
+	Stack []string
 }
 
 // SourceDesc describes a source whether or not it's enabled.

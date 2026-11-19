@@ -45,6 +45,17 @@ func UpsertCompany(ctx context.Context, st *store.Store, in model.Company, rm co
 	})
 }
 
+// ImportCompany saves a company from an importer: like UpsertCompany, but
+// it only fills fields the stored record leaves empty (company.FillOnly).
+func ImportCompany(ctx context.Context, st *store.Store, in model.Company) (model.Company, bool, error) {
+	if err := company.Clean(&in); err != nil {
+		return model.Company{}, false, &InvalidError{err}
+	}
+	return st.UpdateCompany(ctx, in.Key, func(old *model.Company) (model.Company, error) {
+		return company.Merge(old, company.FillOnly(old, in), company.Removal{}, time.Now()), nil
+	})
+}
+
 // InvalidError means a company update failed validation; nothing was
 // stored. Other errors from UpsertCompany are storage failures.
 type InvalidError struct{ Err error }
@@ -162,4 +173,53 @@ func Companies(ctx context.Context, st *store.Store, q CompanyQuery) ([]CompanyV
 		}
 	}
 	return out, nil
+}
+
+// CompanyInput is a company update from outside: an agent through MCP or
+// the web UI through PUT /api/companies/{key}. Only the fields sent
+// change; lists merge.
+type CompanyInput struct {
+	Name            string           `json:"name" jsonschema:"company name"`
+	Website         string           `json:"website,omitempty" jsonschema:"http(s) URL"`
+	Country         string           `json:"country,omitempty" jsonschema:"where it is based: ISO code like IN or US, or a country name"`
+	City            string           `json:"city,omitempty"`
+	Remote          bool             `json:"remote,omitempty" jsonschema:"hires remotely beyond its country"`
+	Stage           string           `json:"stage,omitempty" jsonschema:"pre-seed, seed, series-a, series-b, series-c, growth, public or bootstrapped"`
+	Headcount       string           `json:"headcount,omitempty" jsonschema:"number of people, or a bucket: 1-10, 11-50, 51-200, 201-500, 501-1000, 1000+"`
+	HeadcountSource string           `json:"headcount_source,omitempty" jsonschema:"URL the headcount came from, or estimate"`
+	Rounds          []model.Round    `json:"rounds,omitempty" jsonschema:"funding rounds, each with source_url; date as RFC 3339, e.g. 2026-09-02T00:00:00Z"`
+	Contacts        []model.Contact  `json:"contacts,omitempty" jsonschema:"people who published their contact, each with source_url"`
+	Boards          []string         `json:"boards,omitempty" jsonschema:"job boards as ats:slug; prefer add_board, which checks them"`
+	Tags            []string         `json:"tags,omitempty"`
+	Notes           string           `json:"notes,omitempty" jsonschema:"replaces the notes; use add_note to append"`
+	Checked         bool             `json:"checked,omitempty" jsonschema:"mark the record as checked now"`
+	Remove          *company.Removal `json:"remove,omitempty" jsonschema:"entries to take off"`
+}
+
+// Company turns the input into an update for UpsertCompany, recording
+// source (agent, web) as how it was found.
+func (in CompanyInput) Company(source string, now time.Time) (model.Company, company.Removal, error) {
+	c := model.Company{
+		Name: in.Name, Website: in.Website, Country: in.Country, City: in.City, Remote: in.Remote,
+		Stage: model.Stage(in.Stage), Headcount: model.Headcount(in.Headcount), HeadcountSource: in.HeadcountSource,
+		Rounds: slices.Clone(in.Rounds), Contacts: slices.Clone(in.Contacts), Tags: in.Tags, Notes: in.Notes, Sources: []string{source},
+	}
+	for i := range c.Contacts {
+		c.Contacts[i].AddedAt = time.Time{} // set by the merge
+	}
+	for _, b := range in.Boards {
+		bd, err := company.ParseBoard(b)
+		if err != nil {
+			return model.Company{}, company.Removal{}, err
+		}
+		c.Boards = append(c.Boards, bd)
+	}
+	if in.Checked {
+		c.CheckedAt = now
+	}
+	var rm company.Removal
+	if in.Remove != nil {
+		rm = *in.Remove
+	}
+	return c, rm, nil
 }

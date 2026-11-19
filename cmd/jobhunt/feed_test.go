@@ -351,3 +351,71 @@ func TestFeedPendingSurvivesOtherSearches(t *testing.T) {
 		t.Errorf("a was not resent with the score it was selected with:\n%s", out.String())
 	}
 }
+
+// companyEvents decodes stdout and returns "change:key" per company event.
+func companyEvents(t *testing.T, out []byte) []string {
+	t.Helper()
+	var got []string
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	sc.Buffer(nil, 1<<20)
+	for sc.Scan() {
+		var e feed.Event
+		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
+			t.Fatal(err)
+		}
+		if e.Type == feed.TypeCompany {
+			got = append(got, string(e.Company.Change)+":"+e.Company.Record.Key)
+		}
+	}
+	return got
+}
+
+func TestFeedCompanies(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	t0 := time.Unix(1_800_000_000, 0)
+	runs := &fakeRuns{st: st, at: []time.Time{t0, t0.Add(time.Hour), t0.Add(2 * time.Hour), t0.Add(3 * time.Hour), t0.Add(4 * time.Hour)}}
+	runs.runs = make([][]model.Job, len(runs.at))
+	upsert := func(name, city string) {
+		t.Helper()
+		if _, _, err := st.UpdateCompany(ctx, strings.ToLower(name), func(old *model.Company) (model.Company, error) {
+			now := time.Now()
+			c := model.Company{Key: strings.ToLower(name), Name: name, City: city, Stage: model.StageUnknown, Headcount: model.HeadcountUnknown, CreatedAt: now, UpdatedAt: now}
+			if old != nil {
+				c.CreatedAt = old.CreatedAt
+			}
+			return c, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func(hook *feed.Webhook) ([]string, error) {
+		fd, out := newFeeder(t, runs, "crm", hook)
+		fd.companies = st.Companies
+		err := fd.once(ctx)
+		return companyEvents(t, out.Bytes()), err
+	}
+
+	upsert("Acme", "Pune")
+	upsert("Kestrel", "")
+	if got, err := run(nil); err != nil || !slices.Equal(got, []string{"created:acme", "created:kestrel"}) {
+		t.Fatalf("first run: %v, %v", got, err)
+	}
+	if got, _ := run(nil); got != nil {
+		t.Errorf("unchanged companies sent again: %v", got)
+	}
+	upsert("Acme", "Bengaluru")
+	var fail atomic.Bool
+	fail.Store(true)
+	hook := failingWebhook(t, &fail)
+	if got, err := run(hook); err == nil || !slices.Equal(got, []string{"updated:acme"}) {
+		t.Fatalf("failed delivery: %v, %v", got, err)
+	}
+	fail.Store(false)
+	if got, err := run(hook); err != nil || !slices.Equal(got, []string{"updated:acme"}) {
+		t.Errorf("resend after failure: %v, %v", got, err)
+	}
+	if got, _ := run(nil); got != nil {
+		t.Errorf("after delivery: %v", got)
+	}
+}

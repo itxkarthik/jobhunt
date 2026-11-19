@@ -176,7 +176,7 @@ export async function mount(view, { live = () => true } = {}) {
     if (!runlog.last.running) load();
   });
   shell.setFetch(runAll, "Run all");
-  shell.setStatus("SOURCES", [["r", "run all"], ["1 2 3", "tabs"], ["t", "theme"]]);
+  shell.setStatus("SOURCES", [["r", "run all"], ["1–4", "tabs"], ["t", "theme"]]);
 
   await load();
   try {
