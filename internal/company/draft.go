@@ -88,8 +88,8 @@ func NewDraft(c *model.Company, job *model.Job, o DraftOptions) Draft {
 		fmt.Fprintf(&b, " Congratulations on the recent%s round.", stage)
 	}
 	b.WriteString("\n\n[One or two sentences on what you've built that fits this team, with a link.]")
-	if len(o.Stack) > 0 {
-		fmt.Fprintf(&b, "\n\nI work mostly in %s.", joinAnd(o.Stack))
+	if langs := topLanguages(o.Stack, 2); len(langs) > 0 {
+		fmt.Fprintf(&b, "\n\nI work mostly in %s.", joinAnd(langs))
 	}
 	b.WriteString("\n\nWould you be open to a short call, or should I apply through the usual process?\n\nThanks,\n[Your name]\n[Link to your work]\n")
 	d := Draft{Subject: subject, Body: b.String()}
@@ -104,6 +104,32 @@ func NewDraft(c *model.Company, job *model.Job, o DraftOptions) Draft {
 // clients show a '+' literally.
 func mailEscape(s string) string {
 	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
+}
+
+// languageNames spell config stack entries the way people write them.
+var languageNames = map[string]string{
+	"go": "Go", "golang": "Go", "rust": "Rust", "node": "Node.js", "nodejs": "Node.js", "node.js": "Node.js",
+	"python": "Python", "java": "Java", "javascript": "JavaScript", "typescript": "TypeScript",
+	"c++": "C++", "c#": "C#", "kotlin": "Kotlin", "swift": "Swift", "ruby": "Ruby", "elixir": "Elixir", "scala": "Scala",
+}
+
+// topLanguages returns the first n non-empty stack entries, properly spelled.
+func topLanguages(stack []string, n int) []string {
+	var out []string
+	for _, l := range stack {
+		l = strings.TrimSpace(l)
+		if l == "" {
+			continue
+		}
+		if name, ok := languageNames[strings.ToLower(l)]; ok {
+			l = name
+		}
+		out = append(out, l)
+		if len(out) == n {
+			break
+		}
+	}
+	return out
 }
 
 func joinAnd(xs []string) string {

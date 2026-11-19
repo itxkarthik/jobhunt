@@ -1,0 +1,11 @@
+# Weekdays at 08:29 India time, whatever the machine's time zone. Runs
+# once after boot if the machine was off then.
+[Unit]
+Description=jobhunt: digest on weekdays at 08:29 IST
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 08:29:00 Asia/Kolkata
+Persistent=true
+
+[Install]
+WantedBy=timers.target

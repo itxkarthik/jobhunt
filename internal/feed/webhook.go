@@ -104,6 +104,12 @@ func (e *StatusError) Error() string {
 // Send delivers one batch, retrying network errors, 408, 429 and 5xx
 // with exponential backoff (or Retry-After, up to a minute).
 func (w *Webhook) Send(ctx context.Context, deliveryID string, body []byte) error {
+	return w.SendAs(ctx, deliveryID, "application/x-ndjson", body)
+}
+
+// SendAs is Send with another content type, for payloads that aren't feed
+// events (the digest is application/json). Signing is the same.
+func (w *Webhook) SendAs(ctx context.Context, deliveryID, contentType string, body []byte) error {
 	var err error
 	for attempt := range w.attempts {
 		if attempt > 0 {
@@ -118,7 +124,7 @@ func (w *Webhook) Send(ctx context.Context, deliveryID string, body []byte) erro
 			}
 		}
 		var retry bool
-		retry, err = w.post(ctx, deliveryID, body)
+		retry, err = w.post(ctx, deliveryID, contentType, body)
 		if err == nil {
 			return nil
 		}
@@ -137,13 +143,13 @@ type retryAfter struct {
 	after time.Duration
 }
 
-func (w *Webhook) post(ctx context.Context, deliveryID string, body []byte) (retry bool, _ error) {
+func (w *Webhook) post(ctx context.Context, deliveryID, contentType string, body []byte) (retry bool, _ error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.url, bytes.NewReader(body))
 	if err != nil {
 		return false, fmt.Errorf("webhook %s: %w", w.display, err)
 	}
 	ts := strconv.FormatInt(w.now().Unix(), 10)
-	req.Header.Set("Content-Type", "application/x-ndjson")
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("User-Agent", w.userAgent)
 	req.Header.Set(HeaderTimestamp, ts)
 	req.Header.Set(HeaderDelivery, deliveryID)

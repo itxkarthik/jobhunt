@@ -1,6 +1,7 @@
 package company
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -100,6 +101,9 @@ func Merge(old *model.Company, in model.Company, rm Removal, now time.Time) mode
 	}
 	for _, t := range rm.Tags {
 		c.Tags = slices.DeleteFunc(c.Tags, func(x string) bool { return strings.EqualFold(x, strings.TrimSpace(t)) })
+	}
+	if old != nil && reflect.DeepEqual(c, *old) {
+		return c // nothing changed: keep UpdatedAt, so feeds and digests don't resend it
 	}
 	c.UpdatedAt = now
 	return c

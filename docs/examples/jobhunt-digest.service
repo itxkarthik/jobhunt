@@ -1,0 +1,17 @@
+# Runs one `jobhunt digest`: new matching jobs and companies since the last
+# one, as a desktop notification and to the webhook from config. It is
+# silent when nothing is new. Install both files in ~/.config/systemd/user/:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now jobhunt-digest.timer
+# The webhook URL and secret come from ~/.config/jobhunt/config.yaml or a
+# private EnvironmentFile (chmod 600), never from this file:
+#   EnvironmentFile=%h/.config/jobhunt/env
+# Drop --webhook if you don't use one. jobhunt never sends email or applies.
+[Unit]
+Description=jobhunt: daily digest of new jobs and companies
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/jobhunt digest --notify --webhook

@@ -20,9 +20,10 @@ import (
 
 func newCompaniesCmd() *cobra.Command {
 	var (
-		q        app.CompanyQuery
-		asJSON   bool
-		showJobs bool
+		q           app.CompanyQuery
+		asJSON      bool
+		showJobs    bool
+		withProfile bool
 	)
 	list := func(cmd *cobra.Command, _ []string) error {
 		a, err := app.Open()
@@ -31,6 +32,12 @@ func newCompaniesCmd() *cobra.Command {
 		}
 		defer a.Close()
 		q.Jobs = asJSON && showJobs
+		if withProfile {
+			if a.Config.Profile.IsZero() {
+				return app.ErrNoProfile
+			}
+			q.FilterInput = app.ProfileCompanyInput(a.Config.Profile, q.FilterInput)
+		}
 		cs, err := app.Companies(cmd.Context(), a.Store, q)
 		if err != nil {
 			return err
@@ -60,6 +67,7 @@ job boards and contacts the person published themselves. Every round and
 contact is stored with the URL it came from. Open jobs are the ones seen in
 searches in the last 14 days.`,
 		Example: `  jobhunt companies --stage seed,series-a --funded-within 270d --funded-before 90d --headcount 1-10,11-50
+  jobhunt companies --profile
   jobhunt companies --hiring mid,senior --country IN
   jobhunt companies set "Acme AI" --stage seed --headcount 12 --board ashby:acme --website https://acme.ai
   jobhunt companies set "Acme AI" --round seed,2500000,USD,2026-09-02,https://acme.ai/blog/seed
@@ -82,6 +90,9 @@ searches in the last 14 days.`,
 	fs.IntVar(&q.Limit, "limit", 0, "show at most this many (0 = all)")
 	fs.BoolVar(&asJSON, "json", false, "print JSON")
 	fs.BoolVar(&showJobs, "jobs", false, "with --json, include each company's open jobs")
+	fs.StringSliceVar(&q.Cities, "city", nil, "only companies in these cities (with --country)")
+	fs.BoolVar(&q.RemoteOK, "remote-ok", false, "also companies that hire remotely, wherever they're based")
+	fs.BoolVar(&withProfile, "profile", false, "apply the companies part of the config profile; flags you pass win")
 
 	cmd.AddCommand(newCompanyShowCmd(), newCompanySetCmd(), newCompanyRmCmd(), newCompanyImportCmd(), newCompanyLinksCmd(), newCompanySyncCmd())
 	return cmd

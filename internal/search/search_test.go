@@ -286,3 +286,53 @@ func TestEnginePrepare(t *testing.T) {
 		t.Errorf("jobs=%v err=%v calls=%d", res, err, calls)
 	}
 }
+
+func TestFilterProfileSkips(t *testing.T) {
+	c := classify.Default()
+	now := time.Now()
+	mk := func(title, loc, desc string, mode model.WorkMode) model.Job {
+		j := job("x", title, loc)
+		j.Description, j.WorkMode, j.PostedAt = desc, mode, now
+		c.Classify(&j)
+		return j
+	}
+	jobs := []model.Job{
+		mk("Backend Intern", "Bengaluru", "Build APIs in Go.", model.ModeOnsite),                     // 0
+		mk("Backend Intern", "Bengaluru", "Requires prior internship experience.", model.ModeOnsite), // 1
+		mk("Firmware Intern", "Pune", "RTOS and microcontrollers.", model.ModeOnsite),                // 2 embedded only
+		mk("Backend and Firmware Intern", "Pune", "", model.ModeOnsite),                              // 3 both
+		mk("Backend Intern", "", "Office-based.", model.ModeHybrid),                                  // 4 hybrid, location unknown
+	}
+	base := model.Filters{Countries: []string{"IN"}, IncludeUnknown: true}
+	tests := []struct {
+		name string
+		mod  func(*model.Filters)
+		want []int
+	}{
+		{"none", func(*model.Filters) {}, []int{0, 1, 2, 3, 4}},
+		{"requires experience", func(f *model.Filters) { f.SkipRequiresExperience = true }, []int{0, 2, 3, 4}},
+		{"skip embedded", func(f *model.Filters) { f.SkipAreas = []model.Area{model.AreaEmbedded} }, []int{0, 1, 4}},
+		{"skip embedded, want backend", func(f *model.Filters) {
+			f.SkipAreas, f.Areas = []model.Area{model.AreaEmbedded}, []model.Area{model.AreaBackend}
+		}, []int{0, 1, 3, 4}},
+		{"onsite abroad", func(f *model.Filters) { f.SkipOnsiteAbroad = true }, []int{0, 1, 2, 3}},
+	}
+	for _, tt := range tests {
+		f := base
+		tt.mod(&f)
+		var got []int
+		for i := range jobs {
+			if matches(&jobs[i], f, c, classify.NewTermSet(nil), classify.NewTermSet(nil), now) {
+				got = append(got, i)
+			}
+		}
+		if !equalInts(got, tt.want) {
+			t.Errorf("%s: got %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	// Profile-only fields don't split the source cache.
+	src := &fakeSource{name: "s"}
+	if cacheKey(src, base) != cacheKey(src, model.Filters{Countries: []string{"IN"}, IncludeUnknown: true, Stack: []string{"go"}, SkipOnsiteAbroad: true}) {
+		t.Error("profile fields changed the cache key")
+	}
+}

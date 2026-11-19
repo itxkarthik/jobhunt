@@ -29,6 +29,7 @@ type Rules struct {
 	Experience         map[string][]string `yaml:"experience"`
 	WorkModes          map[string][]string `yaml:"work_modes"`
 	Visa               map[string][]string `yaml:"visa"`
+	RequiresExperience map[string][]string `yaml:"requires_experience"`
 	Areas              map[string][]string `yaml:"areas"`
 	MinDescriptionHits int                 `yaml:"min_description_hits"`
 	GenericTitles      []string            `yaml:"generic_titles"`
@@ -77,6 +78,10 @@ type Classifier struct {
 	modes        map[model.WorkMode]matcher
 	visaYes      matcher
 	visaNo       matcher
+	reqExpYes    matcher
+	reqExpNo     matcher
+	expWord      matcher // "experience"
+	yearWord     matcher // "year", "years", "yrs"
 	areas        []areaRule
 	minDescHits  int
 	generic      matcher
@@ -124,6 +129,10 @@ func FromYAML(b []byte) (*Classifier, error) {
 	}
 	c.visaYes = c.compile(r.Visa["yes"])
 	c.visaNo = c.compile(r.Visa["no"])
+	c.reqExpYes = c.compile(r.RequiresExperience["yes"])
+	c.reqExpNo = c.compile(r.RequiresExperience["no"])
+	c.expWord = c.compile([]string{"experience"})
+	c.yearWord = c.compile([]string{"year", "years", "yrs"})
 	c.generic = c.compile(r.GenericTitles)
 	if c.minDescHits <= 0 {
 		c.minDescHits = 3
@@ -190,6 +199,9 @@ func (c *Classifier) Classify(j *model.Job) {
 			j.Tags = append(j.Tags, GenericTag)
 		}
 	}
+	if c.requiresExperience(desc, j.Description) && !hasTag(j.Tags, RequiresExperienceTag) {
+		j.Tags = append(j.Tags, RequiresExperienceTag)
+	}
 	if j.WorkMode == "" {
 		j.WorkMode = model.ModeUnknown
 	}
@@ -199,6 +211,33 @@ func (c *Classifier) Classify(j *model.Job) {
 	if j.Experience == "" {
 		j.Experience = model.ExpUnknown
 	}
+}
+
+// RequiresExperienceTag marks postings that ask for prior work or
+// internship experience.
+const RequiresExperienceTag = "requires-experience"
+
+// expYearsRe reads "2+ years of experience", "1-2 years of relevant
+// industry experience": a number of years followed closely by "experience".
+var expYearsRe = regexp.MustCompile(`(\d{1,2})\s*(?:\+|plus)?\s*(?:(?:-|–|to)\s*\d{1,2}\s*)?\+?\s*(?:years?|yrs)\b(?:\s+of)?(?:\s+[a-z-]+){0,3}?\s+experience`)
+
+func (c *Classifier) requiresExperience(desc marks, rawDesc string) bool {
+	if c.reqExpNo.any(desc) {
+		return false
+	}
+	if c.reqExpYes.any(desc) {
+		return true
+	}
+	// The regex runs only on descriptions with both words in them.
+	if !c.expWord.any(desc) || !c.yearWord.any(desc) {
+		return false
+	}
+	for _, m := range expYearsRe.FindAllStringSubmatch(strings.ToLower(rawDesc), -1) {
+		if n, err := strconv.Atoi(m[1]); err == nil && n >= 1 && n <= 30 {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Classifier) jobType(cur model.JobType, title marks) model.JobType {

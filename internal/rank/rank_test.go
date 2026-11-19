@@ -100,3 +100,30 @@ func TestExplain(t *testing.T) {
 		})
 	}
 }
+
+func TestStackAndProjects(t *testing.T) {
+	now := time.Now()
+	r := &Ranker{Now: now}
+	f := model.Filters{Stack: []string{"Go", "Rust", "Python"}, Projects: []string{"microVM", "agent sandbox"}}
+	job := func(desc string) *model.Job {
+		return &model.Job{Title: "Backend Intern", Description: desc, PostedAt: now}
+	}
+	match := func(desc string) float64 {
+		_, parts := r.Explain(job(desc), f, nil)
+		return parts[0].Points
+	}
+	gol, rust, py, none := match("We write Golang services."), match("Our core is Rust."), match("Python and Django."), match("Java and Spring.")
+	if !(gol > rust && rust > py && py > none) {
+		t.Errorf("stack order: go %v, rust %v, python %v, none %v", gol, rust, py, none)
+	}
+	if proj := match("Python. You'll build microVM tooling."); proj <= py {
+		t.Errorf("project keyword adds nothing: %v vs %v", proj, py)
+	}
+	if got := match("Golang, building an agent sandbox."); got > DefaultWeights.Match {
+		t.Errorf("match %v exceeds its weight", got)
+	}
+	// No stack or projects: unchanged from before.
+	if s, _ := r.Explain(job("Golang"), model.Filters{}, nil); s != (&Ranker{Now: now}).Score(job("Golang"), model.Filters{}, nil) {
+		t.Error("score changed without preferences")
+	}
+}

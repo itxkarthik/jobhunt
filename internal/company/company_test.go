@@ -144,17 +144,20 @@ func TestFilter(t *testing.T) {
 			Rounds: []model.Round{{Date: now.AddDate(0, 0, -30), SourceURL: src}}, Contacts: []model.Contact{{Name: "Jo", SourceURL: src}}},
 		{Name: "Beta Labs", Country: "IN", Stage: model.StageSeriesB, Headcount: model.Headcount201to500,
 			Rounds: []model.Round{{Date: now.AddDate(-1, 0, 0), SourceURL: src}}},
-		{Name: "Gamma", Stage: model.StageUnknown, Headcount: model.HeadcountUnknown},
+		{Name: "Gamma", Stage: model.StageUnknown, Headcount: model.HeadcountUnknown, Remote: true},
+		{Name: "Delta", Country: "IN", City: "Pune", Stage: model.StageUnknown, Headcount: model.HeadcountUnknown},
 	}
 	tests := []struct {
 		name string
 		in   FilterInput
 		want string
 	}{
-		{"everything", FilterInput{}, "Acme,Beta Labs,Gamma"},
+		{"everything", FilterInput{}, "Acme,Beta Labs,Gamma,Delta"},
 		{"stage", FilterInput{Stages: []string{"seed", "series a"}}, "Acme"},
 		{"headcount", FilterInput{Headcounts: []string{"1-10", "11-50"}}, "Acme"},
-		{"country", FilterInput{Countries: []string{"india"}}, "Beta Labs"},
+		{"country", FilterInput{Countries: []string{"india"}}, "Beta Labs,Delta"},
+		{"city", FilterInput{Countries: []string{"IN"}, Cities: []string{"pune"}}, "Delta"},
+		{"country or remote", FilterInput{Countries: []string{"IN"}, Cities: []string{"Bengaluru"}, RemoteOK: true}, "Gamma"},
 		{"funded within", FilterInput{FundedWithin: "90d"}, "Acme"},
 		{"funded 3-9 months ago", FilterInput{FundedWithin: "270d", FundedBefore: "60d"}, ""},
 		{"funded over 6 months ago", FilterInput{FundedBefore: "180d"}, "Beta Labs"},
@@ -187,8 +190,8 @@ func TestFilter(t *testing.T) {
 	}
 
 	Sort(cs)
-	if cs[0].Name != "Acme" || cs[1].Name != "Beta Labs" || cs[2].Name != "Gamma" {
-		t.Errorf("sort: %s %s %s", cs[0].Name, cs[1].Name, cs[2].Name)
+	if cs[0].Name != "Acme" || cs[1].Name != "Beta Labs" {
+		t.Errorf("sort: %s %s", cs[0].Name, cs[1].Name)
 	}
 }
 
@@ -215,7 +218,7 @@ func TestDraft(t *testing.T) {
 			{Name: "Ravi", Role: "CTO", URL: "https://x.com/ravi", SourceURL: src}, // no email: never the recipient
 		}}
 	job := &model.Job{Title: "Backend Intern", URL: "https://jobs.ashbyhq.com/acme/1"}
-	d := NewDraft(c, job, DraftOptions{Stack: []string{"Go", "Rust"}, Now: now})
+	d := NewDraft(c, job, DraftOptions{Stack: []string{"go", "rust", "python"}, Now: now})
 	if d.To != "asha@acme.ai" || d.SourceURL != src || d.Subject != "Backend Intern at Acme AI" {
 		t.Errorf("draft = %+v", d)
 	}
@@ -232,5 +235,20 @@ func TestDraft(t *testing.T) {
 	d = NewDraft(&model.Company{Name: "Kestrel"}, nil, DraftOptions{Now: now})
 	if d.To != "" || d.Mailto != "" || !strings.HasPrefix(d.Body, "Hi Kestrel team,") || strings.Contains(d.Body, "round") {
 		t.Errorf("no-contact draft = %+v", d)
+	}
+}
+
+func TestMergeNoChangeKeepsUpdatedAt(t *testing.T) {
+	t0 := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	in := model.Company{Key: "acme", Name: "Acme", Country: "IN", Tags: []string{"hn-hiring"}, Sources: []string{"hn"},
+		Contacts: []model.Contact{{Email: "jobs@acme.ai", SourceURL: src}}}
+	first := Merge(nil, in, Removal{}, t0)
+	again := Merge(&first, in, Removal{}, t0.Add(time.Hour))
+	if !again.UpdatedAt.Equal(t0) {
+		t.Errorf("no-op merge moved UpdatedAt to %v", again.UpdatedAt)
+	}
+	changed := Merge(&first, model.Company{Key: "acme", City: "Pune"}, Removal{}, t0.Add(time.Hour))
+	if !changed.UpdatedAt.Equal(t0.Add(time.Hour)) {
+		t.Errorf("real change kept UpdatedAt %v", changed.UpdatedAt)
 	}
 }

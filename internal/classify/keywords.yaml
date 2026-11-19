@@ -22,6 +22,13 @@ visa:
   yes: [visa sponsorship, sponsor visa, sponsor your visa, sponsorship available, will sponsor, relocation support, relocation assistance, relocation package, visa support, work visa support, h-1b sponsorship, h1b sponsorship]
   no: [no sponsorship, no visa sponsorship, unable to sponsor, cannot sponsor, can't sponsor, not able to sponsor, will not sponsor, without sponsorship, sponsorship is not available, must be authorized to work, no relocation]
 
+# Postings that ask for prior work or internship experience get the tag
+# requires-experience, unless a "no" phrase says it isn't needed. "N+ years
+# of experience" with N of 1 or more counts too.
+requires_experience:
+  yes: [prior internship experience, previous internship experience, at least one internship, at least one prior internship, completed an internship, completed at least one internship, prior work experience, previous work experience, prior professional experience, professional work experience, prior industry experience, proven work experience, proven experience, must have prior experience, previous experience as, prior experience as]
+  no: [no prior experience, no previous experience, no prior work experience, no work experience, no experience required, no experience necessary, no experience needed, experience not required, experience is not required, no internship experience, freshers welcome, freshers can apply]
+
 # An area is assigned when a title term matches, or when at least
 # `min_description_hits` distinct description terms match.
 min_description_hits: 3

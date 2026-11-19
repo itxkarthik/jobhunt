@@ -18,8 +18,9 @@ import (
 
 // filterFlags holds raw flag values before they're parsed into model.Filters.
 type filterFlags struct {
-	in     app.FilterInput
-	preset string
+	in      app.FilterInput
+	preset  string
+	profile bool
 }
 
 func (ff *filterFlags) register(cmd *cobra.Command) {
@@ -40,12 +41,37 @@ func (ff *filterFlags) register(cmd *cobra.Command) {
 	fs.StringSliceVar(&ff.in.CompanyStages, "company-stage", nil, "only jobs at listed companies (jobhunt companies) at these funding stages, e.g. seed,series-a")
 	fs.StringSliceVar(&ff.in.CompanyHeadcounts, "company-headcount", nil, "only jobs at listed companies of these sizes, e.g. 1-10,11-50")
 	fs.StringVarP(&ff.preset, "preset", "p", "", "start from a saved preset; flags you pass override it")
+	fs.BoolVar(&ff.profile, "profile", false, "apply the config profile: its filters fill what flags and --preset leave empty, plus its skips and stack ranking")
 }
 
 // resolve builds filters from flags, starting from --preset if given. Only
-// flags set explicitly on the command line override the preset.
+// flags set explicitly on the command line override the preset. With
+// --profile, the profile fills what's left empty: flags > preset > profile.
 func (ff *filterFlags) resolve(cmd *cobra.Command, a *app.App) (model.Filters, error) {
-	f, err := app.ParseFilters(a.Config.Defaults, ff.in)
+	f, err := ff.resolveBase(cmd, a)
+	if err != nil || !ff.profile {
+		return f, err
+	}
+	p := a.Config.Profile
+	if p.IsZero() {
+		return f, app.ErrNoProfile
+	}
+	if ff.preset != "" {
+		prof, err := app.ProfileFilters(a.Config.Defaults, p)
+		if err != nil {
+			return f, err
+		}
+		app.FillFromProfile(&f, prof)
+	}
+	return f, app.ApplyProfile(p, &f)
+}
+
+func (ff *filterFlags) resolveBase(cmd *cobra.Command, a *app.App) (model.Filters, error) {
+	in := ff.in
+	if ff.profile && ff.preset == "" {
+		in = app.ProfileInput(a.Config.Profile, in)
+	}
+	f, err := app.ParseFilters(a.Config.Defaults, in)
 	if err != nil || ff.preset == "" {
 		return f, err
 	}

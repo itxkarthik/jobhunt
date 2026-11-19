@@ -69,6 +69,7 @@ are rejected, which stops websites from reaching the API via DNS rebinding.`,
 
 				CheckBoard:    a.CheckBoard,
 				RefreshBoards: a.RefreshBoards,
+				Stack:         a.Config.Profile.Stack,
 			})
 			if err != nil {
 				return err
