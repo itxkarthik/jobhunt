@@ -95,7 +95,8 @@ export function corners() {
 }
 
 // toast shows a short message, optionally with one action button. Only
-// the newest few stay on screen.
+// the newest few stay on screen. It returns the toast element, so a caller
+// can take it down early.
 export function toast(msg, { error = false, action, onAction, ms } = {}) {
   const box = document.getElementById("toasts");
   const t = h("div", { class: error ? "toast error" : "toast" }, h("span", { class: "toast-msg", text: msg }));
@@ -105,6 +106,7 @@ export function toast(msg, { error = false, action, onAction, ms } = {}) {
   box.append(t);
   while (box.children.length > 3) box.firstElementChild.remove();
   setTimeout(() => t.remove(), ms ?? (error ? 8000 : 4000));
+  return t;
 }
 
 // typing reports whether a key event comes from a text field, where

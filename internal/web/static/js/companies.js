@@ -127,7 +127,7 @@ export async function mount(view, { live = () => true } = {}) {
     try {
       const ps = params();
       list = await api("GET", "/api/companies" + (ps ? `?${ps}` : ""), undefined, c.signal);
-      if (pendingDelete) list = list.filter((x) => x.key !== pendingDelete.key);
+      if (pending.size) list = list.filter((x) => !pending.has(x.key));
       loadError.hidden = true;
       render();
     } catch (err) {
@@ -338,33 +338,42 @@ export async function mount(view, { live = () => true } = {}) {
   // Deleting waits while the Undo toast is up: the row disappears at once,
   // and the DELETE goes out when the toast expires, the view closes or the
   // page unloads. Undo just cancels it, so nothing has to be recreated
-  // (re-adding boards would need each to pass a live check again).
+  // (re-adding boards would need each to pass a live check again). Each
+  // delete has its own timer and toast; sending one early takes its Undo
+  // button down with it.
   const UNDO_MS = 10000;
-  let pendingDelete = null; // { key, name, timer }
+  const pending = new Map(); // key -> { key, name, timer, note }
 
   function remove(c) {
-    flushDelete(); // one pending delete at a time
+    if (pending.has(c.key)) return;
     closeDrawer();
-    pendingDelete = { key: c.key, name: c.name, timer: setTimeout(() => flushDelete(), UNDO_MS) };
+    const p = { key: c.key, name: c.name };
+    pending.set(c.key, p);
+    p.timer = setTimeout(() => flushDelete(c.key), UNDO_MS);
     list = list.filter((x) => x.key !== c.key);
     render();
-    toast(`Deleted ${c.name}`, {
+    p.note = toast(`Deleted ${c.name}`, {
       action: "Undo", ms: UNDO_MS, onAction: () => {
-        if (pendingDelete?.key !== c.key) return;
-        clearTimeout(pendingDelete.timer);
-        pendingDelete = null;
+        if (pending.get(c.key) !== p) return;
+        clearTimeout(p.timer);
+        pending.delete(c.key);
         load();
       },
     });
   }
 
-  // flushDelete sends the pending DELETE, if any. keepalive lets it finish
+  function flushAll(keepalive = false) {
+    for (const key of [...pending.keys()]) flushDelete(key, keepalive);
+  }
+
+  // flushDelete sends one pending DELETE now. keepalive lets it finish
   // while the page unloads.
-  async function flushDelete(keepalive = false) {
-    const p = pendingDelete;
+  async function flushDelete(key, keepalive = false) {
+    const p = pending.get(key);
     if (!p) return;
     clearTimeout(p.timer);
-    pendingDelete = null;
+    pending.delete(key);
+    p.note?.remove(); // its Undo can't work any more
     try {
       if (keepalive) {
         fetch(`/api/companies/${enc(p.key)}`, { method: "DELETE", keepalive: true, headers: { Authorization: `Bearer ${token()}` } });
@@ -376,7 +385,7 @@ export async function mount(view, { live = () => true } = {}) {
       if (live()) load();
     }
   }
-  const onPageHide = () => flushDelete(true);
+  const onPageHide = () => flushAll(true);
   window.addEventListener("pagehide", onPageHide);
 
   function onKey(e) {
@@ -390,7 +399,7 @@ export async function mount(view, { live = () => true } = {}) {
   await load();
 
   return () => {
-    flushDelete();
+    flushAll();
     window.removeEventListener("pagehide", onPageHide);
     clearTimeout(debounce);
     ctrl?.abort();
