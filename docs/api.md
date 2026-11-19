@@ -142,9 +142,9 @@ data: {"v":1,"type":"run","run_id":"…","at":"…","run":{"fetched":12097,"matc
 
 ### Companies
 
-`GET /api/companies` takes the `jobhunt companies` filters as query parameters, with lists comma-separated: `stages`, `headcounts`, `countries`, `tags`, `funded_within` and `funded_before` (ages like `90d`), `q` (text in the name, tags or notes), `hiring` (experience levels with open jobs, or `any`), `has_contact`, `jobs` (only companies with open jobs) and `limit` (up to 500, the default). Each item is a company record as in [`feed.schema.json`](feed.schema.json)'s `companyRecord`, plus `open_jobs`.
+`GET /api/companies` takes the `jobhunt companies` filters as query parameters, with lists comma-separated: `stages`, `headcounts`, `countries`, `tags`, `funded_within` and `funded_before` (ages like `90d`), `q` (text in the name, tags or notes), `hiring` (only companies with open jobs at these experience levels, or `any` for any level), `has_contact`, `jobs` (include each company's open jobs in the response; it doesn't filter) and `limit` (up to 500, the default). Each item is a company record as in [`feed.schema.json`](feed.schema.json)'s `companyRecord`, plus `open_jobs`.
 
-`PUT /api/companies/{key}` takes the same update as the MCP `upsert_company` tool: `name`, `website`, `country`, `city`, `remote`, `stage`, `headcount`, `headcount_source`, `rounds`, `contacts`, `boards` (`ats:slug`), `tags`, `notes` (replaces them), `checked` and `remove`. Only the fields sent change, and lists merge. `name` may be left out for an existing company; otherwise its key must be `{key}`.
+`PUT /api/companies/{key}` takes the same update as the MCP `upsert_company` tool: `name`, `website`, `country`, `city`, `remote`, `stage`, `headcount`, `headcount_source`, `rounds`, `contacts`, `boards` (`ats:slug`), `tags`, `notes` (replaces them; an empty string leaves them as they are), `checked` and `remove` (contacts, boards and tags to take off, and `"notes": true` to clear the notes). Only the fields sent change, and lists merge. `name` may be left out for an existing company; otherwise its key must be `{key}`.
 
 - Every round and contact needs a `source_url`. Contacts are only people who published their details.
 - New boards are checked once before they're saved, as in `POST /api/boards`.

@@ -10,11 +10,14 @@ import (
 )
 
 // Removal names entries to take off a company: contacts by email, URL or
-// name, boards as "ats:slug", and tags.
+// name, boards as "ats:slug", tags, and the notes.
 type Removal struct {
 	Contacts []string `json:"contacts,omitempty"`
 	Boards   []string `json:"boards,omitempty"`
 	Tags     []string `json:"tags,omitempty"`
+	// Notes clears the notes. An empty notes field in an update means
+	// "unchanged", so clearing needs saying.
+	Notes bool `json:"notes,omitempty"`
 }
 
 // Merge applies a cleaned update to the stored record old (nil when the
@@ -98,6 +101,9 @@ func Merge(old *model.Company, in model.Company, rm Removal, now time.Time) mode
 	}
 	for _, id := range rm.Boards {
 		c.Boards = slices.DeleteFunc(c.Boards, func(b model.Board) bool { return strings.EqualFold(b.String(), strings.TrimSpace(id)) })
+	}
+	if rm.Notes {
+		c.Notes = ""
 	}
 	for _, t := range rm.Tags {
 		c.Tags = slices.DeleteFunc(c.Tags, func(x string) bool { return strings.EqualFold(x, strings.TrimSpace(t)) })

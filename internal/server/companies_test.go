@@ -46,6 +46,16 @@ func TestCompaniesAPI(t *testing.T) {
 		t.Errorf("update without name = %d %s", w.Code, w.Body)
 	}
 
+	if w := serve(s, req(http.MethodPut, "/api/companies/acme%20ai", `{"notes":"call Asha"}`)); !strings.Contains(w.Body.String(), `"notes":"call Asha"`) {
+		t.Errorf("set notes = %s", w.Body)
+	}
+	if w := serve(s, req(http.MethodPut, "/api/companies/acme%20ai", `{"notes":""}`)); !strings.Contains(w.Body.String(), `"notes":"call Asha"`) {
+		t.Errorf("empty notes field should leave them: %s", w.Body)
+	}
+	if w := serve(s, req(http.MethodPut, "/api/companies/acme%20ai", `{"remove":{"notes":true}}`)); w.Code != http.StatusOK || strings.Contains(w.Body.String(), `"notes"`) {
+		t.Errorf("clear notes = %d %s", w.Code, w.Body)
+	}
+
 	bad := []struct {
 		name, method, path, body string
 		want                     int

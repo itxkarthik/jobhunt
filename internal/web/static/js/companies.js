@@ -4,7 +4,7 @@
 // untrusted text: it reaches the page only through h() and extLink().
 // jobhunt never sends email; a draft is text to copy or a mailto: link
 // that opens the user's own mail client.
-import { api, enc } from "./api.js";
+import { api, enc, token } from "./api.js";
 import { h, icon, corners, extLink, replace, toast, typing } from "./dom.js";
 import { ago, count, date, place } from "./format.js";
 import * as shell from "./shell.js";
@@ -26,6 +26,18 @@ function money(r) {
 function where(c) {
   const p = [c.city, c.country && place(c.country)].filter(Boolean).join(", ");
   return c.remote ? (p ? `${p} · remote` : "remote") : p || "—";
+}
+
+// mailtoFrom rebuilds a mailto: link for the edited draft: the first line
+// "Subject: …" is the subject, the rest the body. The recipient comes from
+// the server's link.
+function mailtoFrom(href, text) {
+  const to = href.split("?")[0];
+  let subject = "";
+  let body = text;
+  const m = /^Subject: ?(.*)\n\n?/.exec(text);
+  if (m) { subject = m[1]; body = text.slice(m[0].length); }
+  return `${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 // mailtoHref accepts only the mailto: links the server builds.
@@ -104,7 +116,7 @@ export async function mount(view, { live = () => true } = {}) {
     if (stage.value) p.set("stages", stage.value);
     if (funded.value) p.set("funded_within", funded.value);
     if (pressed(contact)) p.set("has_contact", "true");
-    if (pressed(jobs)) p.set("jobs", "true");
+    if (pressed(jobs)) p.set("hiring", "any"); // companies with open jobs at any level
     return p.toString();
   }
 
@@ -115,6 +127,7 @@ export async function mount(view, { live = () => true } = {}) {
     try {
       const ps = params();
       list = await api("GET", "/api/companies" + (ps ? `?${ps}` : ""), undefined, c.signal);
+      if (pendingDelete) list = list.filter((x) => x.key !== pendingDelete.key);
       loadError.hidden = true;
       render();
     } catch (err) {
@@ -285,7 +298,11 @@ export async function mount(view, { live = () => true } = {}) {
       text.value = `Subject: ${d.subject}\n\n${d.body}`;
       const href = mailtoHref(d.mailto);
       const mail = href && h("a", { class: "btn btn-secondary" }, icon("mail"), "Open in mail app");
-      if (mail) mail.href = href;
+      if (mail) {
+        mail.href = href;
+        // Open what's in the box now, edits included.
+        mail.addEventListener("click", () => { mail.href = mailtoFrom(href, text.value); });
+      }
       replace(box,
         h("p", { class: "muted" }, d.to
           ? ["To ", h("b", {}, d.to_name ? `${d.to_name} <${d.to}>` : d.to), " · ", extLink(d.source_url, "where they published it")]
@@ -314,40 +331,53 @@ export async function mount(view, { live = () => true } = {}) {
       toast(err.message, { error: true });
     }
   }
-  const saveNotes = (c, notes) => update(c, { notes }, "Notes saved");
+  // An empty notes field means "unchanged" to the API, so clearing says so.
+  const saveNotes = (c, notes) => update(c, notes.trim() ? { notes } : { remove: { notes: true } }, notes.trim() ? "Notes saved" : "Notes cleared");
   const markChecked = (c) => update(c, { checked: true }, "Marked checked");
 
-  async function remove(c) {
-    // No confirm(): it blocks the page. Deleting is undoable from the toast.
-    try {
-      const full = await api("GET", `/api/companies/${enc(c.key)}`);
-      await api("DELETE", `/api/companies/${enc(c.key)}`);
-      closeDrawer();
-      await load();
-      toast(`Deleted ${c.name}`, {
-        action: "Undo", ms: 10000, onAction: async () => {
-          try {
-            await api("PUT", `/api/companies/${enc(c.key)}`, restoreBody(full));
-            await load();
-          } catch (err) { toast(`Couldn't restore: ${err.message}`, { error: true }); }
-        },
-      });
-    } catch (err) {
-      toast(err.message, { error: true });
-    }
+  // Deleting waits while the Undo toast is up: the row disappears at once,
+  // and the DELETE goes out when the toast expires, the view closes or the
+  // page unloads. Undo just cancels it, so nothing has to be recreated
+  // (re-adding boards would need each to pass a live check again).
+  const UNDO_MS = 10000;
+  let pendingDelete = null; // { key, name, timer }
+
+  function remove(c) {
+    flushDelete(); // one pending delete at a time
+    closeDrawer();
+    pendingDelete = { key: c.key, name: c.name, timer: setTimeout(() => flushDelete(), UNDO_MS) };
+    list = list.filter((x) => x.key !== c.key);
+    render();
+    toast(`Deleted ${c.name}`, {
+      action: "Undo", ms: UNDO_MS, onAction: () => {
+        if (pendingDelete?.key !== c.key) return;
+        clearTimeout(pendingDelete.timer);
+        pendingDelete = null;
+        load();
+      },
+    });
   }
 
-  // restoreBody turns a stored record back into an update.
-  function restoreBody(c) {
-    const b = {
-      name: c.name, website: c.website, country: c.country, city: c.city, remote: c.remote,
-      stage: c.stage === "unknown" ? "" : c.stage, headcount: c.headcount === "unknown" ? "" : c.headcount,
-      headcount_source: c.headcount_source, rounds: c.rounds, contacts: c.contacts, tags: c.tags, notes: c.notes,
-      boards: (c.boards || []).map((x) => `${x.ats}:${x.slug}`),
-    };
-    for (const k of Object.keys(b)) if (b[k] == null || b[k] === "" || b[k] === false || (Array.isArray(b[k]) && !b[k].length)) delete b[k];
-    return b;
+  // flushDelete sends the pending DELETE, if any. keepalive lets it finish
+  // while the page unloads.
+  async function flushDelete(keepalive = false) {
+    const p = pendingDelete;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingDelete = null;
+    try {
+      if (keepalive) {
+        fetch(`/api/companies/${enc(p.key)}`, { method: "DELETE", keepalive: true, headers: { Authorization: `Bearer ${token()}` } });
+        return;
+      }
+      await api("DELETE", `/api/companies/${enc(p.key)}`);
+    } catch (err) {
+      toast(`Couldn't delete ${p.name}: ${err.message}`, { error: true });
+      if (live()) load();
+    }
   }
+  const onPageHide = () => flushDelete(true);
+  window.addEventListener("pagehide", onPageHide);
 
   function onKey(e) {
     if (drawer || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -360,6 +390,8 @@ export async function mount(view, { live = () => true } = {}) {
   await load();
 
   return () => {
+    flushDelete();
+    window.removeEventListener("pagehide", onPageHide);
     clearTimeout(debounce);
     ctrl?.abort();
     document.removeEventListener("keydown", onKey);
