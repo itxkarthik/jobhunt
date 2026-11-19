@@ -13,6 +13,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/sources/ats"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
 	"github.com/itxkarthik/jobhunt/internal/sources/hn"
+	"github.com/itxkarthik/jobhunt/internal/sources/mca"
 	"github.com/itxkarthik/jobhunt/internal/sources/sourcetest"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
@@ -159,5 +160,42 @@ func TestImportHN(t *testing.T) {
 	sum, err = ImportHN(ctx, st, src, check, HNOptions{CheckBoards: true}, false)
 	if err != nil || sum.Found != 0 || len(sum.Added)+len(sum.Updated) != 0 || checks != 2 {
 		t.Errorf("repeat: %+v, %v", sum, err)
+	}
+}
+
+func TestImportMCA(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	serve := func(file string) *mca.Client {
+		srv := sourcetest.Serve(t, map[string]string{"/resource/" + mca.Resource: "../sources/mca/testdata/" + file})
+		return &mca.Client{HTTP: sourcetest.Client(), Base: srv.URL, Key: "k"}
+	}
+	o := mca.Options{States: []string{"KA"}, Since: 30 * 24 * time.Hour}
+
+	sum, err := ImportMCA(ctx, st, serve("karnataka.json"), o, false)
+	if err != nil || len(sum.Added) != 2 {
+		t.Fatalf("first: %+v, %v", sum, err)
+	}
+	sum, err = ImportMCA(ctx, st, serve("karnataka.json"), o, false)
+	if err != nil || len(sum.Added)+len(sum.Updated) != 0 {
+		t.Errorf("repeat run re-added: %+v, %v", sum, err)
+	}
+
+	sum, err = ImportMCA(ctx, st, serve("karnataka_later.json"), o, false)
+	if err != nil || len(sum.Added) != 1 || len(sum.Updated) != 1 {
+		t.Fatalf("later: %+v, %v", sum, err)
+	}
+	c, err := FindCompany(ctx, st, "Future Work Labs")
+	if err != nil || !slices.Contains(c.Tags, "capital-increase") || len(c.Rounds) != 0 ||
+		!strings.Contains(c.Notes, "Registered 2026-08-05") || !strings.Contains(c.Notes, "possibly a raise, not confirmed") {
+		t.Errorf("jumped company = %+v, %v", c, err)
+	}
+	// The stored capital moved, so the same data again is quiet.
+	if sum, _ = ImportMCA(ctx, st, serve("karnataka_later.json"), o, false); len(sum.Added)+len(sum.Updated) != 0 {
+		t.Errorf("after the jump: %+v", sum)
 	}
 }

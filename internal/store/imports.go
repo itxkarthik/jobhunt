@@ -54,3 +54,38 @@ func (s *Store) MarkImported(ctx context.Context, source string, items []string,
 	}
 	return tx.Commit()
 }
+
+// ImportedValues returns the items of source with their stored values.
+func (s *Store) ImportedValues(ctx context.Context, source string) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT item, value FROM import_items WHERE source = ?`, source)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var item, value string
+		if err := rows.Scan(&item, &value); err != nil {
+			return nil, err
+		}
+		out[item] = value
+	}
+	return out, rows.Err()
+}
+
+// SetImportValues records items of source with values, replacing earlier ones.
+func (s *Store) SetImportValues(ctx context.Context, source string, values map[string]string, at time.Time) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for it, v := range values {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO import_items (source, item, at, value) VALUES (?, ?, ?, ?)
+			 ON CONFLICT (source, item) DO UPDATE SET value = excluded.value, at = excluded.at`, source, it, at.Unix(), v); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}

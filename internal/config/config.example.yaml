@@ -86,3 +86,10 @@ importers:
     # user_agent: "Your Name you@example.com"   # or JOBHUNT_EDGAR_USER_AGENT
     # industries: [Computers, Telecommunications, Other Technology, Other]
     # all_entities: false   # true keeps LLCs and LPs (mostly funds)
+  mca:
+    # Indian companies registered recently, from the MCA company master
+    # data on data.gov.in (free key: https://www.data.gov.in, "My Account").
+    # Prefer the env var JOBHUNT_DATAGOV_API_KEY to putting the key here.
+    # api_key: ""
+    # states: [KA]          # codes or names, e.g. [KA, MH, TN, DL, TG]
+    # nic: ["62", "63"]     # industry codes: 62 software, 63 information services

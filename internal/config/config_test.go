@@ -19,6 +19,7 @@ func TestLoadFileAndEnv(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", dir)
 	t.Setenv("JOBHUNT_ADZUNA_APP_KEY", "fromenv")
 	t.Setenv("JOBHUNT_EDGAR_USER_AGENT", "Test Runner test@example.com")
+	t.Setenv("JOBHUNT_DATAGOV_API_KEY", "dgkey")
 
 	cfg, err := Load()
 	if err != nil {
@@ -29,6 +30,9 @@ func TestLoadFileAndEnv(t *testing.T) {
 	}
 	if a := cfg.Source("adzuna"); a.AppID != "fromfile" || a.AppKey != "fromenv" || !a.IsEnabled(true) {
 		t.Errorf("adzuna = %+v", a)
+	}
+	if cfg.Importers.MCA.APIKey != "dgkey" {
+		t.Error("JOBHUNT_DATAGOV_API_KEY not applied")
 	}
 	if cfg.Importers.EDGAR.UserAgent != "Test Runner test@example.com" {
 		t.Errorf("edgar user agent = %q", cfg.Importers.EDGAR.UserAgent)

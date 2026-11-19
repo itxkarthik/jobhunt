@@ -42,6 +42,15 @@ type Config struct {
 // Importers configures the company importers.
 type Importers struct {
 	EDGAR EDGAR `yaml:"edgar"`
+	MCA   MCA   `yaml:"mca"`
+}
+
+// MCA configures the Indian company master data importer. It stays off
+// until APIKey is set (a free key from data.gov.in).
+type MCA struct {
+	APIKey string   `yaml:"api_key,omitempty"` // or JOBHUNT_DATAGOV_API_KEY
+	States []string `yaml:"states,omitempty"`  // codes or names; default KA
+	NIC    []string `yaml:"nic,omitempty"`     // industry code prefixes; default 62, 63
 }
 
 // EDGAR configures the SEC Form D importer. It stays off until UserAgent
@@ -204,6 +213,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("JOBHUNT_WEBHOOK_SECRET"); v != "" {
 		cfg.Feed.WebhookSecret = v
+	}
+	if v := os.Getenv("JOBHUNT_DATAGOV_API_KEY"); v != "" {
+		cfg.Importers.MCA.APIKey = v
 	}
 	if v := os.Getenv("JOBHUNT_EDGAR_USER_AGENT"); v != "" {
 		cfg.Importers.EDGAR.UserAgent = v

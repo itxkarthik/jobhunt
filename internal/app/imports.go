@@ -14,6 +14,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/sources/ats"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
 	"github.com/itxkarthik/jobhunt/internal/sources/hn"
+	"github.com/itxkarthik/jobhunt/internal/sources/mca"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
 
@@ -189,4 +190,67 @@ func liveBoards(ctx context.Context, st *store.Store, c model.Company, check Boa
 		}
 	}
 	return keep
+}
+
+// MCAClient builds the MCA reader from config, or explains what is missing.
+func (a *App) MCAClient() (*mca.Client, error) {
+	if a.Config.Importers.MCA.APIKey == "" {
+		return nil, mca.ErrNoKey
+	}
+	return &mca.Client{HTTP: sources.NewClient(a.Config.UserAgent, mca.Rate), Base: mca.Base, Key: a.Config.Importers.MCA.APIKey}, nil
+}
+
+// ImportMCA adds recently registered Indian companies. Each company's
+// paid-up capital is remembered, so a rerun skips companies that haven't
+// changed and flags a large capital jump as a possible raise.
+func ImportMCA(ctx context.Context, st *store.Store, c *mca.Client, o mca.Options, dryRun bool) (*ImportSummary, error) {
+	const src = "mca"
+	values, err := st.ImportedValues(ctx, src)
+	if err != nil {
+		return nil, err
+	}
+	res, runErr := c.Run(ctx, o, func(cin string) (float64, bool) {
+		v, ok := values["cin:"+cin]
+		if !ok {
+			return 0, false
+		}
+		f, _ := strconv.ParseFloat(v, 64)
+		return f, true
+	})
+	sum := &ImportSummary{Source: src, DryRun: dryRun}
+	if res == nil {
+		return sum, runErr
+	}
+	sum.Read, sum.Found, sum.Errors, sum.Complete = res.Read, res.Matched, res.Errors, res.Complete && runErr == nil
+	if dryRun {
+		for _, l := range res.Leads {
+			sum.Added = append(sum.Added, l.Company.Name)
+		}
+		return sum, runErr
+	}
+	cs := make([]model.Company, 0, len(res.Leads))
+	seen := map[string]string{}
+	for _, l := range res.Leads {
+		cs = append(cs, l.Company)
+		seen["cin:"+l.CIN] = l.Value()
+	}
+	if err := saveCompanies(ctx, st, cs, sum); err != nil {
+		return sum, err
+	}
+	for _, l := range res.Leads {
+		if l.Jump {
+			if _, err := AppendNote(ctx, st, l.Company.Name, l.CapitalNote(), src, time.Now()); err != nil && !isInvalid(err) {
+				return sum, err
+			}
+		}
+	}
+	if err := st.SetImportValues(ctx, src, seen, time.Now()); err != nil {
+		return sum, err
+	}
+	return sum, runErr
+}
+
+func isInvalid(err error) bool {
+	_, ok := errors.AsType[*InvalidError](err)
+	return ok
 }

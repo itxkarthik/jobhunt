@@ -12,6 +12,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/sources/edgar"
 	"github.com/itxkarthik/jobhunt/internal/sources/links"
+	"github.com/itxkarthik/jobhunt/internal/sources/mca"
 )
 
 func newCompanyImportCmd() *cobra.Command {
@@ -22,7 +23,7 @@ func newCompanyImportCmd() *cobra.Command {
 Each run only fetches what's new since the last one; --dry-run shows what
 would be added without saving anything.`,
 	}
-	cmd.AddCommand(newImportEDGARCmd(), newImportHNCmd())
+	cmd.AddCommand(newImportEDGARCmd(), newImportHNCmd(), newImportMCACmd())
 	return cmd
 }
 
@@ -141,6 +142,78 @@ reads only new ones.`,
 	fs.BoolVar(&noBoards, "no-boards", false, "don't keep job boards linked in posts (saves one request per new board)")
 	fs.BoolVar(&o.Redo, "redo", false, "read posts already imported again")
 	fs.BoolVar(&dryRun, "dry-run", false, "show what would be added; save nothing and fetch no boards")
+	fs.BoolVar(&asJSON, "json", false, "print the summary as JSON")
+	return cmd
+}
+
+func newImportMCACmd() *cobra.Command {
+	var (
+		since          string
+		o              mca.Options
+		dryRun, asJSON bool
+	)
+	cmd := &cobra.Command{
+		Use:   "mca",
+		Short: "Indian companies registered recently (MCA master data, data.gov.in)",
+		Long: `Reads the Ministry of Corporate Affairs company master data through the
+data.gov.in API and adds active private companies registered recently in
+software and IT industry codes (NIC 62 and 63 by default), with their city
+and state.
+
+The dataset is updated about monthly and lags by a few months, so --since
+counts back from the newest registration in the data, not from today.
+There is no funding data: a company's paid-up capital is remembered, and a
+large jump between imports is tagged capital-increase as a possible raise,
+never as a confirmed round.
+
+Needs a free API key from data.gov.in in importers.mca.api_key or
+JOBHUNT_DATAGOV_API_KEY (never on the command line).`,
+		Example: `  jobhunt companies import mca --state KA,MH,TN --since 90d
+  jobhunt companies import mca --nic 62 --dry-run
+  jobhunt companies --tag capital-increase`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			d, err := app.ParseAge(since)
+			if err != nil {
+				return err
+			}
+			o.Since = d
+			a, err := app.Open()
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			c, err := a.MCAClient()
+			if err != nil {
+				return err
+			}
+			if len(o.States) == 0 {
+				o.States = a.Config.Importers.MCA.States
+			}
+			if len(o.NIC) == 0 {
+				o.NIC = a.Config.Importers.MCA.NIC
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+			defer stop()
+			sum, err := app.ImportMCA(ctx, a.Store, c, o, dryRun)
+			if sum != nil {
+				if asJSON {
+					if jerr := writeJSON(cmd.OutOrStdout(), sum); jerr != nil {
+						return jerr
+					}
+				} else {
+					printImport(cmd.OutOrStdout(), sum, "records", "in the chosen industries")
+				}
+			}
+			return err
+		},
+	}
+	fs := cmd.Flags()
+	fs.StringVar(&since, "since", "90d", "registrations this far back from the newest in the data")
+	fs.StringSliceVar(&o.States, "state", nil, "states as codes or names, e.g. KA,MH,TN (default from config, else KA)")
+	fs.StringSliceVar(&o.NIC, "nic", nil, `industry code prefixes, or "any" (default from config, else 62,63)`)
+	fs.IntVar(&o.MaxRecords, "max-records", 5000, "records read per state at most")
+	fs.BoolVar(&dryRun, "dry-run", false, "show what would be added; save nothing")
 	fs.BoolVar(&asJSON, "json", false, "print the summary as JSON")
 	return cmd
 }
