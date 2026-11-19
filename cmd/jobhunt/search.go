@@ -61,6 +61,20 @@ func (ff *filterFlags) resolve(cmd *cobra.Command, a *app.App) (model.Filters, e
 		if err != nil {
 			return f, err
 		}
+		// A flag you set (even to "any") isn't filled from the profile.
+		set := cmd.Flags().Changed
+		for flag, clear := range map[string]func(){
+			"type":          func() { prof.Types = nil },
+			"experience":    func() { prof.Experience = nil },
+			"area":          func() { prof.Areas = nil },
+			"country":       func() { prof.Countries = nil },
+			"mode":          func() { prof.Modes = nil },
+			"posted-within": func() { prof.PostedWithin = 0 },
+		} {
+			if set(flag) {
+				clear()
+			}
+		}
 		app.FillFromProfile(&f, prof)
 	}
 	return f, app.ApplyProfile(p, &f)
