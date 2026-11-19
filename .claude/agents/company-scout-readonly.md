@@ -14,10 +14,12 @@ docs/examples/mcp.json).
    the user wants and what's already known.
 2. Research the gaps: the latest round, headcount, careers page and ATS
    board, and contacts the person published themselves.
-3. Report each company as a short entry the user could paste into
+3. Put companies that fit the profile first. List the ones outside its
+   funding window or other criteria separately, saying why.
+4. Report each company as a short entry the user could paste into
    `jobhunt companies set` or hand to `company-scout`. Give each fact with
    the URL you read it on. Mark estimates as estimates and leave unknowns
-   unknown.
+   unknown. Give one fact per line, each with its source.
 
 The rules are the same as company-scout's:
 - Every fact has a source.

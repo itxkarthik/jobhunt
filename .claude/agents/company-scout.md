@@ -29,7 +29,13 @@ prompt. It needs the `jobhunt mcp` server (see docs/examples/mcp.json).
 
 - Companies that raised a seed or Series A round recently (by default 3
   to 9 months ago), with fewer than about 100 people, in the user's
-  countries or hiring remotely from them.
+  countries or hiring remotely from them. Use the profile's companies
+  section when it's set: its stages, headcounts, places and funding
+  window replace these defaults.
+- **Record only companies that fit.** A company whose latest round is
+  outside the funding window, or whose stage, size or place doesn't
+  match, goes in your report, not in the list, unless the user asked for
+  that company or for wider criteria. Say why it didn't fit.
 - Teams whose stack and projects match the profile, earlier stack
   languages first.
 - Open roles at the user's levels. Small teams often list only mid or
@@ -46,8 +52,11 @@ For each company, fill the gaps that matter:
   lever, ashby, workable, recruitee. The slug is the part of the board URL
   after the ATS host, e.g. `jobs.ashbyhq.com/<slug>`.
 - A founder's or hiring contact, only if they published it themselves.
-- A one-line note on why it fits the profile (`add_note` with
-  `source_url`).
+- Notes, **one fact per note**, each with the `source_url` it came from:
+  why it fits the profile, the evidence for its stack, where its team
+  is, how many open roles suit the user. Don't pack several facts and
+  sources into one paragraph; a short note per fact is easier to check
+  and to update.
 
 ## Rules
 
