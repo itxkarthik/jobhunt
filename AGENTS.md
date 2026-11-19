@@ -48,6 +48,8 @@ internal/server/    `jobhunt serve`: security middleware, REST API, SSE (docs/ap
 internal/export/    csv/json/md writers
 internal/notify/    notify-send / osascript
 internal/browser/   open http(s) URLs
+internal/mcpserver/ `jobhunt mcp`: tools for agents (docs/examples/mcp.json)
+.claude/agents/     company-scout agent prompts that use `jobhunt mcp`
 ```
 
 ## Hard rules

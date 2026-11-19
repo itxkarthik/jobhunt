@@ -23,6 +23,7 @@ import (
 
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/company"
+	"github.com/itxkarthik/jobhunt/internal/config"
 	"github.com/itxkarthik/jobhunt/internal/feed"
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/search"
@@ -68,6 +69,9 @@ func New(o Options) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "list_companies", Annotations: ro, Description: "The companies list: funded startups and other companies the user watches, " +
 		"newest funding first, with open job counts (jobs seen in searches in the last 14 days). Filter by stage, headcount, country, tags, funding window, contacts or hiring level."}, h.listCompanies)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_company", Annotations: ro, Description: "One company by name, key or key prefix, with its rounds, boards, contacts (each with its source) and open jobs."}, h.getCompany)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_profile", Annotations: ro, Description: "What the user is looking for, from their config: roles and levels, areas, stack in priority order, " +
+		"project keywords, countries, and which companies are worth their time (stage, headcount, countries, cities, remote hiring, funding window). " +
+		"Use it to decide what to research. set is false when there is no profile."}, h.getProfile)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_sources", Annotations: ro, Description: "Job sources with whether each is enabled and ready and its last run. Never includes keys."}, h.listSources)
 	if o.ReadOnly {
 		return s
@@ -479,6 +483,17 @@ type SourceInfo struct {
 type SourcesOutput struct {
 	Sources []SourceInfo `json:"sources"`
 	Boards  int          `json:"boards"`
+}
+
+// ProfileOutput is the user's profile. It holds no secrets.
+type ProfileOutput struct {
+	Set     bool           `json:"set"`
+	Profile config.Profile `json:"profile"`
+}
+
+func (h *handlers) getProfile(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, ProfileOutput, error) {
+	p := h.o.App.Config.Profile
+	return nil, ProfileOutput{Set: !p.IsZero(), Profile: p}, nil
 }
 
 func (h *handlers) listSources(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, SourcesOutput, error) {
