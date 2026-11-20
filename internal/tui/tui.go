@@ -428,7 +428,7 @@ func (m *Model) bodyHeight() int { return max(5, m.height-2) }
 func (m *Model) refreshRows() {
 	_, _, tw := m.widths()
 	inner := tw - 2
-	fixed := []int{1, 3, 16, 12, 4, 9} // ★ score company loc age status
+	fixed := []int{1, 3, 16, 12, 10, 4, 9} // ★ score company loc pay age status
 	used := 0
 	for _, w := range fixed {
 		used += w + 2
@@ -436,7 +436,7 @@ func (m *Model) refreshRows() {
 	title := max(12, inner-used-4)
 	m.table.SetColumns([]table.Column{
 		{Title: "", Width: 1}, {Title: "Scr", Width: 3}, {Title: "Title", Width: title},
-		{Title: "Company", Width: 16}, {Title: "Location", Width: 12}, {Title: "Age", Width: 4},
+		{Title: "Company", Width: 16}, {Title: "Location", Width: 12}, {Title: "Pay", Width: 10}, {Title: "Age", Width: 4},
 		{Title: "Status", Width: 9},
 	})
 	now := time.Now()
@@ -447,7 +447,7 @@ func (m *Model) refreshRows() {
 			star = "★"
 		}
 		rows[i] = table.Row{star, fmt.Sprintf("%.0f", j.Score), trunc(j.Title, title), trunc(j.Company, 16),
-			trunc(location(&j), 12), app.Since(j.PostedAt, now), string(m.statuses[j.Key])}
+			trunc(location(&j), 12), trunc(j.Pay(), 10), app.Since(j.PostedAt, now), string(m.statuses[j.Key])}
 	}
 	m.table.SetRows(rows)
 	if c := m.table.Cursor(); c < 0 || c >= len(rows) {
@@ -480,7 +480,7 @@ func (m *Model) updateDetail() {
 	row("Type", string(j.JobType))
 	row("Level", string(j.Experience))
 	row("Areas", joinAreas(j.Areas))
-	row("Salary", salary(j))
+	row("Pay", j.Pay())
 	if j.VisaSponsorship != nil {
 		row("Visa", map[bool]string{true: "sponsors", false: "no sponsorship"}[*j.VisaSponsorship])
 	}
@@ -645,19 +645,6 @@ func location(j *model.Job) string {
 	default:
 		return strings.Join(j.Countries, ",")
 	}
-}
-
-func salary(j *model.Job) string {
-	if j.SalaryMin == nil && j.SalaryMax == nil {
-		return ""
-	}
-	f := func(p *float64) string {
-		if p == nil || *p == 0 {
-			return "?"
-		}
-		return fmt.Sprintf("%.0f", *p)
-	}
-	return strings.TrimSpace(fmt.Sprintf("%s–%s %s", f(j.SalaryMin), f(j.SalaryMax), j.Currency))
 }
 
 func joinAreas(as []model.Area) string {

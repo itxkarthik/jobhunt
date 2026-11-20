@@ -70,7 +70,9 @@ type trackedOut struct {
 	CreatedAt time.Time    `json:"created_at"`
 	UpdatedAt time.Time    `json:"updated_at"`
 	AppliedAt time.Time    `json:"applied_at,omitzero"`
-	Job       *model.Job   `json:"job,omitempty"` // absent once the job left the cache
+	ListedAt  time.Time    `json:"listed_at,omitzero"` // when the posting last showed up in fetched results
+	Unlisted  bool         `json:"unlisted,omitempty"` // not listed for 14 days: probably closed
+	Job       *model.Job   `json:"job,omitempty"`      // absent once the job left the cache
 }
 
 type eventOut struct {
@@ -324,6 +326,7 @@ func trackedOf(t store.Tracked) trackedOut {
 	return trackedOut{
 		Key: t.Key, Status: t.Status, Notes: t.Notes, CreatedAt: t.CreatedAt.UTC(),
 		UpdatedAt: t.UpdatedAt.UTC(), AppliedAt: t.AppliedAt.UTC(), Job: t.Job,
+		ListedAt: t.ListedAt.UTC(), Unlisted: t.Unlisted(time.Now()),
 	}
 }
 

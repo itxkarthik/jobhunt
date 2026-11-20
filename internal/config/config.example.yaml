@@ -109,6 +109,7 @@ importers:
 #   min_score: 50                           # the digest leaves out lower scores
 #   skip_requires_experience: true          # postings asking for prior work or internships
 #   skip_onsite_abroad: true                # onsite/hybrid roles not in your countries
+#   skip_unpaid: true                       # postings that say they're unpaid
 #   companies:
 #     stages: [seed, series-a]
 #     headcounts: [1-10, 11-50, 51-200]

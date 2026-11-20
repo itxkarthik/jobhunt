@@ -174,3 +174,41 @@ func TestRequiresExperience(t *testing.T) {
 		}
 	}
 }
+
+// Pay phrases as real postings write them, and amounts that aren't pay.
+func TestPay(t *testing.T) {
+	c := Default()
+	tests := []struct{ title, desc, want string }{
+		{"PPC Intern", "Shift: 11 am – 8 pm. Stipend: ₹12,000/month. Duration: 6 months.", "₹12k/mo"},
+		{"Content Intern", "Performance-based stipend of₹5,000 – ₹8,000 per month.", "₹5k–8k/mo"},
+		{"Apprentice", "Monday to Friday. Monthly stipend: 32,000. Location: remote.", "32k/mo"},
+		{"Backend Intern", "Stipend: ranges between 20,000 to 30,000 per month based on interview performance.", "20k–30k/mo"},
+		{"Sales Manager", "Location: Gurgaon. CTC upto 15 LPA.", "₹15L/yr"},
+		{"Data Intern", "The base pay range for this opportunity in the U.S. is $35.34 - $41.20 per hour.", "$35.34–41.20/hr"},
+		{"Engineer", "The annual base salary range for this role is: $180,000—$270,000 USD.", "$180k–270k/yr"},
+		{"Engineer", "The estimated annual cash salary for this role is CAD $123,750 - CAD $165,000.", "CAD 124k–165k/yr"},
+		{"Fellow", "Weekly stipend of 3,850 USD / 2,310 GBP / 4,300 CAD + benefits.", "$3.9k/wk"},
+		{"Shift Lead", "Benefits: 401k match, gym membership reimbursement (up to $75/month).", ""},
+		{"Engineer", "We offer a learning stipend of $1,500 per year and great snacks.", ""},
+		{"Engineer", "Typical deals will be $20k to $100k. Unpaid leave is available.", ""},
+		{"Social Media Intern", "This internship is unpaid.", "unpaid"},
+		{"HR Intern", "3 months full-time internship without stipend.", "unpaid"},
+		{"SDE Intern", "Is it a paid/unpaid internship? It is a paid internship.", "paid"},
+		{"Research Intern", "A monthly stipend will be paid.", "paid"},
+		{"Backend Intern (Unpaid)", "Build APIs in Go.", "unpaid"},
+		{"Engineer", "Salary: $100–150k/year, plus equity.", "$100k–150k/yr"},
+		{"Engineer", "A monthly stipend will be paid.", ""}, // only internships say "paid" without an amount
+	}
+	for _, tt := range tests {
+		j := model.Job{Title: tt.title, Description: tt.desc}
+		c.Classify(&j)
+		if got := j.Pay(); got != tt.want {
+			t.Errorf("%q: pay %q, want %q", tt.desc, got, tt.want)
+		}
+	}
+	// A source's own pay wins over the description.
+	j := model.Job{Title: "Intern", Description: "This internship is unpaid.", SalaryMin: new(40.0), Currency: "USD", PayPeriod: model.PerHour}
+	if c.Classify(&j); j.Pay() != "$40/hr" {
+		t.Errorf("source pay replaced: %q", j.Pay())
+	}
+}

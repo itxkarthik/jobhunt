@@ -131,8 +131,39 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		if err := e.track(ctx, res, now); err != nil {
 			return nil, err
 		}
+		if err := e.listed(ctx, all, res.Jobs, reports, now); err != nil {
+			return nil, fmt.Errorf("record listed jobs: %w", err)
+		}
+		_ = e.Store.PruneDaily(ctx, now) // housekeeping: a failure must not fail the search
 	}
 	return res, nil
+}
+
+// listed records which tracked jobs showed up in this search's fetched
+// results, before filtering: a posting that matched by URL, or by key after
+// merging. Only sources that answered count: a failed source's stale
+// fallback says nothing about whether a posting is still open.
+func (e *Engine) listed(ctx context.Context, all, merged []model.Job, reports []Report, now time.Time) error {
+	keys, byURL, err := e.Store.TrackedKeys(ctx)
+	if err != nil || len(keys) == 0 {
+		return err
+	}
+	answered := map[string]bool{}
+	for _, r := range reports {
+		answered[r.Source] = r.Status == StatusOK || r.Status == StatusCached
+	}
+	var found []string
+	for i := range all {
+		if k, ok := byURL[all[i].URL]; ok && answered[all[i].Source] {
+			found = append(found, k)
+		}
+	}
+	for i := range merged {
+		if keys[merged[i].Key] && slices.ContainsFunc(merged[i].Sources, func(s string) bool { return answered[s] }) {
+			found = append(found, merged[i].Key)
+		}
+	}
+	return e.Store.MarkListed(ctx, found, now)
 }
 
 // byCompany keeps jobs at companies on the companies list whose stage and
@@ -239,7 +270,7 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 		r.Status, r.Err = StatusError, errMessage(err, timeout)
 		// Serve stale cache rather than nothing.
 		if e.Store != nil {
-			if stale, ok, _ := e.Store.CachedJobs(ctx, r.Source, key, 30*24*time.Hour); ok {
+			if stale, ok, _ := e.Store.CachedJobs(ctx, r.Source, key, store.StaleCache); ok {
 				r.Err += fmt.Sprintf(" (showing %d stale cached results)", len(stale.Jobs))
 				r.Count = len(stale.Jobs)
 				return r, e.fromCache(ctx, r.Source, key, stale)

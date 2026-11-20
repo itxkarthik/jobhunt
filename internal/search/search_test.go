@@ -142,20 +142,25 @@ func TestFilter(t *testing.T) {
 		mk("Backend Engineer", "Chennai", model.ModeOnsite, time.Hour),           // 6 type unknown
 		mk("Backend Intern", "", model.ModeRemote, time.Hour),                    // 7 no location
 	}
+	unpaid := job("x", "Backend Intern", "Kochi") // 8
+	unpaid.WorkMode, unpaid.PostedAt, unpaid.Description = model.ModeOnsite, now, "This internship is unpaid."
+	c.Classify(&unpaid)
+	jobs = append(jobs, unpaid)
 	base := model.Filters{Countries: []string{"IN"}, Types: []model.JobType{model.TypeInternship}, Areas: []model.Area{model.AreaBackend}}
 	tests := []struct {
 		name string
 		mod  func(*model.Filters)
 		want []int
 	}{
-		{"default", func(*model.Filters) {}, []int{0, 1, 4, 5}},
-		{"strict country", func(f *model.Filters) { f.StrictCountry = true }, []int{0, 4, 5}},
+		{"default", func(*model.Filters) {}, []int{0, 1, 4, 5, 8}},
+		{"paid only", func(f *model.Filters) { f.PaidOnly = true }, []int{0, 1, 4, 5}},
+		{"strict country", func(f *model.Filters) { f.StrictCountry = true }, []int{0, 4, 5, 8}},
 		{"remote only", func(f *model.Filters) { f.Modes = []model.WorkMode{model.ModeRemote} }, []int{1}},
-		{"posted within 7d", func(f *model.Filters) { f.PostedWithin = 7 * 24 * time.Hour }, []int{0, 1, 5}},
-		{"include unknown", func(f *model.Filters) { f.IncludeUnknown = true }, []int{0, 1, 4, 5, 6, 7}},
+		{"posted within 7d", func(f *model.Filters) { f.PostedWithin = 7 * 24 * time.Hour }, []int{0, 1, 5, 8}},
+		{"include unknown", func(f *model.Filters) { f.IncludeUnknown = true }, []int{0, 1, 4, 5, 6, 7, 8}},
 		{"remote-global", func(f *model.Filters) { f.Countries = []string{model.RemoteGlobal} }, []int{1}},
 		{"keywords", func(f *model.Filters) { f.Keywords = []string{"software"} }, []int{5}},
-		{"exclude", func(f *model.Filters) { f.Exclude = []string{"software"} }, []int{0, 1, 4}},
+		{"exclude", func(f *model.Filters) { f.Exclude = []string{"software"} }, []int{0, 1, 4, 8}},
 	}
 	for _, tt := range tests {
 		f := base

@@ -34,6 +34,7 @@ func (ff *filterFlags) register(cmd *cobra.Command) {
 	fs.StringSliceVarP(&ff.in.Experience, "experience", "e", nil, "experience: intern,entry,mid,senior")
 	fs.StringVar(&ff.in.PostedWithin, "posted-within", "", "only jobs posted within 24h, 3d, 7d, 30d")
 	fs.BoolVar(&ff.in.Visa, "visa", false, "only jobs that mention visa sponsorship")
+	fs.BoolVar(&ff.in.PaidOnly, "paid-only", false, "drop jobs and internships that say they're unpaid")
 	fs.Float64Var(&ff.in.MinSalary, "min-salary", 0, "minimum advertised salary (annual, in --currency)")
 	fs.StringVar(&ff.in.Currency, "currency", "", "currency for --min-salary, e.g. INR, USD")
 	fs.BoolVar(&ff.in.StrictCountry, "strict-country", false, "exclude remote jobs that are open worldwide/regionally rather than to the country itself")
@@ -108,6 +109,7 @@ func (ff *filterFlags) resolveBase(cmd *cobra.Command, a *app.App) (model.Filter
 		{"experience", func() { base.Experience = f.Experience }},
 		{"posted-within", func() { base.PostedWithin = f.PostedWithin }},
 		{"visa", func() { base.VisaOnly = f.VisaOnly }},
+		{"paid-only", func() { base.PaidOnly = f.PaidOnly }},
 		{"min-salary", func() { base.MinSalary = f.MinSalary }},
 		{"currency", func() { base.Currency = f.Currency }},
 		{"strict-country", func() { base.StrictCountry = f.StrictCountry }},
@@ -199,16 +201,16 @@ func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
 		fmt.Fprintln(w, "No matching jobs.")
 	} else {
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "#\tSCORE\tKEY\tAGE\tTITLE\tCOMPANY\tLOCATION\tMODE\tTYPE\tAREAS\tSOURCE\tURL")
+		fmt.Fprintln(tw, "#\tSCORE\tKEY\tAGE\tTITLE\tCOMPANY\tLOCATION\tMODE\tTYPE\tPAY\tAREAS\tSOURCE\tURL")
 		for i, j := range jobs[:shown] {
 			loc := location(&j)
 			mark := ""
 			if j.New {
 				mark = "★"
 			}
-			fmt.Fprintf(tw, "%d%s\t%.0f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			fmt.Fprintf(tw, "%d%s\t%.0f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				i+1, mark, j.Score, j.Key, app.Since(j.PostedAt, now), trunc(j.Title, 48), trunc(j.Company, 22), trunc(loc, 22),
-				j.WorkMode, j.JobType, trunc(joinAreas(j.Areas), 20), strings.Join(j.Sources, ","), j.URL)
+				j.WorkMode, j.JobType, trunc(j.Pay(), 18), trunc(joinAreas(j.Areas), 20), strings.Join(j.Sources, ","), j.URL)
 		}
 		tw.Flush()
 	}

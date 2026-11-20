@@ -36,13 +36,34 @@ export function location(job) {
   return job.location || job.city || (job.countries || []).map(place).join(", ") || "unknown";
 }
 
-export function salary(job) {
-  if (job.salary_min == null && job.salary_max == null) return "";
-  const n = (v) => (v == null ? "?" : Math.round(v).toLocaleString());
-  const range = job.salary_min === job.salary_max || job.salary_max == null
-    ? n(job.salary_min ?? job.salary_max)
-    : `${n(job.salary_min)}–${n(job.salary_max)}`;
-  return job.currency ? `${range} ${job.currency}` : range;
+const SIGNS = { INR: "₹", USD: "$", EUR: "€", GBP: "£", JPY: "¥" };
+const PER = { year: "/yr", month: "/mo", week: "/wk", day: "/day", hour: "/hr" };
+
+// compact writes 15000 as "15k", 1500000 as "1.5M", and lakhs for rupees
+// ("12L"), as model.Job.Pay does.
+function compact(v, inr) {
+  let unit = "", div = 1;
+  if (inr && v >= 1e7) [unit, div] = ["Cr", 1e7];
+  else if (inr && v >= 1e5) [unit, div] = ["L", 1e5];
+  else if (v >= 1e6) [unit, div] = ["M", 1e6];
+  else if (v >= 1e3) [unit, div] = ["k", 1e3];
+  const n = v / div;
+  let prec = n < 100 && Math.abs(n - Math.round(n)) >= 0.05 ? 1 : 0;
+  if (div === 1 && n < 100 && n !== Math.trunc(n) && Math.abs(n * 100 - Math.round(n * 100)) < 1e-6) prec = 2;
+  return n.toFixed(prec) + unit;
+}
+
+// pay is a job's pay, like "₹15k–20k/mo", "$40/hr", "unpaid" or "paid";
+// "" when the posting doesn't say. It matches model.Job.Pay.
+export function pay(job) {
+  let lo = job.salary_min, hi = job.salary_max;
+  if (lo == null && hi == null) return job.paid === true ? "paid" : job.paid === false ? "unpaid" : "";
+  if (lo == null || (hi != null && lo === 0)) lo = hi;
+  if (hi == null || hi === lo) hi = null;
+  const code = String(job.currency || "").toUpperCase();
+  const sign = SIGNS[code] || (code ? `${code} ` : "");
+  const inr = code === "INR";
+  return `${sign}${compact(lo, inr)}${hi != null ? `–${compact(hi, inr)}` : ""}${PER[job.pay_period || "year"] || "/yr"}`;
 }
 
 export function visa(job) {

@@ -19,7 +19,7 @@ import (
 
 // sanitizeVersion changes whenever sources.SanitizeJob does, so cached
 // jobs cleaned the old way are cleaned again.
-const sanitizeVersion = "1"
+const sanitizeVersion = "2"
 
 // classResult is what Classify set on one job.
 type classResult struct {
@@ -29,6 +29,12 @@ type classResult struct {
 	Visa  *bool            `json:"v,omitempty"`
 	Areas []model.Area     `json:"a,omitempty"`
 	Tags  []string         `json:"g,omitempty"` // tags Classify added
+	// Pay, which Classify may read from the description.
+	Min      *float64        `json:"lo,omitempty"`
+	Max      *float64        `json:"hi,omitempty"`
+	Currency string          `json:"c,omitempty"`
+	Period   model.PayPeriod `json:"p,omitempty"`
+	Paid     *bool           `json:"pd,omitempty"`
 }
 
 func (e *Engine) prepVersion() string {
@@ -50,7 +56,8 @@ func (e *Engine) prepare(jobs []model.Job) (raw []model.Job, class []byte) {
 	for i := range jobs {
 		j := &jobs[i]
 		res[i] = classResult{Type: j.JobType, Exp: j.Experience, Mode: j.WorkMode, Visa: j.VisaSponsorship,
-			Areas: j.Areas, Tags: j.Tags[len(raw[i].Tags):]}
+			Areas: j.Areas, Tags: j.Tags[len(raw[i].Tags):],
+			Min: j.SalaryMin, Max: j.SalaryMax, Currency: j.Currency, Period: j.PayPeriod, Paid: j.Paid}
 	}
 	class, _ = json.Marshal(res) // can't fail: plain strings, bools and slices
 	return raw, class
@@ -79,6 +86,7 @@ func applyClass(jobs []model.Job, class []byte) bool {
 	for i, r := range res {
 		j := &jobs[i]
 		j.JobType, j.Experience, j.WorkMode, j.VisaSponsorship = r.Type, r.Exp, r.Mode, r.Visa
+		j.SalaryMin, j.SalaryMax, j.Currency, j.PayPeriod, j.Paid = r.Min, r.Max, r.Currency, r.Period, r.Paid
 		if len(r.Areas) > 0 {
 			j.Areas = r.Areas
 		}

@@ -3,7 +3,7 @@
 // and a job opens full screen.
 import { api, meta, enc } from "./api.js";
 import { h, icon, corners, replace, extLink, openURL, safeURL, toast, typing } from "./dom.js";
-import { since, dateTime, location, place, salary, visa, statusLabel, count } from "./format.js";
+import { since, dateTime, location, place, pay, visa, statusLabel, count } from "./format.js";
 import * as shell from "./shell.js";
 import * as runlog from "./runlog.js";
 
@@ -16,6 +16,7 @@ const OPTIONS = [
   ["include_unknown", "Include unknown", "Keep jobs whose country, type or area couldn't be worked out"],
   ["strict_country", "Strict country", "Don't count worldwide-remote jobs as matching a country"],
   ["visa", "Visa sponsors", "Only jobs that say they sponsor visas"],
+  ["paid_only", "Paid only", "Drop jobs and internships that say they're unpaid"],
   ["show_hidden", "Show hidden", "Include jobs you hid"],
 ];
 const FACTORS = {
@@ -503,6 +504,7 @@ export async function mount(view, { live = () => true } = {}) {
         h("div", { class: "job-tags" },
           h("span", { class: "tag tag-neutral" }, j.work_mode),
           h("span", { class: "tag tag-neutral" }, j.job_type),
+          pay(j) && h("span", { class: pay(j) === "unpaid" ? "tag tag-outline" : "tag tag-accent", title: "Pay, as the posting states it" }, pay(j)),
           h("span", { class: "tag tag-neutral", title: (j.sources || [j.source]).join(", ") }, (j.sources || [j.source]).join(", ")))),
       h("div", { class: "job-score", title: `Score ${score} of 100` },
         h("span", { class: score >= 75 ? "score high" : "score" }, String(score)),
@@ -585,7 +587,7 @@ export async function mount(view, { live = () => true } = {}) {
       ["Countries", (j.countries || []).map(place).join(", ") || "unknown"],
       ["Source", (j.sources || [j.source]).join(", ")],
     ];
-    if (salary(j)) facts.push(["Salary", salary(j)]);
+    if (pay(j)) facts.push(["Pay", pay(j)]);
     const parts = j.score_parts || [];
     const paras = String(j.description || "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const tags = [...new Set([...(j.areas || []), ...(j.tags || [])])];
@@ -779,7 +781,7 @@ export async function mount(view, { live = () => true } = {}) {
     // leaves out means "any", not "the config default".
     const blank = {
       countries: [], modes: [], types: [], areas: [], experience: [], keywords: [], exclude: [], posted_within: "",
-      visa: false, min_salary: 0, currency: "", strict_country: false, include_unknown: false,
+      visa: false, paid_only: false, min_salary: 0, currency: "", strict_country: false, include_unknown: false,
     };
     S.input = fromAPI({ ...blank, ...clone(p.filters), new_only: S.input.new_only, show_hidden: S.input.show_hidden });
     presetName.value = p.name;

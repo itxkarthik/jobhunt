@@ -50,6 +50,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
   "exclude": ["senior"],
   "posted_within": "7d",
   "visa": false,
+  "paid_only": false,
   "min_salary": 0,
   "currency": "INR",
   "strict_country": false,
@@ -58,6 +59,8 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
   "company_headcounts": ["1-10", "11-50"]
 }
 ```
+
+`paid_only` drops jobs that say they're unpaid. `min_salary` is a yearly amount in `currency`; jobs whose pay is monthly or hourly count as unknown for it.
 
 `company_stages` and `company_headcounts` keep only jobs at companies on your companies list (`jobhunt companies`) with those funding stages or sizes; jobs at other companies are dropped. `GET /api/meta` lists the allowed values.
 
@@ -73,7 +76,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | `GET /api/jobs/{key}` | One job, plus its tracker `status` if tracked |
 | `POST /api/jobs/{key}/hide` | Hide a job from future results (`204`) |
 | `DELETE /api/jobs/{key}/hide` | Unhide it (`204`) |
-| `GET /api/tracker[?status=applied,interview]` | Tracked jobs, most recently updated first |
+| `GET /api/tracker[?status=applied,interview]` | Tracked jobs, most recently updated first. `listed_at` is when the posting last showed up in fetched results; `unlisted` is true once that's over 14 days ago, which usually means the company closed it |
 | `PUT /api/tracker/{key}` | `{"status": "applied", "note": "…"}`: set the status, append the note, return the row |
 | `PUT /api/tracker/{key}/notes` | `{"notes": "…"}`: replace the notes (up to 20,000 characters) and return the row. Unlike the `note` above, this isn't added to the history. |
 | `DELETE /api/tracker/{key}` | Stop tracking (`204`; the history is kept) |

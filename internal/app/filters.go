@@ -24,6 +24,7 @@ type FilterInput struct {
 	Exclude        []string `json:"exclude,omitempty"`
 	PostedWithin   string   `json:"posted_within,omitempty"` // 24h, 3d, 7d, 30d
 	Visa           bool     `json:"visa,omitempty"`
+	PaidOnly       bool     `json:"paid_only,omitempty"`
 	MinSalary      float64  `json:"min_salary,omitempty"`
 	Currency       string   `json:"currency,omitempty"`
 	StrictCountry  bool     `json:"strict_country,omitempty"`
@@ -75,7 +76,7 @@ func ParseFilters(d config.Defaults, in FilterInput) (model.Filters, error) {
 	if in.MinSalary < 0 || math.IsNaN(in.MinSalary) || math.IsInf(in.MinSalary, 0) {
 		return f, fmt.Errorf("min salary %v must be a finite number, 0 or more", in.MinSalary)
 	}
-	f.VisaOnly, f.MinSalary = in.Visa, in.MinSalary
+	f.VisaOnly, f.PaidOnly, f.MinSalary = in.Visa, in.PaidOnly, in.MinSalary
 	f.Currency = strings.ToUpper(strings.TrimSpace(in.Currency))
 	f.StrictCountry, f.IncludeUnknown = in.StrictCountry, in.IncludeUnknown
 	if f.CompanyStages, err = parseDefault(in.CompanyStages, nil, known(model.ParseStage, model.StageUnknown)); err != nil {
@@ -102,6 +103,7 @@ func InputOf(f model.Filters) FilterInput {
 		Exclude:        f.Exclude,
 		PostedWithin:   FormatAge(f.PostedWithin),
 		Visa:           f.VisaOnly,
+		PaidOnly:       f.PaidOnly,
 		MinSalary:      f.MinSalary,
 		Currency:       f.Currency,
 		StrictCountry:  f.StrictCountry,

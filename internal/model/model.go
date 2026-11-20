@@ -97,9 +97,11 @@ type Job struct {
 	JobType         JobType    `json:"job_type"`
 	Areas           []Area     `json:"areas,omitempty"`
 	Experience      Experience `json:"experience"`
-	SalaryMin       *float64   `json:"salary_min,omitempty"`
+	SalaryMin       *float64   `json:"salary_min,omitempty"` // per PayPeriod
 	SalaryMax       *float64   `json:"salary_max,omitempty"`
 	Currency        string     `json:"currency,omitempty"`
+	PayPeriod       PayPeriod  `json:"pay_period,omitempty"` // what SalaryMin and SalaryMax are per; empty means a year
+	Paid            *bool      `json:"paid,omitempty"`       // false: unpaid; nil: not stated
 	VisaSponsorship *bool      `json:"visa_sponsorship,omitempty"`
 	PostedAt        time.Time  `json:"posted_at,omitzero"`
 	Description     string     `json:"description,omitempty"`
@@ -138,6 +140,7 @@ type Filters struct {
 	Experience   []Experience  `json:"experience,omitempty" yaml:"experience,omitempty"`
 	PostedWithin time.Duration `json:"posted_within,omitempty" yaml:"posted_within,omitempty"`
 	VisaOnly     bool          `json:"visa_only,omitempty" yaml:"visa_only,omitempty"`
+	PaidOnly     bool          `json:"paid_only,omitempty" yaml:"paid_only,omitempty"` // drop jobs known to be unpaid
 	MinSalary    float64       `json:"min_salary,omitempty" yaml:"min_salary,omitempty"`
 	Currency     string        `json:"currency,omitempty" yaml:"currency,omitempty"`
 

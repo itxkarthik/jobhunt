@@ -70,6 +70,7 @@ func ApplyProfile(p config.Profile, f *model.Filters) error {
 	}
 	f.SkipRequiresExperience = f.SkipRequiresExperience || p.SkipRequiresExperience
 	f.SkipOnsiteAbroad = f.SkipOnsiteAbroad || p.SkipOnsiteAbroad
+	f.PaidOnly = f.PaidOnly || p.SkipUnpaid
 	f.Stack = clean(p.Stack)
 	f.Projects = clean(p.Projects)
 	return nil

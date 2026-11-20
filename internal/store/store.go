@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,6 +102,60 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+const (
+	// StaleCache is how old a cache entry may be and still stand in for a
+	// source that fails; Prune deletes older ones.
+	StaleCache = 30 * 24 * time.Hour
+	// KeepSeen is how long Prune keeps the record of a job that stopped
+	// showing up in results (unless it's tracked).
+	KeepSeen = 90 * 24 * time.Hour
+)
+
+// PruneDaily runs Prune if it hasn't run in the last day, in any process.
+// The check is a read, so most calls take no write lock.
+func (s *Store) PruneDaily(ctx context.Context, now time.Time) error {
+	var last int64
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM meta WHERE key = 'pruned_at'`).Scan(&last)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if now.Sub(time.Unix(last, 0)) < 24*time.Hour {
+		return nil
+	}
+	if err := s.Prune(ctx, now); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO meta (key, value) VALUES ('pruned_at', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`, now.Unix())
+	return err
+}
+
+// Prune deletes what searches no longer use: cache entries older than
+// StaleCache, and stored jobs and seen records not in results for KeepSeen,
+// except tracked ones. A pruned job that comes back counts as new.
+func (s *Store) Prune(ctx context.Context, now time.Time) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	seen := now.Add(-KeepSeen).Unix()
+	for _, q := range []struct {
+		sql string
+		arg int64
+	}{
+		{`DELETE FROM fetch_cache WHERE fetched_at < ?`, now.Add(-StaleCache).Unix()},
+		{`DELETE FROM jobs WHERE key NOT IN (SELECT key FROM tracker)
+		    AND key NOT IN (SELECT key FROM seen WHERE last_seen >= ?)`, seen},
+		{`DELETE FROM seen WHERE last_seen < ? AND key NOT IN (SELECT key FROM tracker)`, seen},
+	} {
+		if _, err := tx.ExecContext(ctx, q.sql, q.arg); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // Cached is a fetch cache entry: a source's jobs for one query, and the
