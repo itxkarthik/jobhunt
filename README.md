@@ -140,6 +140,7 @@ Countries, types, areas and modes left out take the defaults from your config; `
 | `S` / `a` | save to tracker / mark applied |
 | `h` | hide job |
 | `r` | refetch, bypassing the cache |
+| `n` | show only new (★) jobs, or all again; `jobhunt tui --new-only` starts that way |
 | `?` / `q` | help / quit |
 
 ## Web UI
@@ -190,7 +191,7 @@ profile:
 ```
 
 - `jobhunt search --profile` (also `tui`, `feed` and `export`) fills what your flags and preset leave empty from the profile, applies its skips and ranks your stack. Flags win over a preset, and a preset wins over the profile.
-- `jobhunt companies --profile` lists companies that match its `companies` section.
+- `jobhunt companies --profile` lists companies that match its `companies` section. Pass `any` to lift one part of it, e.g. `--headcount any` when most headcounts are still unknown.
 - `jobhunt digest` uses the profile by default. It prints the jobs and companies that are new since the last digest, and nothing when nothing is new. Add `--notify` for a desktop notification and `--webhook` to POST it as JSON (with Markdown included, for Telegram, Slack or Discord bridges). The first digest shows the best of what matches now; later ones only what's new.
 - `jobhunt profile show` prints the profile and checks it.
 
@@ -234,7 +235,7 @@ claude mcp add jobhunt-read-only -- jobhunt mcp --read-only   # read tools only
 
 or copy [`docs/examples/mcp.json`](docs/examples/mcp.json) into your MCP client's config.
 
-- **Read tools:** `search_jobs`, `get_job`, `list_companies`, `get_company`, `get_profile`, `list_sources`.
+- **Read tools:** `search_jobs`, `get_job`, `list_companies`, `get_company`, `get_profile`, `check_fit`, `list_sources`. `check_fit` tells an agent how a company compares with your profile's companies section before it records anything: known mismatches (`misses`) apart from facts still `unknown`. `upsert_company` and `add_board` return the same `fit`.
 - **Write tools:** `upsert_company`, `add_contact`, `add_board`, `track_job`, `add_note`. `--read-only` leaves them out.
 
 Everything an agent sends is validated and sanitized like your own input. Rounds and contacts are refused without a source URL, and no tool returns keys or tokens.
@@ -328,12 +329,12 @@ To target your own companies, copy [`companies.yaml`](internal/sources/ats/compa
    Greenhouse     Himalayas   …   HN Who's Hiring
        └──────────────┬───────────────┘
                       ▼
-   sanitize → classify → filter → dedup → rank → hidden / ★ new
+   sanitize → classify (once per fetch) → filter → dedup → rank → hidden / ★ new
                       ▼
      table │ TUI │ web UI │ export │ feed │ digest │ MCP
 ```
 
-Results are cached in SQLite per source, so repeat searches take under a second. A slow or broken source never breaks the search.
+Results are cached in SQLite per source, already cleaned and classified, so a repeat search takes about half a second. When the classifier's rules change, cached jobs are classified again without refetching. A slow or broken source never breaks the search.
 
 ### Scoring
 
