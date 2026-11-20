@@ -16,29 +16,30 @@ func TestCacheTTL(t *testing.T) {
 	defer s.Close()
 	ctx := context.Background()
 
-	if _, _, ok, err := s.CachedJobs(ctx, "src", "k", time.Hour); err != nil || ok {
+	if _, ok, err := s.CachedJobs(ctx, "src", "k", time.Hour); err != nil || ok {
 		t.Fatalf("empty cache: ok=%v err=%v", ok, err)
 	}
 	want := []model.Job{{ID: "src:1", Title: "Backend Intern", Countries: []string{"IN"}}}
-	if err := s.PutCache(ctx, "src", "k", want); err != nil {
+	if err := s.PutCache(ctx, "src", "k", want, "v1", []byte(`[{}]`)); err != nil {
 		t.Fatal(err)
 	}
-	got, _, ok, err := s.CachedJobs(ctx, "src", "k", time.Hour)
-	if err != nil || !ok || len(got) != 1 || got[0].Title != "Backend Intern" || got[0].Countries[0] != "IN" {
-		t.Fatalf("cache hit: %v %v %v", got, ok, err)
+	got, ok, err := s.CachedJobs(ctx, "src", "k", time.Hour)
+	if err != nil || !ok || len(got.Jobs) != 1 || got.Jobs[0].Title != "Backend Intern" || got.Jobs[0].Countries[0] != "IN" ||
+		got.ClassVersion != "v1" || string(got.Class) != `[{}]` {
+		t.Fatalf("cache hit: %+v %v %v", got, ok, err)
 	}
-	if _, _, ok, _ := s.CachedJobs(ctx, "src", "other", time.Hour); ok {
+	if _, ok, _ := s.CachedJobs(ctx, "src", "other", time.Hour); ok {
 		t.Error("different key should miss")
 	}
-	if _, _, ok, _ := s.CachedJobs(ctx, "src", "k", -time.Second); ok {
+	if _, ok, _ := s.CachedJobs(ctx, "src", "k", -time.Second); ok {
 		t.Error("expired entry should miss")
 	}
-	// Overwrite replaces.
-	if err := s.PutCache(ctx, "src", "k", nil); err != nil {
+	// Redo replaces the jobs and classification but keeps the fetch time.
+	if err := s.RedoCache(ctx, "src", "k", nil, "v2", nil); err != nil {
 		t.Fatal(err)
 	}
-	if got, _, _, _ := s.CachedJobs(ctx, "src", "k", time.Hour); len(got) != 0 {
-		t.Errorf("after overwrite got %d jobs", len(got))
+	if redo, _, _ := s.CachedJobs(ctx, "src", "k", time.Hour); len(redo.Jobs) != 0 || redo.ClassVersion != "v2" || !redo.FetchedAt.Equal(got.FetchedAt) {
+		t.Errorf("after redo: %+v", redo)
 	}
 }
 

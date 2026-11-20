@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -104,39 +103,76 @@ func (s *Store) migrate(ctx context.Context) error {
 	return nil
 }
 
-// CachedJobs returns jobs cached for (source, key) if fetched within ttl.
-func (s *Store) CachedJobs(ctx context.Context, source, key string, ttl time.Duration) ([]model.Job, time.Time, bool, error) {
-	var at int64
-	var blob []byte
-	err := s.db.QueryRowContext(ctx,
-		`SELECT fetched_at, jobs_json FROM fetch_cache WHERE source = ? AND query_key = ?`,
-		source, key).Scan(&at, &blob)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, time.Time{}, false, nil
-	}
-	if err != nil {
-		return nil, time.Time{}, false, err
-	}
-	fetched := time.Unix(at, 0)
-	if time.Since(fetched) > ttl {
-		return nil, fetched, false, nil
-	}
-	var jobs []model.Job
-	if err := json.Unmarshal(blob, &jobs); err != nil {
-		return nil, fetched, false, nil //nolint:nilerr // a corrupt entry is just a cache miss
-	}
-	return jobs, fetched, true, nil
+// Cached is a fetch cache entry: a source's jobs for one query, and the
+// classification stored with them (see PutCache).
+type Cached struct {
+	Jobs      []model.Job
+	FetchedAt time.Time
+	// ClassVersion and Class are what the caller stored with the jobs;
+	// ClassVersion is "" for entries written before they were stored.
+	ClassVersion string
+	Class        []byte
 }
 
-func (s *Store) PutCache(ctx context.Context, source, key string, jobs []model.Job) error {
+// CachedJobs returns the entry cached for (source, key) if it was fetched
+// within ttl.
+func (s *Store) CachedJobs(ctx context.Context, source, key string, ttl time.Duration) (Cached, bool, error) {
+	var c Cached
+	// Query with RawBytes, not QueryRow: Row.Scan copies a BLOB into a new
+	// slice, and the jobs are tens of MB on the big boards.
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT fetched_at, class_version, class_json, jobs_json FROM fetch_cache WHERE source = ? AND query_key = ?`,
+		source, key)
+	if err != nil {
+		return c, false, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return c, false, rows.Err()
+	}
+	var (
+		at   int64
+		blob sql.RawBytes
+	)
+	if err := rows.Scan(&at, &c.ClassVersion, &c.Class, &blob); err != nil {
+		return c, false, err
+	}
+	c.FetchedAt = time.Unix(at, 0)
+	if time.Since(c.FetchedAt) > ttl {
+		return c, false, nil
+	}
+	if err := json.Unmarshal(blob, &c.Jobs); err != nil {
+		return c, false, nil //nolint:nilerr // a corrupt entry is just a cache miss
+	}
+	return c, true, nil
+}
+
+// PutCache stores jobs fetched now for (source, key), with the caller's
+// classification of them (class, made by classifier version classVersion).
+func (s *Store) PutCache(ctx context.Context, source, key string, jobs []model.Job, classVersion string, class []byte) error {
 	blob, err := json.Marshal(jobs)
 	if err != nil {
 		return err
 	}
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO fetch_cache (source, query_key, fetched_at, jobs_json) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (source, query_key) DO UPDATE SET fetched_at = excluded.fetched_at, jobs_json = excluded.jobs_json`,
-		source, key, time.Now().Unix(), blob)
+		`INSERT INTO fetch_cache (source, query_key, fetched_at, jobs_json, class_version, class_json) VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (source, query_key) DO UPDATE SET fetched_at = excluded.fetched_at, jobs_json = excluded.jobs_json,
+		   class_version = excluded.class_version, class_json = excluded.class_json`,
+		source, key, time.Now().Unix(), blob, classVersion, class)
+	return err
+}
+
+// RedoCache replaces an entry's jobs and classification, e.g. after the
+// classifier's rules changed, keeping its fetch time so the entry still
+// expires when it would have.
+func (s *Store) RedoCache(ctx context.Context, source, key string, jobs []model.Job, classVersion string, class []byte) error {
+	blob, err := json.Marshal(jobs)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx,
+		`UPDATE fetch_cache SET jobs_json = ?, class_version = ?, class_json = ? WHERE source = ? AND query_key = ?`,
+		blob, classVersion, class, source, key)
 	return err
 }
 
