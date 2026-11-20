@@ -85,6 +85,7 @@ type Classifier struct {
 	reqExpYes    matcher
 	reqExpNo     matcher
 	unpaid       matcher
+	unpaidTitle  matcher
 	paid         matcher
 	eitherPaid   matcher
 	payWord      matcher
@@ -101,7 +102,7 @@ type Classifier struct {
 
 // logicVersion changes whenever Classify's code changes what it decides
 // for the same rules, so results cached under the old logic are redone.
-const logicVersion = "2"
+const logicVersion = "3"
 
 // Version identifies the classifier's rules and logic: two classifiers
 // with the same Version classify every job the same way.
@@ -152,6 +153,7 @@ func FromYAML(b []byte) (*Classifier, error) {
 	c.reqExpYes = c.compile(r.RequiresExperience["yes"])
 	c.reqExpNo = c.compile(r.RequiresExperience["no"])
 	c.unpaid = c.compile(r.Pay["unpaid"])
+	c.unpaidTitle = c.compile(r.Pay["title_unpaid"])
 	c.paid = c.compile(r.Pay["paid"])
 	c.eitherPaid = c.compile(r.Pay["either"])
 	c.payWord = c.compile(r.Pay["words"])
@@ -221,7 +223,7 @@ func (c *Classifier) Classify(j *model.Job) {
 
 	j.JobType = c.jobType(j.JobType, title)
 	if !j.HasSalary() && j.Paid == nil {
-		c.pay(j, desc, lowerDesc)
+		c.pay(j, title, desc, lowerDesc)
 	}
 	j.Experience = c.experienceLevel(j.Experience, j.JobType, title, lowerDesc)
 	j.WorkMode = c.workMode(j.WorkMode, title, loc, desc)

@@ -195,6 +195,8 @@ func TestPay(t *testing.T) {
 		{"HR Intern", "3 months full-time internship without stipend.", "unpaid"},
 		{"SDE Intern", "Is it a paid/unpaid internship? It is a paid internship.", "paid"},
 		{"Research Intern", "A monthly stipend will be paid.", "paid"},
+		{"Backend Intern (Unpaid)", "Build APIs in Go.", "unpaid"},
+		{"Engineer", "Salary: $100–150k/year, plus equity.", "$100k–150k/yr"},
 		{"Engineer", "A monthly stipend will be paid.", ""}, // only internships say "paid" without an amount
 	}
 	for _, tt := range tests {

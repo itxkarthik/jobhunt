@@ -69,9 +69,14 @@ type hint struct {
 	text string
 }
 
-// pay fills in j's pay from its description: an amount, or failing that
-// whether it's unpaid, or (for internships) paid.
-func (c *Classifier) pay(j *model.Job, desc marks, lower string) {
+// pay fills in j's pay: unpaid if the title says so, else an amount from
+// the description, or failing that whether it's unpaid, or (for
+// internships) paid.
+func (c *Classifier) pay(j *model.Job, title, desc marks, lower string) {
+	if (c.unpaidTitle.any(title) || c.unpaid.any(title)) && !c.eitherPaid.any(title) {
+		j.Paid = new(false)
+		return
+	}
 	if c.payWord.any(desc) {
 		var words []string
 		for _, h := range c.amountHints {
@@ -191,7 +196,7 @@ func payIn(lower string, at int, win string) (pay, bool) {
 		if c := sub(win, m, 8); c != "" {
 			cur = currency(c)
 		}
-		lo, hi := multiply(num(win, m, 3), sub(win, m, 4)), multiply(num(win, m, 6), sub(win, m, 7))
+		lo, hi := bounds(win, m, 3, 6)
 		if p, good := makePay(lo, hi, cur, model.ParsePayPeriod(sub(win, m, 1)), false); good {
 			return p, true
 		}
@@ -205,10 +210,7 @@ func payIn(lower string, at int, win string) (pay, bool) {
 			if c := sub(win, m, 7); c != "" {
 				cur = currency(c)
 			}
-			lo, hi := multiply(num(win, m, 2), sub(win, m, 3)), multiply(num(win, m, 5), sub(win, m, 6))
-			if hi != nil && sub(win, m, 6) == "" && sub(win, m, 3) != "" {
-				hi = multiply(hi, sub(win, m, 3)) // "$40-50k": the k covers both
-			}
+			lo, hi := bounds(win, m, 2, 5)
 			per := model.ParsePayPeriod(sub(win, m, 8) + sub(win, m, 9))
 			ranged := false
 			if per == "" {
@@ -224,7 +226,7 @@ func payIn(lower string, at int, win string) (pay, bool) {
 	}
 	if bare {
 		if m := bareRe.FindStringSubmatchIndex(win); ok(m) {
-			lo, hi := multiply(num(win, m, 1), sub(win, m, 2)), multiply(num(win, m, 3), sub(win, m, 4))
+			lo, hi := bounds(win, m, 1, 3)
 			if lo != nil && *lo >= 1000 {
 				if p, good := makePay(lo, hi, "", model.ParsePayPeriod(sub(win, m, 5)), false); good {
 					return p, true
@@ -234,7 +236,7 @@ func payIn(lower string, at int, win string) (pay, bool) {
 	}
 	if code {
 		if m := amountAfterRe.FindStringSubmatchIndex(win); ok(m) {
-			lo, hi := multiply(num(win, m, 1), sub(win, m, 2)), multiply(num(win, m, 3), sub(win, m, 4))
+			lo, hi := bounds(win, m, 1, 3)
 			if p, good := makePay(lo, hi, currency(sub(win, m, 5)), model.ParsePayPeriod(sub(win, m, 6)+sub(win, m, 7)), false); good {
 				return p, true
 			}
@@ -337,6 +339,22 @@ func scale(v *float64, by float64) *float64 {
 		return nil
 	}
 	return new(*v * by)
+}
+
+// bounds reads a range's two amounts, each followed by its unit group (k,
+// lakh). A unit written once covers both ends: "$100–150k" is 100k–150k
+// and "₹4–6 lakh" 4–6 lakh.
+func bounds(s string, m []int, lo, hi int) (*float64, *float64) {
+	a, b := num(s, m, lo), num(s, m, hi)
+	ua, ub := sub(s, m, lo+1), sub(s, m, hi+1)
+	if a != nil && b != nil && *a <= *b {
+		if ua == "" {
+			ua = ub
+		} else if ub == "" {
+			ub = ua
+		}
+	}
+	return multiply(a, ua), multiply(b, ub)
 }
 
 func multiply(v *float64, unit string) *float64 {
