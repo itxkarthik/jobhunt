@@ -229,7 +229,14 @@ func (s *Server) runSearch(ctx context.Context, f model.Filters, o SearchOptions
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	defer func() { <-s.searching }()
+	defer func() {
+		// A search holds a few hundred MB that Go would keep for a while
+		// after it's freed. Hand it back to the OS once searches pause,
+		// after the response has been written. Reset while holding the
+		// slot, so only one search touches the timer at a time.
+		s.release.Reset(2 * time.Second)
+		<-s.searching
+	}()
 	return s.opts.Search(ctx, f, o, progress)
 }
 

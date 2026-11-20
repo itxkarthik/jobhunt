@@ -4,7 +4,9 @@
 package classify
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"regexp"
@@ -88,7 +90,16 @@ type Classifier struct {
 	generic      matcher
 	GenericAreas []model.Area
 	lex          *TermSet
+	version      string
 }
+
+// logicVersion changes whenever Classify's code changes what it decides
+// for the same rules, so results cached under the old logic are redone.
+const logicVersion = "1"
+
+// Version identifies the classifier's rules and logic: two classifiers
+// with the same Version classify every job the same way.
+func (c *Classifier) Version() string { return c.version }
 
 type areaRule struct {
 	area model.Area
@@ -128,6 +139,8 @@ func FromYAML(b []byte) (*Classifier, error) {
 		minDescHits: r.MinDescriptionHits,
 		lex:         NewTermSet(nil),
 	}
+	sum := sha256.Sum256(append([]byte(logicVersion+"\n"), b...))
+	c.version = hex.EncodeToString(sum[:8])
 	c.visaYes = c.compile(r.Visa["yes"])
 	c.visaNo = c.compile(r.Visa["no"])
 	c.reqExpYes = c.compile(r.RequiresExperience["yes"])

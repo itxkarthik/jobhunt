@@ -78,9 +78,9 @@ searches in the last 14 days.`,
 		RunE: list,
 	}
 	fs := cmd.Flags()
-	fs.StringSliceVar(&q.Stages, "stage", nil, "funding stages: "+joinStr(strs(model.AllStages)))
-	fs.StringSliceVar(&q.Headcounts, "headcount", nil, "headcount buckets: "+joinStr(strs(model.AllHeadcounts)))
-	fs.StringSliceVarP(&q.Countries, "country", "c", nil, "where the company is based, e.g. IN,US")
+	fs.StringSliceVar(&q.Stages, "stage", nil, "funding stages: "+joinStr(strs(model.AllStages))+", or any")
+	fs.StringSliceVar(&q.Headcounts, "headcount", nil, "headcount buckets: "+joinStr(strs(model.AllHeadcounts))+", or any")
+	fs.StringSliceVarP(&q.Countries, "country", "c", nil, "where the company is based, e.g. IN,US, or any")
 	fs.StringSliceVar(&q.Tags, "tag", nil, "only companies with all of these tags")
 	fs.StringVar(&q.FundedWithin, "funded-within", "", "latest round raised at most this long ago, e.g. 270d")
 	fs.StringVar(&q.FundedBefore, "funded-before", "", "latest round raised at least this long ago, e.g. 90d")
@@ -90,7 +90,7 @@ searches in the last 14 days.`,
 	fs.IntVar(&q.Limit, "limit", 0, "show at most this many (0 = all)")
 	fs.BoolVar(&asJSON, "json", false, "print JSON")
 	fs.BoolVar(&showJobs, "jobs", false, "with --json, include each company's open jobs")
-	fs.StringSliceVar(&q.Cities, "city", nil, "only companies in these cities (with --country)")
+	fs.StringSliceVar(&q.Cities, "city", nil, "only companies in these cities (with --country), or any")
 	fs.BoolVar(&q.RemoteOK, "remote-ok", false, "also companies that hire remotely, wherever they're based")
 	fs.BoolVar(&withProfile, "profile", false, "apply the companies part of the config profile; flags you pass win")
 

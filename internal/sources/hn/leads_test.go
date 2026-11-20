@@ -124,6 +124,9 @@ func TestLeadName(t *testing.T) {
 		{"Early-stage Startup", ""},
 		{"Software Engineer", ""},
 		{"Senior Backend Engineers", ""},
+		{"SEEKING FREELANCER", ""},
+		{"Head of Global GTM + Regional Sales Partners", ""},
+		{"New Product", ""},
 	}
 	for _, tt := range tests {
 		got, ok := leadName(tt.in)
@@ -143,9 +146,20 @@ func TestSeekerPostsSkipped(t *testing.T) {
 		"Willing to relocate: no<p>a@b.io",
 		"SEEKING FREELANCE | Go developer | Remote<p>me@gmail.com",
 		"Backend dev for hire | Remote<p>me@gmail.com",
+		// A person's name where the company goes; only the body tells.
+		"Asha Rao | Backend Engineer | India (REMOTE)<p>I'm a backend engineer; my projects were well tested.<p>- Portfolio: https://asha.vercel.app<p>I'm currently looking for backend roles.",
 	} {
-		if l, ok := lead(item{ID: 1, Author: "x", Text: text}); ok {
+		post := item{ID: 1, Author: "x", Text: text}
+		if l, ok := lead(post); ok {
 			t.Errorf("seeker post imported: %+v", l.Company)
 		}
+		if jobs := parse(item{Children: []item{post}}); len(jobs) != 0 {
+			t.Errorf("seeker post listed as a job: %+v", jobs[0])
+		}
+	}
+	// A founder writing "I'm looking for" is still a company hiring.
+	founder := "Acme | Backend Engineer | Bengaluru<p>I'm looking for a backend engineer. We're 6 people.<p>Portfolio: not needed"
+	if _, ok := lead(item{ID: 2, Author: "x", Text: founder}); !ok {
+		t.Error("founder post skipped")
 	}
 }

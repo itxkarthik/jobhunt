@@ -20,7 +20,7 @@ func newMCPCmd() *cobra.Command {
 		Long: `mcp runs a Model Context Protocol server on stdin and stdout, for an
 agent host such as Claude Code to start. It opens no network port.
 
-Read tools: search_jobs, get_job, list_companies, get_company, get_profile, list_sources.
+Read tools: search_jobs, get_job, list_companies, get_company, get_profile, check_fit, list_sources.
 Write tools: upsert_company, add_contact, add_board, track_job, add_note.
 --read-only leaves the write tools out.
 

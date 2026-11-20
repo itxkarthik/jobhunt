@@ -76,7 +76,11 @@ func TestProfileFilters(t *testing.T) {
 }
 
 func TestBuildDigest(t *testing.T) {
-	now := time.Date(2026, 11, 20, 3, 0, 0, 0, time.UTC)
+	// 01:39 on Fri 20 Nov in India is still Thu 19 Nov in UTC; the heading
+	// must show the local date.
+	defer func(l *time.Location) { time.Local = l }(time.Local)
+	time.Local = time.FixedZone("IST", 5*3600+1800)
+	now := time.Date(2026, 11, 19, 20, 9, 0, 0, time.UTC)
 	src := "https://example.com/news"
 	jobs := []model.Job{
 		{Key: "j1", Title: "Backend Intern", Company: "Acme", URL: "https://jobs.example.com/1", Score: 90},
@@ -101,7 +105,7 @@ func TestBuildDigest(t *testing.T) {
 		t.Errorf("companies = %+v", d.Companies)
 	}
 	md := d.Markdown()
-	for _, want := range []string{"First digest", "## 2 new jobs", "[Backend Intern](https://jobs.example.com/1) at Acme", "and 1 more", "**Acme** (created): seed · raised Jul 2026, [source](" + src + ")", "[draft email](mailto:asha@acme.ai?"} {
+	for _, want := range []string{"# jobhunt digest, Fri 20 Nov 2026", "First digest", "## 2 new jobs", "[Backend Intern](https://jobs.example.com/1) at Acme", "and 1 more", "**Acme** (created): seed · raised Jul 2026, [source](" + src + ")", "[draft email](mailto:asha@acme.ai?"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("markdown lacks %q:\n%s", want, md)
 		}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"time"
 )
 
@@ -30,6 +31,9 @@ func repeat(ctx context.Context, interval time.Duration, once bool, fn func(cont
 		if once {
 			return
 		}
+		// Hand the run's memory (a search holds a few hundred MB) back to
+		// the OS for the long wait, instead of keeping it until the next run.
+		debug.FreeOSMemory()
 		select {
 		case <-ctx.Done():
 			return

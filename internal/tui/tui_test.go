@@ -85,6 +85,20 @@ func TestSortCycle(t *testing.T) {
 	}
 }
 
+func TestNewOnly(t *testing.T) {
+	m, _ := testModel(t)
+	keys(m, "n")
+	// A refetch reports nothing new (the first search marked it seen), but
+	// the job that was new when the TUI opened stays in view with its ★.
+	m.Update(resultMsg{gen: m.gen, res: &search.Result{Jobs: []model.Job{{Key: "aaa111", Title: "Backend Intern"}, {Key: "bbb222"}}}})
+	if len(m.jobs) != 1 || m.jobs[0].Key != "aaa111" || !m.jobs[0].New || !strings.Contains(m.render(), "new only") {
+		t.Fatalf("new only: %+v", m.jobs)
+	}
+	if keys(m, "n"); len(m.jobs) != 2 {
+		t.Errorf("all again: %d jobs", len(m.jobs))
+	}
+}
+
 func TestStaleResultIgnored(t *testing.T) {
 	m, _ := testModel(t)
 	m.Update(resultMsg{gen: m.gen - 1, res: &search.Result{}})

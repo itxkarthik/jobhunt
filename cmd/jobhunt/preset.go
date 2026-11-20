@@ -133,12 +133,7 @@ func summary(f model.Filters) string {
 	if len(parts) == 0 {
 		return "(no filters)"
 	}
-	var out strings.Builder
-	out.WriteString(parts[0])
-	for _, p := range parts[1:] {
-		out.WriteString(" · " + p)
-	}
-	return out.String()
+	return strings.Join(parts, " · ")
 }
 
 func strs[T ~string](xs []T) []string {

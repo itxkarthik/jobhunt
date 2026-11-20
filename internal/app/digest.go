@@ -145,7 +145,7 @@ func companyPlace(c *model.Company) string {
 // Markdown renders the digest for a chat message or a file.
 func (d *Digest) Markdown() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# jobhunt digest, %s\n", d.At.Format("Mon 2 Jan 2006"))
+	fmt.Fprintf(&b, "# jobhunt digest, %s\n", d.At.Local().Format("Mon 2 Jan 2006"))
 	if d.First {
 		b.WriteString("\nFirst digest: the best of what matches now. From here on, only what's new.\n")
 	}

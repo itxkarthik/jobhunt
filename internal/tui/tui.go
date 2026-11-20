@@ -24,8 +24,11 @@ import (
 )
 
 // Run starts the TUI and blocks until the user quits.
-func Run(a *app.App, f model.Filters) error {
-	_, err := tea.NewProgram(New(a, f)).Run()
+// Run starts the TUI; newOnly starts it showing only new jobs.
+func Run(a *app.App, f model.Filters, newOnly bool) error {
+	m := New(a, f)
+	m.newOnly = newOnly
+	_, err := tea.NewProgram(m).Run()
 	return err
 }
 
@@ -76,10 +79,16 @@ type Model struct {
 	app     *app.App
 	filters model.Filters
 
-	jobs     []model.Job
+	all      []model.Job // the last search's results
+	jobs     []model.Job // the rows shown: all, or only the new ones
 	statuses map[string]store.Status
-	reports  []search.Report
-	total    int
+	// fresh holds the jobs that were new in any search since the TUI
+	// started. Every search marks its results seen, so after a refetch
+	// they'd no longer be new; fresh keeps their ★ and the new-only view.
+	fresh   map[string]bool
+	newOnly bool
+	reports []search.Report
+	total   int
 
 	table  table.Model
 	detail viewport.Model
@@ -116,7 +125,7 @@ func New(a *app.App, f model.Filters) *Model {
 	in.Placeholder = "Go, Kubernetes, Rust"
 	return &Model{
 		app: a, filters: f, table: t, input: in, focus: paneTable,
-		detail: viewport.New(viewport.WithWidth(40), viewport.WithHeight(10)), statuses: map[string]store.Status{},
+		detail: viewport.New(viewport.WithWidth(40), viewport.WithHeight(10)), statuses: map[string]store.Status{}, fresh: map[string]bool{},
 		search: func(ctx context.Context, f model.Filters, refresh bool, progress func(search.Report)) (*search.Result, error) {
 			eng := a.Engine()
 			eng.Refresh, eng.Progress = refresh, progress
@@ -173,12 +182,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			return m, nil
 		}
-		m.jobs, m.reports, m.total = msg.res.Jobs, msg.res.Reports, msg.res.Total
+		m.all, m.reports, m.total = msg.res.Jobs, msg.res.Reports, msg.res.Total
+		for i := range m.all {
+			j := &m.all[i]
+			if j.New {
+				m.fresh[j.Key] = true
+			}
+			j.New = m.fresh[j.Key]
+		}
 		if st, err := m.app.Store.StatusMap(context.Background()); err == nil {
 			m.statuses = st
 		}
-		m.sortJobs()
-		m.refreshRows()
+		m.applyView()
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.key(msg)
@@ -224,6 +239,14 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.input.Focus()
 	case "r":
 		return m, m.fetch(true)
+	case "n":
+		m.newOnly = !m.newOnly
+		m.applyView()
+		m.flash = "showing all jobs"
+		if m.newOnly {
+			m.flash = "showing new jobs only"
+		}
+		return m, nil
 	case "s":
 		m.sortIdx = (m.sortIdx + 1) % len(sortModes)
 		m.sortJobs()
@@ -320,8 +343,20 @@ func (m *Model) hide() {
 		return
 	}
 	m.flash = "hidden: " + trunc(j.Title, 40) + "  (jobhunt search --show-hidden to see it)"
+	key := j.Key
 	i := m.table.Cursor()
 	m.jobs = append(m.jobs[:i], m.jobs[i+1:]...)
+	m.all = slices.DeleteFunc(m.all, func(j model.Job) bool { return j.Key == key })
+	m.refreshRows()
+}
+
+// applyView picks the rows to show from the last results, then sorts them.
+func (m *Model) applyView() {
+	m.jobs = slices.Clone(m.all)
+	if m.newOnly {
+		m.jobs = slices.DeleteFunc(m.jobs, func(j model.Job) bool { return !j.New })
+	}
+	m.sortJobs()
 	m.refreshRows()
 }
 
@@ -507,6 +542,9 @@ func (m *Model) render() string {
 
 func (m *Model) header() string {
 	status := fmt.Sprintf("%d jobs (of %d fetched) · sort: %s", len(m.jobs), m.total, sortModes[m.sortIdx])
+	if m.newOnly {
+		status += " · new only"
+	}
 	if m.loading {
 		status = fmt.Sprintf("fetching… %d/%d sources", len(m.progress), len(m.app.Sources))
 	}
@@ -527,7 +565,7 @@ func (m *Model) footer() string {
 	if m.flash != "" {
 		return flashStyle.Render(trunc(m.flash, m.width))
 	}
-	return dim.Render(trunc("tab pane · ↑↓ move · space toggle filter · / keywords · s sort · o open · S save · a applied · h hide · r refetch · ? help · q quit", m.width))
+	return dim.Render(trunc("tab pane · ↑↓ move · space toggle filter · / keywords · s sort · n new only · o open · S save · a applied · h hide · r refetch · ? help · q quit", m.width))
 }
 
 // cursorLine is the sidebar line the cursor is on (group headers and blank
@@ -567,6 +605,7 @@ const help = `Keys
   space / enter     toggle a filter (filters pane) and re-search
   /                 edit keywords (comma separated), enter to search
   s                 cycle sort: score → date → company
+  n                 show only new jobs (★), or all again
   o                 open the job in your browser
   S                 save to tracker
   a                 mark applied

@@ -72,6 +72,9 @@ func New(o Options) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "get_profile", Annotations: ro, Description: "What the user is looking for, from their config: roles and levels, areas, stack in priority order, " +
 		"project keywords, countries, and which companies are worth their time (stage, headcount, countries, cities, remote hiring, funding window). " +
 		"Use it to decide what to research. set is false when there is no profile."}, h.getProfile)
+	mcp.AddTool(s, &mcp.Tool{Name: "check_fit", Annotations: ro, Description: "How a company compares with the companies part of the user's profile, before you record it. " +
+		"Takes the same fields as upsert_company and saves nothing: the answer is for the stored record merged with what you send. " +
+		"fit.misses lists known facts outside the profile; fit.unknown lists facts worth finding out. fit is absent when the profile sets no company criteria."}, h.checkFit)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_sources", Annotations: ro, Description: "Job sources with whether each is enabled and ready and its last run. Never includes keys."}, h.listSources)
 	if o.ReadOnly {
 		return s
@@ -335,6 +338,36 @@ type CompanyInput = app.CompanyInput
 type CompanyOutput struct {
 	Company model.Company `json:"company"`
 	Created bool          `json:"created"`
+	// Fit compares the saved record with the profile; see check_fit.
+	Fit *company.Fit `json:"fit,omitempty"`
+}
+
+// FitOutput is check_fit's answer.
+type FitOutput struct {
+	Company model.Company `json:"company" jsonschema:"the stored record merged with the input; not saved"`
+	Exists  bool          `json:"exists" jsonschema:"whether the company is already on the list"`
+	Fit     *company.Fit  `json:"fit,omitempty"`
+}
+
+func (h *handlers) checkFit(ctx context.Context, _ *mcp.CallToolRequest, in CompanyInput) (*mcp.CallToolResult, FitOutput, error) {
+	now := time.Now()
+	c, rm, err := in.Company("agent", now)
+	if err != nil {
+		return nil, FitOutput{}, invalid("%v", err)
+	}
+	if err := company.Clean(&c); err != nil {
+		return nil, FitOutput{}, invalid("%v", err)
+	}
+	old, err := h.o.App.Store.Company(ctx, c.Key)
+	if err != nil {
+		return nil, FitOutput{}, h.public("check_fit", err)
+	}
+	merged := company.Merge(old, c, rm, now)
+	fit, err := app.ProfileFit(h.o.App.Config.Profile, &merged, now)
+	if err != nil {
+		return nil, FitOutput{}, invalid("%v", err)
+	}
+	return nil, FitOutput{Company: merged, Exists: old != nil, Fit: fit}, nil
 }
 
 func (h *handlers) upsertCompany(ctx context.Context, _ *mcp.CallToolRequest, in CompanyInput) (*mcp.CallToolResult, CompanyOutput, error) {
@@ -375,7 +408,11 @@ func (h *handlers) save(ctx context.Context, tool string, c model.Company, rm co
 			h.o.Log.Warn("refreshing boards", "err", err)
 		}
 	}
-	return nil, CompanyOutput{Company: got, Created: created}, nil
+	fit, err := app.ProfileFit(h.o.App.Config.Profile, &got, time.Now())
+	if err != nil {
+		h.o.Log.Warn("profile fit", "err", err) // saved anyway; the profile is the user's to fix
+	}
+	return nil, CompanyOutput{Company: got, Created: created, Fit: fit}, nil
 }
 
 type ContactInput struct {

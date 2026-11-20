@@ -106,13 +106,10 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		return nil, err
 	}
 
+	// runOne has cleaned every job (sources are untrusted: terminal
+	// escapes and non-http(s) URLs are stripped before anything is
+	// printed, exported or stored) and classified it; see prepare.go.
 	res := &Result{Reports: reports, Total: len(all)}
-	// Sources are untrusted: strip terminal escapes and non-http(s) URLs
-	// before anything is printed, exported, or stored.
-	for i := range all {
-		sources.SanitizeJob(&all[i])
-	}
-	classifyAll(e.Classifier, all)
 	now := time.Now()
 	res.RunAt = now
 	res.Jobs = dedup.Merge(Filter(all, f, e.Classifier, now))
@@ -216,10 +213,10 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 	key := cacheKey(src, f)
 	ttl := e.ttlFor(src)
 	if e.Store != nil && ttl > 0 {
-		jobs, _, ok, err := e.Store.CachedJobs(ctx, r.Source, key, ttl)
+		c, ok, err := e.Store.CachedJobs(ctx, r.Source, key, ttl)
 		if err == nil && ok {
-			r.Status, r.Count = StatusCached, len(jobs)
-			return r, jobs
+			r.Status, r.Count = StatusCached, len(c.Jobs)
+			return r, e.fromCache(ctx, r.Source, key, c)
 		}
 	}
 
@@ -242,10 +239,10 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 		r.Status, r.Err = StatusError, errMessage(err, timeout)
 		// Serve stale cache rather than nothing.
 		if e.Store != nil {
-			if stale, _, ok, _ := e.Store.CachedJobs(ctx, r.Source, key, 30*24*time.Hour); ok {
-				r.Err += fmt.Sprintf(" (showing %d stale cached results)", len(stale))
-				r.Count = len(stale)
-				return r, stale
+			if stale, ok, _ := e.Store.CachedJobs(ctx, r.Source, key, 30*24*time.Hour); ok {
+				r.Err += fmt.Sprintf(" (showing %d stale cached results)", len(stale.Jobs))
+				r.Count = len(stale.Jobs)
+				return r, e.fromCache(ctx, r.Source, key, stale)
 			}
 		}
 		return r, nil
@@ -256,8 +253,9 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 		}
 	}
 	r.Status, r.Count = StatusOK, len(jobs)
+	raw, class := e.prepare(jobs)
 	if e.Store != nil {
-		_ = e.Store.PutCache(ctx, r.Source, key, jobs)
+		_ = e.Store.PutCache(ctx, r.Source, key, raw, e.prepVersion(), class)
 	}
 	return r, jobs
 }

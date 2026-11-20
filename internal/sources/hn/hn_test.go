@@ -53,6 +53,9 @@ func TestSplitHeader(t *testing.T) {
 		{"Foo Inc (YC W24) | Founding Engineer | ONSITE | NYC", "Foo Inc", "Founding Engineer"},
 		{"Bar | REMOTE | Full-time", "Bar", "Multiple roles (see post)"},
 		{"Baz — Software Engineering Interns — Bengaluru", "Baz", "Software Engineering Interns"},
+		{"Cologne, Germany | UMH | Product Engineer | ONSITE", "UMH", "Product Engineer"},
+		{"Erica Holloway | Talent Sourcer @ Footprint | NYC", "Footprint", "Multiple roles (see post)"},
+		{"America First Policy Institute - Office for Fiscal Analysis | ONSITE", "America First Policy Institute", "Multiple roles (see post)"},
 	}
 	for _, tt := range tests {
 		c, ti := splitHeader(tt.in)
