@@ -64,6 +64,9 @@ var (
 	roleRe      = regexp.MustCompile(`(?i)\b(engineer|engineers|engineering|developer|developers|dev|intern|interns|internship|scientist|swe|sre|sde|designer|architect|researcher|analyst|programmer|devops|founding|cto|head of|lead|mlops|ml|ai|backend|frontend|full[- ]?stack|platform|infrastructure|security|data|mobile|ios|android|roles?|positions?)\b`)
 	salaryRe    = regexp.MustCompile(`[$€£¥₹]\s?\d`)
 	urlRe       = regexp.MustCompile(`^https?://`)
+	// A city, optionally with a region and country: letters, spaces and
+	// up to two commas.
+	placeRe = regexp.MustCompile(`^\p{L}[\p{L} .'-]*(,\s*\p{L}[\p{L} .'-]*){0,2}$`)
 )
 
 func parse(thread item) []model.Job {
@@ -77,7 +80,7 @@ func parse(thread item) []model.Job {
 			header = header[:i]
 		}
 		header = sources.CleanText(html.UnescapeString(header))
-		if header == "" {
+		if header == "" || seeker(header, c.Text) {
 			continue
 		}
 		company, title := splitHeader(header)
@@ -106,7 +109,18 @@ func parse(thread item) []model.Job {
 // splitHeader extracts company and role(s) from a "Company | Role | …" line.
 func splitHeader(header string) (company, title string) {
 	segs := headerSplit.Split(header, -1)
+	// "Cologne, Germany | UMH | …": a place first, then the company.
+	if len(segs) > 1 && isPlace(segs[0]) && !isField(segs[1]) {
+		segs = segs[1:]
+	}
 	company = strings.TrimSpace(parenRe.ReplaceAllString(segs[0], ""))
+	// "Erica Holloway | Talent Sourcer @ Footprint": a recruiter posting
+	// for the company after the @.
+	if len(segs) > 1 {
+		if _, at, ok := strings.Cut(segs[1], " @ "); ok && strings.TrimSpace(at) != "" && !isField(at) {
+			company = strings.TrimSpace(at)
+		}
+	}
 	var roles []string
 	for _, s := range segs[1:] {
 		s = strings.TrimSpace(s)
@@ -125,6 +139,28 @@ func splitHeader(header string) (company, title string) {
 }
 
 // isModeOnly drops segments like "REMOTE" or "Onsite (SF)" that match no role.
+// isPlace reports whether s names only a place: a country ("Germany"),
+// or "City, Country" ("Cologne, Germany"). A bare word that merely
+// contains a place ("America First Policy Institute") isn't one.
+func isPlace(s string) bool {
+	s = strings.TrimSpace(s)
+	if _, ok := model.NormalizeCountry(s); ok && s != "" {
+		return true
+	}
+	if !strings.Contains(s, ",") || roleRe.MatchString(s) || !placeRe.MatchString(s) {
+		return false
+	}
+	countries, _ := model.ParseLocation(s)
+	return len(countries) > 0
+}
+
+// isField reports whether a header part is a role, work mode, salary or
+// link rather than a name.
+func isField(s string) bool {
+	s = strings.TrimSpace(s)
+	return s == "" || roleRe.MatchString(s) || isModeOnly(s) || salaryRe.MatchString(s) || urlRe.MatchString(s)
+}
+
 func isModeOnly(s string) bool {
 	l := strings.ToLower(s)
 	for _, w := range []string{"remote", "onsite", "on-site", "hybrid", "full-time", "full time", "part-time", "visa"} {

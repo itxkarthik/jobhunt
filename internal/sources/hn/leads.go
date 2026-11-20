@@ -96,7 +96,7 @@ func lead(c item) (Lead, bool) {
 	if header == "" {
 		return Lead{}, false
 	}
-	if seekerRe.MatchString(header) {
+	if seeker(header, c.Text) {
 		return Lead{}, false // someone looking for work, not a company hiring
 	}
 	name, _ := splitHeader(header)
@@ -135,12 +135,46 @@ func lead(c item) (Lead, bool) {
 	return Lead{PostID: c.ID, Company: co}, true
 }
 
+// seeker reports whether a post is someone looking for work rather than a
+// company hiring. Such posts belong in "Who wants to be hired?" but turn up
+// in the hiring thread too, and their header ("Name | Role | Location")
+// looks like a company's. raw is the post's HTML.
+func seeker(header, raw string) bool {
+	if seekerRe.MatchString(header) {
+		return true
+	}
+	body := sources.StripHTML(raw)
+	if employerRe.MatchString(body) {
+		return false // "we're hiring", "join our team": a founder writing as "I" still counts
+	}
+	n := 0
+	for _, re := range seekerBodyRes {
+		if re.MatchString(body) {
+			n++
+		}
+	}
+	return n >= 2
+}
+
 var (
+	// Signs of a job seeker in a post's body; two or more, with no sign of
+	// an employer, mark the post as a seeker's.
+	seekerBodyRes = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b(i['’]?m|i am) (currently |actively )?(looking|seeking|searching) for\b`),
+		regexp.MustCompile(`(?i)\bopen to (work|new roles|(new |remote |full[- ]time )?(opportunities|roles|positions))\b`),
+		regexp.MustCompile(`(?im)^[\s\-*•]*(resume|résumé|cv|portfolio)\s*:`),
+		regexp.MustCompile(`(?i)\b(my|see my) (resume|résumé|cv|portfolio)\b`),
+		regexp.MustCompile(`(?i)\b(hire me|i['’]?m available|available immediately)\b`),
+		regexp.MustCompile(`(?im)^[\s\-*•]*(technical )?skills\s*:`),
+	}
+	// Signs of an employer.
+	employerRe = regexp.MustCompile(`(?i)\b(we['’]re|we are|we have|we['’]ll|our (team|company|product|customers|stack)|join (us|our)|apply (here|at|via|now))\b`)
+
 	// Posts in the "Who wants to be hired?" format, sometimes left in the
 	// hiring thread. They name a person, so they're never imported.
 	seekerRe = regexp.MustCompile(`(?i)^\s*(location|remote|willing to relocate|résumé|resume|cv)\s*:|\bseeking (freelance|work|a (job|role|position)|employment|opportunities)\b|\bfor hire\b|\bavailable for (work|hire|contracts?)\b|\blooking for (work|a (job|role))\b`)
 	// Placeholders and job titles where the company name should be.
-	noNameRe  = regexp.MustCompile(`(?i)\b(confidential|stealth|undisclosed|unnamed)\b|^(apply|hiring)( here| now)?$|^(an? )?(early[- ]stage |seed[- ]stage |funded |yc[- ]backed |series [a-c] )?(startup|company)$|^(senior |staff |lead |principal |founding )?(software|backend|frontend|full[- ]?stack|ml|data|platform|devops|mobile)?\s*(engineers?|developers?)$`)
+	noNameRe  = regexp.MustCompile(`(?i)\b(confidential|stealth|undisclosed|unnamed)\b|^(apply|hiring)( here| now)?$|^seeking\b|^(a |our )?new (product|project|venture|startup)$|^(head|vp|director|chief \w+ officer) of\b|^(an? )?(early[- ]stage |seed[- ]stage |funded |yc[- ]backed |series [a-c] )?(startup|company)$|^(senior |staff |lead |principal |founding )?(software|backend|frontend|full[- ]?stack|ml|data|platform|devops|mobile)?\s*(engineers?|developers?)$`)
 	nameURLRe = regexp.MustCompile(`(?i)[:\s(]*https?://.*$`)
 )
 
@@ -181,7 +215,9 @@ var notCompany = []string{
 	"ycombinator.com", "linkedin.com", "github.com", "twitter.com", "x.com", "google.com",
 	"forms.gle", "calendly.com", "wellfound.com", "angel.co", "notion.site", "youtube.com",
 	"medium.com", "substack.com", "techcrunch.com", "bit.ly", "lnkd.in", "typeform.com",
-	"workatastartup.com", "hn.algolia.com", "youtu.be", "loom.com", "netlify.app",
+	"workatastartup.com", "hn.algolia.com", "youtu.be", "loom.com",
+	// Personal hosting: portfolios and side projects, not a company's site.
+	"netlify.app", "vercel.app", "github.io", "pages.dev", "onrender.com",
 }
 
 func companySite(raw string) bool {
