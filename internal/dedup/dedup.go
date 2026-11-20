@@ -56,27 +56,38 @@ func Key(j *model.Job) string {
 	return hex.EncodeToString(sum[:6])
 }
 
-// Jaccard similarity of the token sets of two normalized titles.
-func similarity(a, b string) float64 {
-	sa, sb := set(strings.Fields(a)), set(strings.Fields(b))
-	if len(sa) == 0 || len(sb) == 0 {
+// tokenSet is a normalized title's distinct words, sorted.
+func tokenSet(title string) []string {
+	ts := strings.Fields(title)
+	slices.Sort(ts)
+	return slices.Compact(ts)
+}
+
+// jaccard is |a ∩ b| / |a ∪ b| for sorted sets.
+func jaccard(a, b []string) float64 {
+	if len(a) == 0 || len(b) == 0 {
 		return 0
 	}
 	inter := 0
-	for t := range sa {
-		if sb[t] {
+	for i, j := 0, 0; i < len(a) && j < len(b); {
+		switch {
+		case a[i] == b[j]:
 			inter++
+			i++
+			j++
+		case a[i] < b[j]:
+			i++
+		default:
+			j++
 		}
 	}
-	return float64(inter) / float64(len(sa)+len(sb)-inter)
+	return float64(inter) / float64(len(a)+len(b)-inter)
 }
 
-func set(xs []string) map[string]bool {
-	m := make(map[string]bool, len(xs))
-	for _, x := range xs {
-		m[x] = true
-	}
-	return m
+// mayMatch is a cheap bound: the Jaccard similarity of sets of sizes m and
+// n is at most min/max, so sizes that far apart can't reach Threshold.
+func mayMatch(m, n int) bool {
+	return float64(min(m, n)) >= Threshold*float64(max(m, n))
 }
 
 // Threshold is the title similarity at which two postings at the same company
@@ -88,8 +99,8 @@ const Threshold = 0.85
 // surviving records.
 func Merge(jobs []model.Job) []model.Job {
 	type entry struct {
-		job   model.Job
-		title string
+		job  model.Job
+		toks []string // tokenSet of the normalized title
 	}
 	byCompany := map[string][]int{} // normalized company -> indices into out
 	var out []entry
@@ -100,12 +111,12 @@ func Merge(jobs []model.Job) []model.Job {
 		if len(j.Sources) == 0 {
 			j.Sources = []string{j.Source}
 		}
-		co, ti := NormCompany(j.Company), NormTitle(j.Title)
+		co, toks := NormCompany(j.Company), tokenSet(NormTitle(j.Title))
 		merged := false
 		if co != "" {
 			for _, idx := range byCompany[co] {
 				e := &out[idx]
-				if similarity(e.title, ti) >= Threshold && compatible(&e.job, &j) {
+				if mayMatch(len(e.toks), len(toks)) && jaccard(e.toks, toks) >= Threshold && compatible(&e.job, &j) {
 					e.job = combine(e.job, j)
 					merged = true
 					break
@@ -114,7 +125,7 @@ func Merge(jobs []model.Job) []model.Job {
 		}
 		if !merged {
 			byCompany[co] = append(byCompany[co], len(out))
-			out = append(out, entry{job: j, title: ti})
+			out = append(out, entry{job: j, toks: toks})
 		}
 	}
 	res := make([]model.Job, len(out))
