@@ -16,7 +16,7 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 - **No duplicates.** Merges the same posting found on different sources.
 - **Ranked results.** Scores every job 0–100 for how well it fits your search.
 - **New-job tracking.** Marks jobs you haven't seen before with ★; `--new-only` shows just those.
-- **Application tracker.** saved → applied → OA → interview → offer / rejected, with notes and history.
+- **Application tracker.** saved → applied → OA → interview → offer / rejected, with notes and history. A posting that hasn't shown up in your searches for 2 weeks is marked "not listed": it has probably closed.
 - **Watch mode and daily digest.** Re-runs a search on a schedule and notifies you of new matches, or sends one digest a day of new jobs and companies.
 - **Profile.** Say once what you want (roles, stack in priority order, projects, places, which companies) and every search, the digest and the agents use it.
 - **Companies to watch.** A list of startups with their funding rounds, headcount, job boards and published contacts, every fact stored with its source URL. It's filled from SEC and Indian company filings, HN hiring posts, an agent, or by hand.
@@ -355,6 +355,7 @@ Weights are configurable under `ranking:`. Each job in `jobhunt feed` and the lo
 ## Privacy and security
 
 - All data stays local in `~/.local/share/jobhunt/jobhunt.db`, in a folder only you can read. The only network traffic is requests to the sources above.
+- jobhunt cleans up after itself once a day: it drops cached fetches older than 30 days and jobs that haven't shown up in a search for 90 days. Tracked jobs are always kept.
 - Fetched text is untrusted: terminal escapes, control and bidi characters are stripped, and only `http(s)` URLs are kept.
 - CSV exports neutralise spreadsheet formulas; Markdown links are escaped.
 - API keys live in your config (mode 0600) or env vars and are redacted from errors.

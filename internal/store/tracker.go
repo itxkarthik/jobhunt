@@ -249,7 +249,7 @@ func (s *Store) SetStatus(ctx context.Context, key string, st Status, note strin
 		applied = now
 	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO tracker (key, status, notes, created_at, updated_at, applied_at) VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO tracker (key, status, notes, created_at, updated_at, applied_at, listed_at) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (key) DO UPDATE SET
 			status = excluded.status,
 			updated_at = excluded.updated_at,
@@ -257,7 +257,7 @@ func (s *Store) SetStatus(ctx context.Context, key string, st Status, note strin
 			             WHEN tracker.notes = '' THEN excluded.notes
 			             ELSE tracker.notes || char(10) || excluded.notes END,
 			applied_at = COALESCE(tracker.applied_at, excluded.applied_at)`,
-		key, st, note, now, now, applied); err != nil {
+		key, st, note, now, now, applied, now); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx,
@@ -300,13 +300,25 @@ type Tracked struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	AppliedAt time.Time
+	ListedAt  time.Time // when the posting last showed up in fetched results
 	Job       *model.Job
+}
+
+// UnlistedAfter is how long a tracked posting can be missing from fetched
+// results before the tracker calls it no longer listed.
+const UnlistedAfter = 14 * 24 * time.Hour
+
+// Unlisted reports whether t's posting hasn't shown up in fetched results
+// for UnlistedAfter: the company has probably closed it. Searches that
+// don't cover its source or country don't count as seeing it.
+func (t *Tracked) Unlisted(now time.Time) bool {
+	return !t.ListedAt.IsZero() && now.Sub(t.ListedAt) > UnlistedAfter
 }
 
 // TrackedJobs lists tracker rows, most recently updated first. statuses
 // filters when non-empty.
 func (s *Store) TrackedJobs(ctx context.Context, statuses ...Status) ([]Tracked, error) {
-	q := `SELECT t.key, t.status, t.notes, t.created_at, t.updated_at, t.applied_at, j.json
+	q := `SELECT t.key, t.status, t.notes, t.created_at, t.updated_at, t.applied_at, t.listed_at, j.json
 	      FROM tracker t LEFT JOIN jobs j ON j.key = t.key`
 	var args []any
 	if len(statuses) > 0 {
@@ -326,14 +338,17 @@ func (s *Store) TrackedJobs(ctx context.Context, statuses ...Status) ([]Tracked,
 	for rows.Next() {
 		var t Tracked
 		var created, updated int64
-		var applied sql.NullInt64
+		var applied, listed sql.NullInt64
 		var blob []byte
-		if err := rows.Scan(&t.Key, &t.Status, &t.Notes, &created, &updated, &applied, &blob); err != nil {
+		if err := rows.Scan(&t.Key, &t.Status, &t.Notes, &created, &updated, &applied, &listed, &blob); err != nil {
 			return nil, err
 		}
 		t.CreatedAt, t.UpdatedAt = time.Unix(created, 0), time.Unix(updated, 0)
 		if applied.Valid {
 			t.AppliedAt = time.Unix(applied.Int64, 0)
+		}
+		if listed.Valid {
+			t.ListedAt = time.Unix(listed.Int64, 0)
 		}
 		if blob != nil {
 			var j model.Job
@@ -417,4 +432,42 @@ func (s *Store) HiddenKeys(ctx context.Context) (map[string]bool, error) {
 		m[k] = true
 	}
 	return m, rows.Err()
+}
+
+// TrackedKeys returns every tracked key, and the posting URL of each
+// tracked job whose record is stored, mapped to its key.
+func (s *Store) TrackedKeys(ctx context.Context) (keys map[string]bool, byURL map[string]string, _ error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT t.key, COALESCE(json_extract(j.json, '$.url'), '') FROM tracker t LEFT JOIN jobs j ON j.key = t.key`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	keys, byURL = map[string]bool{}, map[string]string{}
+	for rows.Next() {
+		var key, url string
+		if err := rows.Scan(&key, &url); err != nil {
+			return nil, nil, err
+		}
+		keys[key] = true
+		if url != "" {
+			byURL[url] = key
+		}
+	}
+	return keys, byURL, rows.Err()
+}
+
+// MarkListed records that the tracked jobs with these keys showed up in
+// fetched results at now.
+func (s *Store) MarkListed(ctx context.Context, keys []string, now time.Time) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	list, err := json.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx,
+		`UPDATE tracker SET listed_at = ? WHERE key IN (SELECT value FROM json_each(?))`, now.Unix(), string(list))
+	return err
 }

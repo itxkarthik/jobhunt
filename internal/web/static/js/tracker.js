@@ -97,6 +97,9 @@ export async function mount(view, { live = () => true } = {}) {
         h("span", { class: "company", title: r.job ? `${company(r)} · ${location(r.job)}` : null }, company(r)),
         h("span", { class: "date", title: dateTime(when) }, shortDate(when))),
       h("span", { class: "tcard-title" }, title(r)),
+      r.unlisted && h("span", {
+        class: "tag tag-outline", title: "This posting hasn't shown up in your searches for 2 weeks; it has probably closed.",
+      }, `not listed since ${shortDate(r.listed_at)}`),
       note && h("span", { class: "tcard-next", title: "First line of your notes" }, icon("calendar"), h("span", {}, note)),
       h("span", { class: "tcard-foot" },
         h("span", { class: "score-n" }, score ? `score ${score}` : ""),
@@ -346,6 +349,7 @@ export async function mount(view, { live = () => true } = {}) {
         cell("Tracked since", dateTime(r.created_at)),
         cell("Applied", r.applied_at && dateTime(r.applied_at)),
         cell("Updated", dateTime(r.updated_at)),
+        cell("Last listed", r.listed_at && dateTime(r.listed_at)),
         cell("Key", r.key)),
       h("div", { class: "field" }, h("label", { for: "drawer-status" }, "Stage"), sel),
       h("div", { class: "field" }, h("label", { for: "drawer-notes" }, "Notes"), notes),

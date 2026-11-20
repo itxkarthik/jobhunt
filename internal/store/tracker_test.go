@@ -140,3 +140,33 @@ func TestSetNotes(t *testing.T) {
 		t.Errorf("history = %+v, %v; editing notes must not add events", evs, err)
 	}
 }
+
+func TestPruneAndListed(t *testing.T) {
+	s := openMem(t)
+	ctx := context.Background()
+	old := time.Now().Add(-KeepSeen - time.Hour)
+	jobs := []model.Job{{Key: "gone11", URL: "https://x/1"}, {Key: "kept22", URL: "https://x/2"}}
+	if err := s.MarkSeen(ctx, jobs, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetStatus(ctx, "kept22", Applied, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Prune(ctx, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if j, _ := s.Job(ctx, "gone11"); j != nil {
+		t.Error("untracked job not seen for KeepSeen was kept")
+	}
+	keys, byURL, err := s.TrackedKeys(ctx)
+	if err != nil || !keys["kept22"] || byURL["https://x/2"] != "kept22" {
+		t.Fatalf("tracked job pruned or unmatched: %v %v %v", keys, byURL, err)
+	}
+	if err := s.MarkListed(ctx, []string{"kept22"}, old); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.TrackedJobs(ctx)
+	if err != nil || len(rows) != 1 || !rows[0].Unlisted(time.Now()) {
+		t.Fatalf("want one unlisted row, got %+v %v", rows, err)
+	}
+}

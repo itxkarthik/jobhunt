@@ -45,7 +45,11 @@ func newTrackerCmd() *cobra.Command {
 			if t.Job != nil {
 				title, company, url = trunc(t.Job.Title, 48), trunc(t.Job.Company, 22), t.Job.URL
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%s ago\t%s\t%s\t%s\n", t.Key, t.Status, app.Since(t.UpdatedAt, now), title, company, url)
+			status := string(t.Status)
+			if t.Unlisted(now) {
+				status += " (not listed " + app.Since(t.ListedAt, now) + ")"
+			}
+			fmt.Fprintf(tw, "%s\t%s\t%s ago\t%s\t%s\t%s\n", t.Key, status, app.Since(t.UpdatedAt, now), title, company, url)
 		}
 		tw.Flush()
 		counts := map[store.Status]int{}
