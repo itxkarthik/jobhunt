@@ -2,6 +2,7 @@ package sources
 
 import (
 	"net/url"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -11,7 +12,7 @@ import (
 // SanitizeJob makes a job from an untrusted source safe to print and export:
 // it removes terminal control sequences (ESC, other C0/C1 controls) and
 // bidi-override characters from all text, flattens single-line fields, and
-// drops URLs that aren't http(s).
+// drops URLs that aren't http(s) and pay periods it doesn't know.
 func SanitizeJob(j *model.Job) {
 	for _, p := range []*string{&j.Title, &j.Company, &j.City, &j.Location, &j.Currency} {
 		*p = SafeText(*p, false)
@@ -21,6 +22,9 @@ func SanitizeJob(j *model.Job) {
 		j.Tags[i] = SafeText(j.Tags[i], false)
 	}
 	j.URL = SafeURL(j.URL)
+	if !slices.Contains(model.AllPayPeriods, j.PayPeriod) {
+		j.PayPeriod = ""
+	}
 }
 
 // SafeText drops control and bidi-override runes. With multiline, newlines

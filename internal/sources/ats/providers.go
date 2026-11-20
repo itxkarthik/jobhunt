@@ -162,8 +162,11 @@ func (lever) parse(resp []leverPosting, c Company) []model.Job {
 				j.Tags = append(j.Tags, t)
 			}
 		}
-		if sr := r.SalaryRange; sr != nil && strings.Contains(sr.Interval, "year") {
-			j.SalaryMin, j.SalaryMax, j.Currency = sources.Float(sr.Min), sources.Float(sr.Max), sr.Currency
+		if sr := r.SalaryRange; sr != nil {
+			if per := model.ParsePayPeriod(sr.Interval); per != "" { // not "one-time"
+				j.SalaryMin, j.SalaryMax, j.Currency = sources.Float(sr.Min), sources.Float(sr.Max), sr.Currency
+				j.PayPeriod = payPeriod(per)
+			}
 		}
 		jobs = append(jobs, j)
 	}
@@ -296,8 +299,9 @@ func (ashby) parse(resp ashbyResponse, c Company) []model.Job {
 			}
 		}
 		for _, sc := range r.Compensation.SummaryComponents {
-			if sc.CompensationType == "Salary" && sc.Interval == "1 YEAR" {
+			if per := model.ParsePayPeriod(sc.Interval); (sc.CompensationType == "Salary" || sc.CompensationType == "Hourly") && per != "" {
 				j.SalaryMin, j.SalaryMax, j.Currency = sources.Float(sc.MinValue), sources.Float(sc.MaxValue), sc.CurrencyCode
+				j.PayPeriod = payPeriod(per)
 				break
 			}
 		}
@@ -528,9 +532,9 @@ func (recruitee) parse(resp recruiteeResponse, c Company) []model.Job {
 		if o.Department != "" {
 			j.Tags = []string{o.Department}
 		}
-		if o.Salary.Period == "year" && (o.Salary.Min > 0 || o.Salary.Max > 0) {
+		if per := model.ParsePayPeriod(o.Salary.Period); per != "" && (o.Salary.Min > 0 || o.Salary.Max > 0) {
 			j.SalaryMin, j.SalaryMax = sources.Float(float64(o.Salary.Min)), sources.Float(float64(o.Salary.Max))
-			j.Currency = o.Salary.Currency
+			j.Currency, j.PayPeriod = o.Salary.Currency, payPeriod(per)
 		}
 		jobs = append(jobs, j)
 	}
@@ -561,4 +565,13 @@ func recruiteeTime(s string) time.Time {
 
 func (r recruitee) boardURL(c Company) string {
 	return strings.TrimSuffix(r.offersURL(c.Slug), "api/offers/")
+}
+
+// payPeriod stores a year as "", which model.Job.Period reads as a year,
+// so annual pay looks as it always has.
+func payPeriod(p model.PayPeriod) model.PayPeriod {
+	if p == model.PerYear {
+		return ""
+	}
+	return p
 }

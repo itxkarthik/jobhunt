@@ -193,9 +193,16 @@ func parse(resp response) []model.Job {
 			j.JobType = model.TypeUnknown
 		}
 		j.Experience = seniority(r.Seniority, j.JobType)
-		if (r.SalaryPeriod == "" || r.SalaryPeriod == "annual") && (r.MinSalary > 0 || r.MaxSalary > 0) {
+		per := model.PerYear // Himalayas leaves the period out on annual pay
+		if r.SalaryPeriod != "" {
+			per = model.ParsePayPeriod(r.SalaryPeriod)
+		}
+		if per != "" && (r.MinSalary > 0 || r.MaxSalary > 0) {
 			j.SalaryMin, j.SalaryMax = sources.Float(float64(r.MinSalary)), sources.Float(float64(r.MaxSalary))
 			j.Currency = r.Currency
+			if per != model.PerYear {
+				j.PayPeriod = per
+			}
 		}
 		jobs = append(jobs, j)
 	}

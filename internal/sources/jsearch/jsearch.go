@@ -215,9 +215,12 @@ func parse(resp response) []model.Job {
 		if r.Publisher != "" {
 			j.Tags = []string{"via " + r.Publisher}
 		}
-		if strings.EqualFold(r.SalaryPeriod, "YEAR") && (r.MinSalary > 0 || r.MaxSalary > 0) {
+		if per := model.ParsePayPeriod(r.SalaryPeriod); per != "" && (r.MinSalary > 0 || r.MaxSalary > 0) {
 			j.SalaryMin, j.SalaryMax = sources.Float(float64(r.MinSalary)), sources.Float(float64(r.MaxSalary))
 			j.Currency = r.SalaryCurrency
+			if per != model.PerYear {
+				j.PayPeriod = per
+			}
 		}
 		jobs = append(jobs, j)
 	}

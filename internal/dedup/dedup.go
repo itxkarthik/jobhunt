@@ -183,8 +183,11 @@ func combine(a, b model.Job) model.Job {
 	if keep.PostedAt.IsZero() || (!other.PostedAt.IsZero() && other.PostedAt.Before(keep.PostedAt)) {
 		keep.PostedAt = other.PostedAt // earliest posting date
 	}
-	if keep.SalaryMin == nil && keep.SalaryMax == nil {
-		keep.SalaryMin, keep.SalaryMax, keep.Currency = other.SalaryMin, other.SalaryMax, other.Currency
+	if !keep.HasSalary() && other.HasSalary() {
+		keep.SalaryMin, keep.SalaryMax, keep.Currency, keep.PayPeriod = other.SalaryMin, other.SalaryMax, other.Currency, other.PayPeriod
+	}
+	if keep.Paid == nil {
+		keep.Paid = other.Paid
 	}
 	if keep.City == "" {
 		keep.City = other.City
