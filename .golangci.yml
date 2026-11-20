@@ -30,6 +30,7 @@ linters:
         - (*database/sql.Tx).Rollback
         - (*database/sql.DB).Close
         - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
         - (*github.com/itxkarthik/jobhunt/internal/store.Store).Close
         - (*github.com/itxkarthik/jobhunt/internal/app.App).Close
         # Terminal output: a failed write to stdout isn't actionable.

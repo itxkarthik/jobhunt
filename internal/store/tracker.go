@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +51,25 @@ func (s *Store) MarkSeen(ctx context.Context, jobs []model.Job, now time.Time) e
 		return err
 	}
 	defer tx.Rollback()
+	// Prepared once: a search can mark thousands of jobs.
+	seenStmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO seen (key, first_seen, last_seen) VALUES (?, ?, ?)
+		 ON CONFLICT (key) DO UPDATE SET last_seen = excluded.last_seen
+		 RETURNING first_seen`)
+	if err != nil {
+		return err
+	}
+	defer seenStmt.Close()
+	hashStmt, err := tx.PrepareContext(ctx, `SELECT hash FROM jobs WHERE key = ?`)
+	if err != nil {
+		return err
+	}
+	defer hashStmt.Close()
+	putStmt, err := tx.PrepareContext(ctx, putJobSQL)
+	if err != nil {
+		return err
+	}
+	defer putStmt.Close()
 	ts := now.Unix()
 	for i := range jobs {
 		j := &jobs[i]
@@ -56,38 +77,53 @@ func (s *Store) MarkSeen(ctx context.Context, jobs []model.Job, now time.Time) e
 			continue
 		}
 		var first int64
-		err := tx.QueryRowContext(ctx,
-			`INSERT INTO seen (key, first_seen, last_seen) VALUES (?, ?, ?)
-			 ON CONFLICT (key) DO UPDATE SET last_seen = excluded.last_seen
-			 RETURNING first_seen`, j.Key, ts, ts).Scan(&first)
-		if err != nil {
+		if err := seenStmt.QueryRowContext(ctx, j.Key, ts, ts).Scan(&first); err != nil {
 			return err
 		}
 		j.FirstSeenAt = time.Unix(first, 0)
 		j.New = first == ts
-		if err := putJob(ctx, tx, j, ts); err != nil {
+		// Rewrite the record only if its content changed.
+		h, err := contentHash(j)
+		if err != nil {
+			return err
+		}
+		var old string
+		if err := hashStmt.QueryRowContext(ctx, j.Key).Scan(&old); err == nil && old == h {
+			continue
+		} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err := putJob(ctx, putStmt, j, h, ts); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
 }
 
-type execer interface {
-	ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error)
+// contentHash identifies a job's content, leaving out the score (which
+// drifts as the job ages) and the per-run New flag.
+func contentHash(j *model.Job) (string, error) {
+	c := *j
+	c.New, c.Score, c.ScoreParts = false, 0, nil
+	h := fnv.New64a()
+	if err := json.NewEncoder(h).Encode(c); err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(h.Sum64(), 16), nil
 }
 
-func putJob(ctx context.Context, db execer, j *model.Job, ts int64) error {
+const putJobSQL = `INSERT INTO jobs (key, json, updated_at, company_key, hash) VALUES (?, ?, ?, ?, ?)
+	ON CONFLICT (key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at,
+	  company_key = excluded.company_key, hash = excluded.hash`
+
+func putJob(ctx context.Context, stmt *sql.Stmt, j *model.Job, hash string, ts int64) error {
 	c := *j
 	c.New = false
 	blob, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
-	_, err = db.ExecContext(ctx,
-		`INSERT INTO jobs (key, json, updated_at, company_key) VALUES (?, ?, ?, ?)
-		 ON CONFLICT (key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at,
-		   company_key = excluded.company_key`,
-		j.Key, blob, ts, dedup.NormCompany(j.Company))
+	_, err = stmt.ExecContext(ctx, j.Key, blob, ts, dedup.NormCompany(j.Company), hash)
 	return err
 }
 
@@ -103,9 +139,9 @@ func (s *Store) CompanyJobs(ctx context.Context, keys []string, since time.Time)
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT company_key, json FROM jobs
-		 WHERE updated_at >= ? AND company_key IN (SELECT value FROM json_each(?))
-		 ORDER BY updated_at DESC`, since.Unix(), string(list))
+		`SELECT j.company_key, j.json FROM jobs j JOIN seen s ON s.key = j.key
+		 WHERE s.last_seen >= ? AND j.company_key IN (SELECT value FROM json_each(?))
+		 ORDER BY s.last_seen DESC`, since.Unix(), string(list))
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +165,16 @@ func (s *Store) CompanyJobs(ctx context.Context, keys []string, since time.Time)
 
 // SaveJob stores j's latest record (used when tracking a job).
 func (s *Store) SaveJob(ctx context.Context, j *model.Job) error {
-	return putJob(ctx, s.db, j, time.Now().Unix())
+	h, err := contentHash(j)
+	if err != nil {
+		return err
+	}
+	stmt, err := s.db.PrepareContext(ctx, putJobSQL)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	return putJob(ctx, stmt, j, h, time.Now().Unix())
 }
 
 // Job returns the stored record for key.
