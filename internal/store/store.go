@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -111,6 +112,25 @@ const (
 	// showing up in results (unless it's tracked).
 	KeepSeen = 90 * 24 * time.Hour
 )
+
+// PruneDaily runs Prune if it hasn't run in the last day, in any process.
+// The check is a read, so most calls take no write lock.
+func (s *Store) PruneDaily(ctx context.Context, now time.Time) error {
+	var last int64
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM meta WHERE key = 'pruned_at'`).Scan(&last)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if now.Sub(time.Unix(last, 0)) < 24*time.Hour {
+		return nil
+	}
+	if err := s.Prune(ctx, now); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO meta (key, value) VALUES ('pruned_at', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`, now.Unix())
+	return err
+}
 
 // Prune deletes what searches no longer use: cache entries older than
 // StaleCache, and stored jobs and seen records not in results for KeepSeen,

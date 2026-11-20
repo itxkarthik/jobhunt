@@ -13,7 +13,6 @@ import (
 	"slices"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -72,8 +71,6 @@ type Engine struct {
 	Prepare func(context.Context) error
 	// Progress, if set, is called as each source finishes.
 	Progress func(Report)
-
-	pruned atomic.Int64 // unix time of the last Store.Prune
 }
 
 // Run executes the search. It only returns an error for problems that make
@@ -134,36 +131,35 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		if err := e.track(ctx, res, now); err != nil {
 			return nil, err
 		}
-		if err := e.listed(ctx, all, res.Jobs, now); err != nil {
+		if err := e.listed(ctx, all, res.Jobs, reports, now); err != nil {
 			return nil, fmt.Errorf("record listed jobs: %w", err)
 		}
-		if last := e.pruned.Load(); now.Unix()-last > int64(pruneEvery/time.Second) && e.pruned.CompareAndSwap(last, now.Unix()) {
-			_ = e.Store.Prune(ctx, now) // housekeeping: a failure must not fail the search
-		}
+		_ = e.Store.PruneDaily(ctx, now) // housekeeping: a failure must not fail the search
 	}
 	return res, nil
 }
 
-// pruneEvery is how often a long-running engine (tui, serve, watch) prunes
-// the database.
-const pruneEvery = 24 * time.Hour
-
 // listed records which tracked jobs showed up in this search's fetched
-// results, before filtering: a posting that matched by URL in any source,
-// or by key after merging.
-func (e *Engine) listed(ctx context.Context, all, merged []model.Job, now time.Time) error {
+// results, before filtering: a posting that matched by URL, or by key after
+// merging. Only sources that answered count: a failed source's stale
+// fallback says nothing about whether a posting is still open.
+func (e *Engine) listed(ctx context.Context, all, merged []model.Job, reports []Report, now time.Time) error {
 	keys, byURL, err := e.Store.TrackedKeys(ctx)
 	if err != nil || len(keys) == 0 {
 		return err
 	}
+	answered := map[string]bool{}
+	for _, r := range reports {
+		answered[r.Source] = r.Status == StatusOK || r.Status == StatusCached
+	}
 	var found []string
 	for i := range all {
-		if k, ok := byURL[all[i].URL]; ok {
+		if k, ok := byURL[all[i].URL]; ok && answered[all[i].Source] {
 			found = append(found, k)
 		}
 	}
 	for i := range merged {
-		if keys[merged[i].Key] {
+		if keys[merged[i].Key] && slices.ContainsFunc(merged[i].Sources, func(s string) bool { return answered[s] }) {
 			found = append(found, merged[i].Key)
 		}
 	}
