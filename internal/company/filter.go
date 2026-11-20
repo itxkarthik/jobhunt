@@ -207,14 +207,20 @@ func (f Filter) Fit(c *model.Company, now time.Time) Fit {
 		if f.RemoteOK {
 			remote = " (or hiring remotely)"
 		}
+		// Country and city separately: a known city can miss even when
+		// the country isn't recorded.
 		switch {
-		case len(f.Countries) > 0 && c.Country == "":
+		case len(f.Countries) == 0:
+		case c.Country == "":
 			fit.Unknown = append(fit.Unknown, "country")
-		case len(f.Countries) > 0 && !slices.Contains(f.Countries, c.Country):
+		case !slices.Contains(f.Countries, c.Country):
 			fit.Misses = append(fit.Misses, fmt.Sprintf("based in %s; wanted: %s%s", c.Country, want(f.Countries), remote))
-		case len(f.Cities) > 0 && c.City == "":
+		}
+		switch {
+		case len(f.Cities) == 0:
+		case c.City == "":
 			fit.Unknown = append(fit.Unknown, "city")
-		case len(f.Cities) > 0 && !slices.Contains(f.Cities, strings.ToLower(c.City)):
+		case !slices.Contains(f.Cities, strings.ToLower(c.City)):
 			fit.Misses = append(fit.Misses, fmt.Sprintf("city %s; wanted: %s%s", c.City, want(f.Cities), remote))
 		}
 	}

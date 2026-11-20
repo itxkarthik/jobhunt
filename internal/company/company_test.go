@@ -253,3 +253,26 @@ func TestMergeNoChangeKeepsUpdatedAt(t *testing.T) {
 		t.Errorf("real change kept UpdatedAt %v", changed.UpdatedAt)
 	}
 }
+
+func TestFitPlace(t *testing.T) {
+	f := Filter{Countries: []string{"IN"}, Cities: []string{"bengaluru"}}
+	tests := []struct {
+		c               model.Company
+		misses, unknown int
+	}{
+		{model.Company{City: "London"}, 1, 1}, // city known to miss, country unknown
+		{model.Company{Country: "IN", City: "Bengaluru"}, 0, 0},
+		{model.Company{Country: "IN"}, 0, 1},
+		{model.Company{City: "London", Remote: true}, 1, 1}, // remote counts only with RemoteOK
+	}
+	for _, tt := range tests {
+		fit := f.Fit(&tt.c, time.Now())
+		if len(fit.Misses) != tt.misses || len(fit.Unknown) != tt.unknown {
+			t.Errorf("Fit(%+v) = %+v", tt.c, fit)
+		}
+	}
+	f.RemoteOK = true
+	if fit := f.Fit(&model.Company{City: "London", Remote: true}, time.Now()); !fit.Fits {
+		t.Errorf("remote hiring should fit: %+v", fit)
+	}
+}
