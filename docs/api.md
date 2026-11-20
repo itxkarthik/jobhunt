@@ -50,6 +50,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
   "exclude": ["senior"],
   "posted_within": "7d",
   "visa": false,
+  "paid_only": false,
   "min_salary": 0,
   "currency": "INR",
   "strict_country": false,
@@ -58,6 +59,8 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
   "company_headcounts": ["1-10", "11-50"]
 }
 ```
+
+`paid_only` drops jobs that say they're unpaid. `min_salary` is a yearly amount in `currency`; jobs whose pay is monthly or hourly count as unknown for it.
 
 `company_stages` and `company_headcounts` keep only jobs at companies on your companies list (`jobhunt companies`) with those funding stages or sizes; jobs at other companies are dropped. `GET /api/meta` lists the allowed values.
 

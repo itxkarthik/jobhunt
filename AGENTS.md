@@ -96,6 +96,7 @@ internal/mcpserver/ `jobhunt mcp`: tools for agents (docs/examples/mcp.json)
   - `Timeouter`, `CacheKeyer`.
   - Return `*sources.PartialError` when some pages failed but some jobs came back.
 - Unknown values stay `unknown`; don't guess. Filters drop unknowns unless `--include-unknown`.
+- Pay: `SalaryMin`/`SalaryMax` are per `PayPeriod` (empty means a year). Sources keep every period they're given; `Paid` is false only when a posting says it's unpaid. Show pay with `Job.Pay()` (and `pay()` in `internal/web/static/js/format.js`, which must match it).
 - Country semantics: `--country IN` also matches worldwide-remote and region codes containing IN (`model.CountryAllows`) unless `StrictCountry`. ATS boards with `remote: true` are fetched for any non-strict search.
 - Errors are wrapped with `%w`. Every I/O call takes a `context.Context`. A failing source must never fail the search.
 - Use table-driven tests. Prefer the standard library (`slices`, `maps`, `min`/`max`, `strings.Cut`, `b.Loop`).
@@ -109,4 +110,4 @@ internal/mcpserver/ `jobhunt mcp`: tools for agents (docs/examples/mcp.json)
 - **Remotive** has `MinTTL` of 6h, required by its terms. Its public API returns only about 10 jobs.
 - **JSearch keys:** `ak_…` is an OpenWeb Ninja key and goes to `api.openwebninja.com` with `x-api-key`. Anything else goes through RapidAPI. Each country is one request.
 - **ATS slugs go stale** when companies switch ATS. Use `jobhunt sources --check-boards`.
-- The classifier runs once per fetched job (results are cached with a version from `keywords.yaml` and `classify.logicVersion`; bump `logicVersion` when `Classify` decides differently for the same rules). Real descriptions are several KB, and a refresh classifies about 15k jobs. Keep it token-based (no per-job regex loops). The two "N years" regexes run only on `yearSnippets`, never on a whole description. `BenchmarkClassify`, `BenchmarkClassifyExperience` (a long posting) and `BenchmarkSearch` (a whole search, cached and fresh) guard this.
+- The classifier runs once per fetched job (results are cached with a version from `keywords.yaml` and `classify.logicVersion`; bump `logicVersion` when `Classify` decides differently for the same rules). Real descriptions are several KB, and a refresh classifies about 15k jobs. Keep it token-based (no per-job regex loops). The two "N years" regexes run only on `yearSnippets`, never on a whole description, and the pay regexes (`classify/pay.go`) only on short windows that start at a currency sign or an `amount_hints` word with a pay word before it. `BenchmarkClassify`, `BenchmarkClassifyExperience` (a long posting) and `BenchmarkSearch` (a whole search, cached and fresh) guard this.

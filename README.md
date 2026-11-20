@@ -12,6 +12,7 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 
 - **One search, every source.** Queries about 90 company job boards, remote boards, HN "Who is Hiring" and optional APIs concurrently.
 - **Less noise.** Classifies each job's type, level, work mode, CS area and visa support, then filters out what you didn't ask for.
+- **Pay and stipends.** Shows what a job pays when the posting says (`₹15k/mo`, `$40/hr`, `₹6L–8L/yr`), and flags unpaid internships; `--paid-only` drops them.
 - **No duplicates.** Merges the same posting found on different sources.
 - **Ranked results.** Scores every job 0–100 for how well it fits your search.
 - **New-job tracking.** Marks jobs you haven't seen before with ★; `--new-only` shows just those.
@@ -55,6 +56,7 @@ jobhunt serve --open                                            # web UI in your
 - **★**: you haven't seen this job in an earlier search.
 - **SCORE**: 0–100 fit for this search ([how it's scored](#scoring)).
 - **KEY**: stable job ID for `tracker`, `hide` and `unhide`.
+- **PAY**: the pay the posting states, per year, month, week, day or hour; `unpaid` or `paid` when it says so without an amount; blank when it doesn't say.
 - **Sources** (below the table): what each source did: `ok`, `cached`, `skipped` or `error`. A failing source falls back to its last cached results.
 - **Also search**: links to sites jobhunt can't query, pre-filled with your filters.
 
@@ -118,7 +120,8 @@ Available on `search`, `tui`, `export`, `watch` and `preset save`.
 | `-k, --keywords` / `-x, --exclude` | include jobs mentioning any / drop jobs mentioning any |
 | `--posted-within` | `24h 3d 7d 30d` |
 | `--visa` | only jobs that mention visa sponsorship |
-| `--min-salary N --currency INR` | minimum advertised annual salary |
+| `--paid-only` | drop jobs and internships that say they're unpaid |
+| `--min-salary N --currency INR` | minimum advertised annual salary; monthly or hourly pay isn't converted, so it counts as unknown |
 | `-p, --preset` | start from a saved preset |
 | `--profile` | fill what flags and the preset leave empty from your [profile](#profile-and-digest) |
 | `--company-stage` / `--company-headcount` | only jobs at [listed companies](#companies) at these stages or sizes |
@@ -180,6 +183,7 @@ profile:
   min_score: 50                          # the digest leaves out lower scores
   skip_requires_experience: true         # drop postings that ask for prior work or internships
   skip_onsite_abroad: true               # drop onsite and hybrid roles outside your countries
+  skip_unpaid: true                      # drop postings that say they're unpaid
   companies:                             # which companies are worth your time
     stages: [seed, series-a]
     headcounts: [1-10, 11-50, 51-200]
@@ -344,7 +348,7 @@ Results are cached in SQLite per source, already cleaned and classified, so a re
 | Recency | 25 | posted just now; halves every 7 days |
 | Level | 25 | internship, new-grad or entry-level |
 | Fit | 10 | your exact country and mode (worldwide remote scores 70%) |
-| Info | 5 | salary and/or visa sponsorship stated |
+| Info | 5 | a pay amount and/or visa sponsorship stated |
 
 Weights are configurable under `ranking:`. Each job in `jobhunt feed` and the local API carries `score_parts`, the points it got for each component.
 

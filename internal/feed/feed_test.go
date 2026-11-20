@@ -38,12 +38,13 @@ func result() *search.Result {
 				Score: 91, New: true, FirstSeenAt: runAt, Description: "Go and Postgres",
 				ScoreParts: []model.ScorePart{{Factor: "match", Points: 35, Max: 35}, {Factor: "recency", Points: 20.4, Max: 25},
 					{Factor: "level", Points: 25, Max: 25}, {Factor: "fit", Points: 10, Max: 10}, {Factor: "info", Points: 0.6, Max: 5}},
-				JobType: model.TypeInternship, WorkMode: model.ModeRemote, Sources: []string{"greenhouse"}},
+				JobType: model.TypeInternship, WorkMode: model.ModeRemote, Sources: []string{"greenhouse"},
+				SalaryMin: new(15000.0), SalaryMax: new(20000.0), Currency: "INR", PayPeriod: model.PerMonth},
 			{ID: "remotive:2", Source: "remotive", Experience: model.ExpIntern, Key: "bbbb2222", Title: "SDE Intern", Company: "Beta", URL: "https://beta.example/2",
 				Score: 72, FirstSeenAt: older, Description: "line one\nline two",
 				JobType: model.TypeInternship, WorkMode: model.ModeOnsite, Sources: []string{"remotive"}},
 			{ID: "greenhouse:3", Source: "greenhouse", Experience: model.ExpUnknown, Key: "cccc3333", Title: "QA Intern", Company: "Gamma", URL: "https://gamma.example/3",
-				Score: 40, FirstSeenAt: runAt, JobType: model.TypeInternship, WorkMode: model.ModeUnknown},
+				Score: 40, FirstSeenAt: runAt, JobType: model.TypeInternship, WorkMode: model.ModeUnknown, Paid: new(false)},
 		},
 	}
 	res.Jobs[1].FirstSeenAt = older.In(ist) // the store returns local time; events must be UTC
