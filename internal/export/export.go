@@ -47,7 +47,8 @@ func Write(w io.Writer, format string, rows []Row) error {
 }
 
 var header = []string{"key", "score", "status", "title", "company", "location", "countries", "mode", "type",
-	"experience", "areas", "salary_min", "salary_max", "currency", "visa", "posted", "first_seen", "sources", "url"}
+	"experience", "areas", "salary_min", "salary_max", "currency", "pay_period", "paid", "pay", "visa", "posted", "first_seen",
+	"sources", "url"}
 
 func writeCSV(w io.Writer, rows []Row) error {
 	cw := csv.NewWriter(w)
@@ -59,7 +60,7 @@ func writeCSV(w io.Writer, rows []Row) error {
 		if err := cw.Write([]string{
 			j.Key, fmt.Sprintf("%.0f", j.Score), r.Status, cell(j.Title), cell(j.Company), cell(loc(&j)),
 			strings.Join(j.Countries, ";"), string(j.WorkMode), string(j.JobType), string(j.Experience),
-			areas(j.Areas, ";"), num(j.SalaryMin), num(j.SalaryMax), j.Currency, visa(j.VisaSponsorship),
+			areas(j.Areas, ";"), num(j.SalaryMin), num(j.SalaryMax), j.Currency, period(&j), paid(&j), j.Pay(), visa(j.VisaSponsorship),
 			date(j.PostedAt), date(j.FirstSeenAt), strings.Join(j.Sources, ";"), j.URL,
 		}); err != nil {
 			return err
@@ -85,12 +86,12 @@ func writeJSON(w io.Writer, rows []Row) error {
 
 func writeMD(w io.Writer, rows []Row) error {
 	fmt.Fprintf(w, "# Jobs (%d)\n\n", len(rows))
-	fmt.Fprintln(w, "| Score | Status | Title | Company | Location | Type | Posted | Source |")
-	fmt.Fprintln(w, "|---:|---|---|---|---|---|---|---|")
+	fmt.Fprintln(w, "| Score | Status | Title | Company | Location | Type | Pay | Posted | Source |")
+	fmt.Fprintln(w, "|---:|---|---|---|---|---|---|---|---|")
 	for _, r := range rows {
 		j := r.Job
-		_, err := fmt.Fprintf(w, "| %.0f | %s | [%s](%s) | %s | %s | %s | %s | %s |\n",
-			j.Score, r.Status, md(j.Title), mdURL(j.URL), md(j.Company), md(loc(&j)), j.JobType, date(j.PostedAt),
+		_, err := fmt.Fprintf(w, "| %.0f | %s | [%s](%s) | %s | %s | %s | %s | %s | %s |\n",
+			j.Score, r.Status, md(j.Title), mdURL(j.URL), md(j.Company), md(loc(&j)), j.JobType, md(j.Pay()), date(j.PostedAt),
 			strings.Join(j.Sources, ", "))
 		if err != nil {
 			return err
@@ -155,4 +156,24 @@ func date(t time.Time) string {
 		return ""
 	}
 	return t.Format("2006-01-02")
+}
+
+// period is what the salary is per, when there is one.
+func period(j *model.Job) string {
+	if !j.HasSalary() {
+		return ""
+	}
+	return string(j.Period())
+}
+
+// paid is "yes" for a stated amount or "paid", "no" for unpaid, and empty
+// when the posting doesn't say.
+func paid(j *model.Job) string {
+	switch {
+	case j.HasSalary() || (j.Paid != nil && *j.Paid):
+		return "yes"
+	case j.Paid != nil:
+		return "no"
+	}
+	return ""
 }
