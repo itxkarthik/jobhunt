@@ -88,12 +88,6 @@ const (
 	FactorInfo    = "info"
 )
 
-// Score returns j's score for filters f.
-func (r *Ranker) Score(j *model.Job, f model.Filters, kw *classify.TermSet) float64 {
-	score, _ := r.Explain(j, f, kw)
-	return score
-}
-
 // Explain returns j's score and each factor's share of it, in a fixed
 // order. Points are rounded to one decimal, so they may not add up to the
 // score exactly.

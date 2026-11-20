@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -91,6 +92,8 @@ type Server struct {
 	log     *slog.Logger
 	// searching allows one search at a time, to stay polite to sources.
 	searching chan struct{}
+	// release hands memory back to the OS once searches stop; see runSearch.
+	release *time.Timer
 }
 
 // New validates opts and builds the handler.
@@ -106,7 +109,9 @@ func New(opts Options) (*Server, error) {
 		hosts:     map[string]bool{"localhost": true, "127.0.0.1": true, "::1": true},
 		log:       opts.Logger,
 		searching: make(chan struct{}, 1),
+		release:   time.AfterFunc(time.Hour, debug.FreeOSMemory),
 	}
+	s.release.Stop()
 	if s.log == nil {
 		s.log = slog.New(slog.DiscardHandler)
 	}

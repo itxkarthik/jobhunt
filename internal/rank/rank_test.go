@@ -27,7 +27,7 @@ func TestScoreOrdering(t *testing.T) {
 	generic := mk("Software Engineer Intern", time.Hour, "IN")
 	remote := mk("Backend Intern (Go)", time.Hour, model.RemoteGlobal)
 
-	s := func(j model.Job) float64 { return r.Score(&j, f, kw) }
+	s := func(j model.Job) float64 { v, _ := r.Explain(&j, f, kw); return v }
 	tests := []struct {
 		name   string
 		hi, lo model.Job
@@ -94,7 +94,7 @@ func TestExplain(t *testing.T) {
 			if math.Abs(sum-score) > 0.3 {
 				t.Errorf("parts sum to %.1f, score is %.1f", sum, score)
 			}
-			if s := r.Score(&tt.job, tt.f, nil); s != score {
+			if s, _ := r.Explain(&tt.job, tt.f, nil); s != score {
 				t.Errorf("Score = %.1f, Explain = %.1f", s, score)
 			}
 		})
@@ -123,7 +123,8 @@ func TestStackAndProjects(t *testing.T) {
 		t.Errorf("match %v exceeds its weight", got)
 	}
 	// No stack or projects: unchanged from before.
-	if s, _ := r.Explain(job("Golang"), model.Filters{}, nil); s != (&Ranker{Now: now}).Score(job("Golang"), model.Filters{}, nil) {
+	plain, _ := (&Ranker{Now: now}).Explain(job("Golang"), model.Filters{}, nil)
+	if s, _ := r.Explain(job("Golang"), model.Filters{}, nil); s != plain {
 		t.Error("score changed without preferences")
 	}
 }
