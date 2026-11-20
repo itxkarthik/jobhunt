@@ -35,8 +35,9 @@ func TestParseFilters(t *testing.T) {
 		{"age and currency", FilterInput{PostedWithin: "7d", Currency: " inr "}, func(f model.Filters) bool {
 			return f.PostedWithin == 7*24*time.Hour && f.Currency == "INR"
 		}, false},
-		{"any lifts the default", FilterInput{Countries: []string{"any"}, Types: []string{" ANY "}, Modes: []string{"any"}, Areas: []string{"any"}}, func(f model.Filters) bool {
-			return f.Countries == nil && f.Types == nil && f.Modes == nil && f.Areas == nil
+		{"any lifts the default", FilterInput{Countries: []string{"any"}, Types: []string{" ANY "}, Modes: []string{"any"}, Areas: []string{"any"},
+			CompanyStages: []string{"any"}, CompanyHeadcounts: []string{"any"}}, func(f model.Filters) bool {
+			return f.Countries == nil && f.Types == nil && f.Modes == nil && f.Areas == nil && !f.WantsCompanies()
 		}, false},
 		{"any with other values", FilterInput{Countries: []string{"any", "US"}}, nil, true},
 		{"company filters", FilterInput{CompanyStages: []string{"Series A"}, CompanyHeadcounts: []string{"1-10", "30"}}, func(f model.Filters) bool {

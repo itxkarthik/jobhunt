@@ -164,6 +164,7 @@ func TestFilter(t *testing.T) {
 		{"has contact", FilterInput{HasContact: true}, "Acme"},
 		{"tag", FilterInput{Tags: []string{"AI"}}, "Acme"},
 		{"query", FilterInput{Query: "LABS"}, "Beta Labs"},
+		{"any lifts", FilterInput{Stages: []string{"any"}, Headcounts: []string{" ANY "}, Countries: []string{"any"}, Cities: []string{"any"}}, "Acme,Beta Labs,Gamma,Delta"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

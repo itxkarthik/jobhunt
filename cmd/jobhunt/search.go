@@ -38,8 +38,8 @@ func (ff *filterFlags) register(cmd *cobra.Command) {
 	fs.StringVar(&ff.in.Currency, "currency", "", "currency for --min-salary, e.g. INR, USD")
 	fs.BoolVar(&ff.in.StrictCountry, "strict-country", false, "exclude remote jobs that are open worldwide/regionally rather than to the country itself")
 	fs.BoolVar(&ff.in.IncludeUnknown, "include-unknown", false, "keep jobs whose country/type/area couldn't be determined")
-	fs.StringSliceVar(&ff.in.CompanyStages, "company-stage", nil, "only jobs at listed companies (jobhunt companies) at these funding stages, e.g. seed,series-a")
-	fs.StringSliceVar(&ff.in.CompanyHeadcounts, "company-headcount", nil, "only jobs at listed companies of these sizes, e.g. 1-10,11-50")
+	fs.StringSliceVar(&ff.in.CompanyStages, "company-stage", nil, "only jobs at listed companies (jobhunt companies) at these funding stages, e.g. seed,series-a, or any")
+	fs.StringSliceVar(&ff.in.CompanyHeadcounts, "company-headcount", nil, "only jobs at listed companies of these sizes, e.g. 1-10,11-50, or any")
 	fs.StringVarP(&ff.preset, "preset", "p", "", "start from a saved preset; flags you pass override it")
 	fs.BoolVar(&ff.profile, "profile", false, "apply the config profile: its filters fill what flags and --preset leave empty, plus its skips and stack ranking")
 }

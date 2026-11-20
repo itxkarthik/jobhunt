@@ -78,10 +78,10 @@ func ParseFilters(d config.Defaults, in FilterInput) (model.Filters, error) {
 	f.VisaOnly, f.MinSalary = in.Visa, in.MinSalary
 	f.Currency = strings.ToUpper(strings.TrimSpace(in.Currency))
 	f.StrictCountry, f.IncludeUnknown = in.StrictCountry, in.IncludeUnknown
-	if f.CompanyStages, err = parseAll(in.CompanyStages, known(model.ParseStage, model.StageUnknown)); err != nil {
+	if f.CompanyStages, err = parseDefault(in.CompanyStages, nil, known(model.ParseStage, model.StageUnknown)); err != nil {
 		return f, err
 	}
-	if f.CompanyHeadcounts, err = parseAll(in.CompanyHeadcounts, known(model.ParseHeadcount, model.HeadcountUnknown)); err != nil {
+	if f.CompanyHeadcounts, err = parseDefault(in.CompanyHeadcounts, nil, known(model.ParseHeadcount, model.HeadcountUnknown)); err != nil {
 		return f, err
 	}
 	return f, nil

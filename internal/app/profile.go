@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/company"
 	"github.com/itxkarthik/jobhunt/internal/config"
@@ -126,4 +127,18 @@ func CheckProfile(def config.Defaults, p config.Profile) error {
 		return errors.New("profile min_score must be 0-100")
 	}
 	return nil
+}
+
+// ProfileFit compares c with the companies part of profile p. It returns
+// nil when p sets no company criteria.
+func ProfileFit(p config.Profile, c *model.Company, now time.Time) (*company.Fit, error) {
+	if p.Companies.IsZero() {
+		return nil, nil
+	}
+	f, err := company.ParseFilter(ProfileCompanyInput(p, company.FilterInput{}), ParseAge)
+	if err != nil {
+		return nil, fmt.Errorf("profile companies: %w", err)
+	}
+	fit := f.Fit(c, now)
+	return &fit, nil
 }

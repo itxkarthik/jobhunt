@@ -122,7 +122,7 @@ func TestTools(t *testing.T) {
 		slices.Sort(out)
 		return out
 	}
-	read := []string{"get_company", "get_job", "get_profile", "list_companies", "list_sources", "search_jobs"}
+	read := []string{"check_fit", "get_company", "get_job", "get_profile", "list_companies", "list_sources", "search_jobs"}
 	if got := names(newEnv(t, true)); !slices.Equal(got, read) {
 		t.Errorf("read-only tools = %v", got)
 	}
@@ -294,5 +294,25 @@ func TestGetProfile(t *testing.T) {
 	e.call("get_profile", map[string]any{}, &out)
 	if !out.Set || out.Profile.Stack[0] != "go" || !out.Profile.Companies.RemoteOK {
 		t.Errorf("profile = %+v", out)
+	}
+
+	// Fit: a known mismatch is a miss with its reason; a missing fact is
+	// unknown, not a miss. check_fit saves nothing.
+	e.app.Config.Profile.Companies.Headcounts = []string{"1-10", "11-50"}
+	var fit FitOutput
+	e.call("check_fit", map[string]any{"name": "Monk", "stage": "pre-seed"}, &fit)
+	if fit.Exists || fit.Fit == nil || fit.Fit.Fits || len(fit.Fit.Misses) != 1 || !strings.Contains(fit.Fit.Misses[0], "stage pre-seed; wanted: seed") ||
+		!slices.Equal(fit.Fit.Unknown, []string{"headcount"}) {
+		t.Errorf("check_fit = %+v", fit.Fit)
+	}
+	if cs, _ := e.st.Companies(t.Context()); len(cs) != 0 {
+		t.Errorf("check_fit saved %v", cs)
+	}
+	e = newEnv(t, false)
+	e.app.Config.Profile = config.Profile{Companies: config.ProfileCompanies{Stages: []string{"seed"}}}
+	var up CompanyOutput
+	e.call("upsert_company", map[string]any{"name": "Reo", "stage": "seed"}, &up)
+	if up.Fit == nil || !up.Fit.Fits {
+		t.Errorf("upsert fit = %+v", up.Fit)
 	}
 }
