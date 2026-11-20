@@ -162,6 +162,8 @@ type JobBrief struct {
 	SalaryMin   *float64          `json:"salary_min,omitempty"`
 	SalaryMax   *float64          `json:"salary_max,omitempty"`
 	Currency    string            `json:"currency,omitempty"`
+	PayPeriod   model.PayPeriod   `json:"pay_period,omitempty" jsonschema:"what salary_min and salary_max are per; absent means a year"`
+	Pay         string            `json:"pay,omitempty" jsonschema:"pay as shown to the user, e.g. ₹15k–20k/mo, $40/hr, unpaid or paid; absent when the posting doesn't say"`
 	ScoreParts  []model.ScorePart `json:"score_parts,omitempty"`
 }
 
@@ -219,7 +221,8 @@ func brief(j *model.Job, st store.Status, maxDesc int) JobBrief {
 	b := JobBrief{
 		Key: j.Key, Title: j.Title, Company: j.Company, Location: j.Location, Countries: j.Countries,
 		Mode: j.WorkMode, Type: j.JobType, Experience: j.Experience, Areas: j.Areas, Score: j.Score,
-		URL: j.URL, New: j.New, SalaryMin: j.SalaryMin, SalaryMax: j.SalaryMax, Currency: j.Currency, Sources: j.Sources, Tracked: st, ScoreParts: j.ScoreParts,
+		URL: j.URL, New: j.New, SalaryMin: j.SalaryMin, SalaryMax: j.SalaryMax, Currency: j.Currency, PayPeriod: j.PayPeriod,
+		Pay: j.Pay(), Sources: j.Sources, Tracked: st, ScoreParts: j.ScoreParts,
 		Description: clip(j.Description, maxDesc),
 	}
 	if b.Location == "" {

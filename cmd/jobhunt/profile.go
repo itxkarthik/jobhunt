@@ -56,6 +56,9 @@ tui use it with --profile; companies uses its companies section with
 			if f.SkipRequiresExperience {
 				notes = append(notes, "skips postings asking for prior experience")
 			}
+			if f.PaidOnly {
+				notes = append(notes, "skips unpaid postings")
+			}
 			if len(f.SkipAreas) > 0 {
 				notes = append(notes, fmt.Sprintf("skips %s unless also in a wanted area", joinStr(strs(f.SkipAreas))))
 			}

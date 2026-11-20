@@ -58,6 +58,7 @@ type Profile struct {
 
 	SkipRequiresExperience bool `yaml:"skip_requires_experience,omitempty" json:"skip_requires_experience,omitempty"`
 	SkipOnsiteAbroad       bool `yaml:"skip_onsite_abroad,omitempty" json:"skip_onsite_abroad,omitempty"`
+	SkipUnpaid             bool `yaml:"skip_unpaid,omitempty" json:"skip_unpaid,omitempty"`
 
 	Companies ProfileCompanies `yaml:"companies,omitempty" json:"companies,omitzero"`
 }
@@ -76,7 +77,7 @@ type ProfileCompanies struct {
 // IsZero reports whether no profile is set.
 func (p Profile) IsZero() bool {
 	return len(p.Types)+len(p.Experience)+len(p.Areas)+len(p.SkipAreas)+len(p.Stack)+len(p.Projects)+len(p.Countries)+len(p.Modes) == 0 &&
-		p.PostedWithin == "" && p.MinScore == 0 && !p.SkipRequiresExperience && !p.SkipOnsiteAbroad && p.Companies.IsZero()
+		p.PostedWithin == "" && p.MinScore == 0 && !p.SkipRequiresExperience && !p.SkipOnsiteAbroad && !p.SkipUnpaid && p.Companies.IsZero()
 }
 
 // IsZero reports whether no company preferences are set.

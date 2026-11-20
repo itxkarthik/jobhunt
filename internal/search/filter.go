@@ -109,7 +109,14 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex *clas
 		return false
 	}
 
+	if f.PaidOnly && j.Unpaid() {
+		return false
+	}
+
 	if f.MinSalary > 0 {
+		if j.HasSalary() && j.Period() != model.PerYear {
+			return unk // --min-salary is a yearly amount; don't convert hourly or monthly pay
+		}
 		max := j.SalaryMax
 		if max == nil {
 			max = j.SalaryMin

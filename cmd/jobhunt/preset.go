@@ -127,6 +127,9 @@ func summary(f model.Filters) string {
 	if f.VisaOnly {
 		parts = append(parts, "visa")
 	}
+	if f.PaidOnly {
+		parts = append(parts, "paid")
+	}
 	if f.MinSalary > 0 {
 		parts = append(parts, fmt.Sprintf("≥%.0f %s", f.MinSalary, f.Currency))
 	}
