@@ -164,15 +164,17 @@ func (s *Store) PutCache(ctx context.Context, source, key string, jobs []model.J
 
 // RedoCache replaces an entry's jobs and classification, e.g. after the
 // classifier's rules changed, keeping its fetch time so the entry still
-// expires when it would have.
-func (s *Store) RedoCache(ctx context.Context, source, key string, jobs []model.Job, classVersion string, class []byte) error {
+// expires when it would have. It changes the entry only if it's still the
+// one read as from: a fetch stored meanwhile is newer and stays.
+func (s *Store) RedoCache(ctx context.Context, source, key string, from Cached, jobs []model.Job, classVersion string, class []byte) error {
 	blob, err := json.Marshal(jobs)
 	if err != nil {
 		return err
 	}
 	_, err = s.db.ExecContext(ctx,
-		`UPDATE fetch_cache SET jobs_json = ?, class_version = ?, class_json = ? WHERE source = ? AND query_key = ?`,
-		blob, classVersion, class, source, key)
+		`UPDATE fetch_cache SET jobs_json = ?, class_version = ?, class_json = ?
+		 WHERE source = ? AND query_key = ? AND fetched_at = ? AND class_version = ?`,
+		blob, classVersion, class, source, key, from.FetchedAt.Unix(), from.ClassVersion)
 	return err
 }
 

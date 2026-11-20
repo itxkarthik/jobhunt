@@ -65,7 +65,7 @@ func (e *Engine) fromCache(ctx context.Context, source, key string, c store.Cach
 		return c.Jobs
 	}
 	raw, class := e.prepare(c.Jobs)
-	_ = e.Store.RedoCache(ctx, source, key, raw, ver, class) // if it fails, the next search redoes it
+	_ = e.Store.RedoCache(ctx, source, key, c, raw, ver, class) // if it fails, the next search redoes it
 	return c.Jobs
 }
 

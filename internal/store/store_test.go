@@ -35,11 +35,18 @@ func TestCacheTTL(t *testing.T) {
 		t.Error("expired entry should miss")
 	}
 	// Redo replaces the jobs and classification but keeps the fetch time.
-	if err := s.RedoCache(ctx, "src", "k", nil, "v2", nil); err != nil {
+	if err := s.RedoCache(ctx, "src", "k", got, nil, "v2", nil); err != nil {
 		t.Fatal(err)
 	}
 	if redo, _, _ := s.CachedJobs(ctx, "src", "k", time.Hour); len(redo.Jobs) != 0 || redo.ClassVersion != "v2" || !redo.FetchedAt.Equal(got.FetchedAt) {
 		t.Errorf("after redo: %+v", redo)
+	}
+	// A redo from a snapshot that has since changed leaves the entry alone.
+	if err := s.RedoCache(ctx, "src", "k", got, nil, "v9", nil); err != nil {
+		t.Fatal(err)
+	}
+	if redo, _, _ := s.CachedJobs(ctx, "src", "k", time.Hour); redo.ClassVersion != "v2" {
+		t.Errorf("stale redo overwrote the entry: %+v", redo)
 	}
 }
 

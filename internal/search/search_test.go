@@ -3,7 +3,9 @@ package search
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -334,5 +336,64 @@ func TestFilterProfileSkips(t *testing.T) {
 	src := &fakeSource{name: "s"}
 	if cacheKey(src, base) != cacheKey(src, model.Filters{Countries: []string{"IN"}, IncludeUnknown: true, Stack: []string{"go"}, SkipOnsiteAbroad: true}) {
 		t.Error("profile fields changed the cache key")
+	}
+}
+
+// A cached search gives the same classification as a fresh one, and an
+// entry from another classifier version is classified again from its stored
+// copy: fields the source set survive, and the fetch time stays.
+func TestEngineCacheClassification(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	mk := func() []model.Job {
+		a := job("src:1", "Backend Engineering Intern", "Bengaluru")
+		a.Company, a.Description = "Acme", "Remote team. Go and PostgreSQL. Visa sponsorship available. Prior work experience required."
+		b := job("src:2", "Backend Intern", "Pune")
+		b.Company, b.Description, b.WorkMode, b.Tags = "Beta", "Fully remote.", model.ModeOnsite, []string{"from-source"}
+		return []model.Job{a, b}
+	}
+	src := &fakeSource{name: "src", supports: true}
+	eng := &Engine{Sources: []sources.Source{src}, Store: st, Classifier: classify.Default(), CacheTTL: time.Hour}
+	f := model.Filters{Countries: []string{"IN"}, IncludeUnknown: true}
+	run := func() []string {
+		src.jobs = mk() // a fresh copy, as a real fetch returns
+		res, err := eng.Run(ctx, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, j := range res.Jobs {
+			visa := "nil"
+			if j.VisaSponsorship != nil {
+				visa = strconv.FormatBool(*j.VisaSponsorship)
+			}
+			out = append(out, fmt.Sprint(j.ID, j.JobType, j.Experience, j.WorkMode, visa, j.Areas, j.Tags))
+		}
+		slices.Sort(out)
+		return out
+	}
+	fresh := run()
+	if !slices.ContainsFunc(fresh, func(s string) bool { return strings.HasPrefix(s, "src:2") && strings.Contains(s, "onsite") }) ||
+		!slices.ContainsFunc(fresh, func(s string) bool { return strings.Contains(s, classify.RequiresExperienceTag) }) {
+		t.Fatalf("want the source's work mode and a classifier tag: %v", fresh)
+	}
+	if cached := run(); !slices.Equal(cached, fresh) || src.calls != 1 {
+		t.Fatalf("cached %v\nfresh  %v\ncalls %d", cached, fresh, src.calls)
+	}
+	key := cacheKey(src, f)
+	before, _, _ := st.CachedJobs(ctx, "src", key, time.Hour)
+	// Another version's classification, which must not be applied.
+	if err := st.RedoCache(ctx, "src", key, before, before.Jobs, "old", []byte(`[{"t":"contract"},{"t":"contract"}]`)); err != nil {
+		t.Fatal(err)
+	}
+	if redone := run(); !slices.Equal(redone, fresh) || src.calls != 1 {
+		t.Fatalf("reclassified %v\nfresh       %v\ncalls %d", redone, fresh, src.calls)
+	}
+	if after, _, _ := st.CachedJobs(ctx, "src", key, time.Hour); after.ClassVersion != eng.prepVersion() || !after.FetchedAt.Equal(before.FetchedAt) {
+		t.Errorf("entry after redo: version %q, fetched %v (was %v)", after.ClassVersion, after.FetchedAt, before.FetchedAt)
 	}
 }
