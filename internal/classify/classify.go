@@ -33,6 +33,7 @@ type Rules struct {
 	WorkModes          map[string][]string `yaml:"work_modes"`
 	Visa               map[string][]string `yaml:"visa"`
 	RequiresExperience map[string][]string `yaml:"requires_experience"`
+	Pay                map[string][]string `yaml:"pay"`
 	Areas              map[string][]string `yaml:"areas"`
 	MinDescriptionHits int                 `yaml:"min_description_hits"`
 	GenericTitles      []string            `yaml:"generic_titles"`
@@ -83,6 +84,11 @@ type Classifier struct {
 	visaNo       matcher
 	reqExpYes    matcher
 	reqExpNo     matcher
+	unpaid       matcher
+	paid         matcher
+	eitherPaid   matcher
+	payWord      matcher
+	amountHints  []hint
 	expWord      matcher // "experience"
 	yearWord     matcher // "year", "years", "yrs"
 	areas        []areaRule
@@ -95,7 +101,7 @@ type Classifier struct {
 
 // logicVersion changes whenever Classify's code changes what it decides
 // for the same rules, so results cached under the old logic are redone.
-const logicVersion = "1"
+const logicVersion = "2"
 
 // Version identifies the classifier's rules and logic: two classifiers
 // with the same Version classify every job the same way.
@@ -145,6 +151,15 @@ func FromYAML(b []byte) (*Classifier, error) {
 	c.visaNo = c.compile(r.Visa["no"])
 	c.reqExpYes = c.compile(r.RequiresExperience["yes"])
 	c.reqExpNo = c.compile(r.RequiresExperience["no"])
+	c.unpaid = c.compile(r.Pay["unpaid"])
+	c.paid = c.compile(r.Pay["paid"])
+	c.eitherPaid = c.compile(r.Pay["either"])
+	c.payWord = c.compile(r.Pay["words"])
+	for _, h := range r.Pay["amount_hints"] {
+		if id := c.lex.add(h); id >= 0 {
+			c.amountHints = append(c.amountHints, hint{id, h})
+		}
+	}
 	c.expWord = c.compile([]string{"experience"})
 	c.yearWord = c.compile([]string{"year", "years", "yrs"})
 	c.generic = c.compile(r.GenericTitles)
@@ -205,6 +220,9 @@ func (c *Classifier) Classify(j *model.Job) {
 	loc := c.lex.mark(Tokenize(j.Location))
 
 	j.JobType = c.jobType(j.JobType, title)
+	if !j.HasSalary() && j.Paid == nil {
+		c.pay(j, desc, lowerDesc)
+	}
 	j.Experience = c.experienceLevel(j.Experience, j.JobType, title, lowerDesc)
 	j.WorkMode = c.workMode(j.WorkMode, title, loc, desc)
 	if j.VisaSponsorship == nil {

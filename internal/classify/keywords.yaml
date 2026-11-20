@@ -55,3 +55,17 @@ areas:
   research: [research scientist, research engineer, researcher, research intern, phd, publications, research]
   blockchain: [blockchain, web3, solidity, smart contract, smart contracts, ethereum, defi, crypto, cryptocurrency, solana, rust smart contracts]
   gamedev: [game developer, game development, gameplay, unity, unreal, unreal engine, game engine, game designer, gaming]
+
+# Pay. A posting that says it's unpaid gets paid: false, unless it also asks
+# "paid/unpaid" (`either`), as in "is it a paid/unpaid internship? it is a
+# paid internship". An internship that says it pays, without an amount,
+# gets paid: true.
+# Amounts are read in classify/pay.go, near a pay word such as salary,
+# stipend or pay; `amount_hints` are the words besides a currency sign that
+# make a description worth reading for one.
+pay:
+  unpaid: [unpaid internship, unpaid position, unpaid role, unpaid opportunity, unpaid program, unpaid programme, unpaid fellowship, internship is unpaid, position is unpaid, role is unpaid, is an unpaid, no stipend, without stipend, without a stipend, without any stipend, not a paid internship, not a paid position, non paid internship, volunteer position, volunteer role, volunteer opportunity, volunteer basis]
+  paid: [is a paid internship, is a paid position, this paid internship, paid internship program, paid internship programme, paid internship with, internship stipend, stipend will be paid, stipend will be provided, stipend is provided, stipend provided, stipend as per company policy, competitive stipend, attractive stipend, performance based stipend]
+  either: [paid unpaid, paid or unpaid]
+  words: [salary, salaries, stipend, stipends, pay, paid, payment, compensation, compensated, wage, wages, rate, ctc, earn, earnings, remuneration, range]
+  amount_hints: [inr, usd, eur, gbp, cad, aud, sgd, jpy, chf, rs, rupees, lpa, lakh, lakhs, monthly stipend, weekly stipend, stipend per month, monthly salary, per month, per annum]
