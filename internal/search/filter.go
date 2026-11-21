@@ -117,17 +117,17 @@ func matches(j *model.Job, f model.Filters, c *classify.Classifier, kw, ex *clas
 		if j.HasSalary() && j.Period() != model.PerYear {
 			return unk // --min-salary is a yearly amount; don't convert hourly or monthly pay
 		}
-		max := j.SalaryMax
-		if max == nil {
-			max = j.SalaryMin
+		top := j.SalaryMax
+		if top == nil {
+			top = j.SalaryMin
 		}
-		if max == nil {
+		if top == nil {
 			return unk
 		}
 		if f.Currency != "" && j.Currency != "" && !strings.EqualFold(f.Currency, j.Currency) {
 			return unk // no FX conversion; don't compare across currencies
 		}
-		if *max < f.MinSalary {
+		if *top < f.MinSalary {
 			return false
 		}
 	}

@@ -97,7 +97,7 @@ func ProfileFilters(def config.Defaults, p config.Profile) (model.Filters, error
 }
 
 // ProfileCompanyInput is the companies-list filter a profile asks for.
-// Fields set in in win.
+// Fields already set in the in argument take precedence over the profile.
 func ProfileCompanyInput(p config.Profile, in company.FilterInput) company.FilterInput {
 	c := p.Companies
 	fill := func(dst *[]string, src []string) {

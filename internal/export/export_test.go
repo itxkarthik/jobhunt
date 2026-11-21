@@ -12,10 +12,10 @@ import (
 )
 
 func rows() []Row {
-	min := 600000.0
+	minSalary := 600000.0
 	return []Row{{Status: "applied", Job: model.Job{
 		Key: "abc123", Title: "Backend | Intern", Company: "Acme", City: "Pune", JobType: model.TypeInternship,
-		Areas: []model.Area{model.AreaBackend, model.AreaDevOps}, SalaryMin: &min, Currency: "INR",
+		Areas: []model.Area{model.AreaBackend, model.AreaDevOps}, SalaryMin: &minSalary, Currency: "INR",
 		PostedAt: time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC), Sources: []string{"greenhouse"}, URL: "https://x/1", Score: 88,
 	}}}
 }

@@ -291,7 +291,7 @@ func printCompany(w io.Writer, v app.CompanyView, now time.Time) {
 		hc += " (" + c.HeadcountSource + ")"
 	}
 	row("people", hc)
-	var bs []string
+	bs := make([]string, 0, len(c.Boards))
 	for _, b := range c.Boards {
 		bs = append(bs, b.String())
 	}

@@ -202,8 +202,9 @@ func (s *Server) links(w http.ResponseWriter, r *http.Request) error {
 }
 
 func linksFor(f model.Filters) []linkOut {
-	out := []linkOut{}
-	for _, l := range links.For(f) {
+	ls := links.For(f)
+	out := make([]linkOut, 0, len(ls)) // [] rather than null when empty
+	for _, l := range ls {
 		out = append(out, linkOut{l.Site, l.URL})
 	}
 	return out

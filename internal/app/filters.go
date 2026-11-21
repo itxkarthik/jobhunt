@@ -168,7 +168,10 @@ func parseAll[T any](xs []string, parse func(string) (T, error)) ([]T, error) {
 }
 
 func strs[T ~string](xs []T) []string {
-	var out []string
+	if len(xs) == 0 {
+		return nil // keeps an unset filter null in JSON
+	}
+	out := make([]string, 0, len(xs))
 	for _, x := range xs {
 		out = append(out, string(x))
 	}
