@@ -39,6 +39,7 @@ export async function mount(view, { live = () => true } = {}) {
   let drawer = null; // the open details drawer, if any
 
   const filter = h("input", { type: "search", class: "input", placeholder: "Filter cards", "aria-label": "Filter cards" });
+  const addBtn = h("button", { type: "button", class: "btn btn-secondary", title: "Track a job from LinkedIn, Internshala or any other site" }, icon("plus"), " Add job");
   const funnel = h("div", { class: "funnel" });
   const tabs = h("div", { class: "stage-tabs", role: "tablist", "aria-label": "Stages" });
   const board = h("div", { class: "board" });
@@ -48,7 +49,7 @@ export async function mount(view, { live = () => true } = {}) {
       h("div", { class: "pipeline-title" },
         h("h2", {}, "Pipeline"),
         h("span", { class: "hint mono" }, "drag cards between columns · or press s / a on a job in Search"),
-        filter),
+        filter, addBtn),
       loadError,
       funnel),
     tabs,
@@ -276,6 +277,62 @@ export async function mount(view, { live = () => true } = {}) {
     drawer = { el, key, refresh: () => fill(body, key) };
     fill(body, key).then(() => body.querySelector("textarea")?.focus());
   }
+
+  // openAdd is a form for a job found on another site. Its URL is stored
+  // and opened in the browser on request; jobhunt never fetches it.
+  function openAdd() {
+    closeDrawer();
+    const field = (id, label, input) => h("div", { class: "field" }, h("label", { for: id }, label), input);
+    const url = h("input", { id: "add-url", class: "input", type: "url", required: true, maxlength: 2000, placeholder: "Paste the link from your browser" });
+    const titleIn = h("input", { id: "add-title", class: "input", required: true, maxlength: 300, placeholder: "Backend Intern" });
+    const companyIn = h("input", { id: "add-company", class: "input", required: true, maxlength: 300 });
+    const where = h("input", { id: "add-location", class: "input", maxlength: 300, placeholder: "Bengaluru, India or remote" });
+    const sel = h("select", { id: "add-status", class: "input" }, statuses.map((s) => h("option", { value: s }, statusLabel[s] || s)));
+    const note = h("textarea", { id: "add-note", class: "input", rows: 3, maxlength: 2000 });
+    const err = h("p", { class: "notice error", hidden: true, role: "alert" });
+    const submit = h("button", { type: "submit", class: "btn btn-primary" }, "Track it");
+    const form = h("form", { class: "add-form" },
+      field("add-url", "Posting URL", url),
+      field("add-title", "Title", titleIn),
+      field("add-company", "Company", companyIn),
+      field("add-location", "Location (optional)", where),
+      field("add-status", "Stage", sel),
+      field("add-note", "Note (optional)", note),
+      err,
+      h("p", { class: "muted" }, "Copy these from the page in your browser. jobhunt saves the link but never opens it itself."),
+      h("div", { class: "row" }, submit));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      submit.disabled = true;
+      err.hidden = true;
+      try {
+        const reply = await api("POST", "/api/tracker", {
+          url: url.value, title: titleIn.value, company: companyIn.value, location: where.value, status: sel.value, note: note.value,
+        });
+        closeDrawer();
+        toast(`Tracking: ${title(reply)}`);
+        await load();
+        focusCard(reply.key);
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.hidden = false;
+        submit.disabled = false;
+      }
+    });
+    const body = h("div", { class: "drawer", role: "dialog", "aria-modal": "true", "aria-labelledby": "add-title-h", tabindex: -1 },
+      h("div", { class: "drawer-head" },
+        h("h2", { id: "add-title-h" }, "Track a job from another site"),
+        h("button", { type: "button", class: "btn btn-secondary btn-icon", onclick: closeDrawer, "aria-label": "Close" }, icon("x"))),
+      form);
+    const el = h("div", { class: "drawer-backdrop" }, body);
+    el.addEventListener("click", (e) => { if (e.target === el) closeDrawer(); });
+    document.body.append(el);
+    setBackgroundInert(true);
+    document.addEventListener("keydown", onDrawerKey);
+    drawer = { el, key: "", refresh: () => {} };
+    url.focus();
+  }
+  addBtn.addEventListener("click", openAdd);
 
   async function fill(body, key) {
     const r = rows.find((x) => x.key === key);

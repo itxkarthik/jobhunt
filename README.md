@@ -75,6 +75,7 @@ jobhunt preset save <name> [filters] | list | show <name> | delete <name>
 # Tracker
 jobhunt tracker set <key> saved|applied|oa|interview|offer|rejected [--note "…"]
 jobhunt tracker [--status applied,interview] | show <key> | rm <key>
+jobhunt tracker add <url> --title "…" --company "…" [--location …] [--status applied]   # a job from LinkedIn, Internshala, …
 jobhunt hide <key> | unhide <key>
 
 # Export (csv, json or md, from the file extension)
@@ -155,7 +156,7 @@ jobhunt serve --open    # http://127.0.0.1:7777
 The browser UI runs from the same binary, with no build step and nothing loaded from the internet. It has four tabs:
 
 - **Search:** the filters and results from the CLI, with live progress per source and a details panel for each job.
-- **Tracker:** your applications as a board from saved to offer, with notes and history.
+- **Tracker:** your applications as a board from saved to offer, with notes and history. **Add job** tracks a posting from any other site (LinkedIn, Internshala, …) from its URL plus the title and company you copy in; jobhunt never opens that URL itself.
 - **Companies:** the [companies list](#companies) with filters, details, notes and an outreach email draft.
 - **Sources:** what each source returned, its errors and its cache.
 
@@ -240,7 +241,7 @@ claude mcp add jobhunt-read-only -- jobhunt mcp --read-only   # read tools only
 or copy [`docs/examples/mcp.json`](docs/examples/mcp.json) into your MCP client's config.
 
 - **Read tools:** `search_jobs`, `get_job`, `list_companies`, `get_company`, `get_profile`, `check_fit`, `list_sources`. `check_fit` tells an agent how a company compares with your profile's companies section before it records anything: known mismatches (`misses`) apart from facts still `unknown`. `upsert_company` and `add_board` return the same `fit`.
-- **Write tools:** `upsert_company`, `add_contact`, `add_board`, `track_job`, `add_note`. `--read-only` leaves them out.
+- **Write tools:** `upsert_company`, `add_contact`, `add_board`, `track_job`, `track_url` (track a job from any site by URL, with details from search results or text you paste; the URL is never fetched), `add_note`. `--read-only` leaves them out.
 
 Everything an agent sends is validated and sanitized like your own input. Rounds and contacts are refused without a source URL, and no tool returns keys or tokens.
 

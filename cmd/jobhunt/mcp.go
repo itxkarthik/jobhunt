@@ -21,7 +21,7 @@ func newMCPCmd() *cobra.Command {
 agent host such as Claude Code to start. It opens no network port.
 
 Read tools: search_jobs, get_job, list_companies, get_company, get_profile, check_fit, list_sources.
-Write tools: upsert_company, add_contact, add_board, track_job, add_note.
+Write tools: upsert_company, add_contact, add_board, track_job, track_url, add_note.
 --read-only leaves the write tools out.
 
 Everything an agent sends is validated and sanitized before it is stored.

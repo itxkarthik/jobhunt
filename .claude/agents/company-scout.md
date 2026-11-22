@@ -76,9 +76,10 @@ For each company, fill the gaps that matter:
   or board is enough.
 - **Respect sites' terms.** Read public pages and search results the way a
   person would: one page at a time, no bulk crawling. Don't fetch sites
-  whose terms forbid automated access: LinkedIn, Crunchbase, Tracxn,
-  Wellfound (AngelList), Inc42, Entrackr, Glassdoor, AmbitionBox and Y
-  Combinator's directory. If a search result from one of them tells you
+  whose terms forbid automated access, with a fetch tool or by driving a
+  browser: LinkedIn, Crunchbase, Tracxn, Wellfound (AngelList), Inc42,
+  Entrackr, Glassdoor, AmbitionBox, Y Combinator's directory, Internshala,
+  Naukri and Indeed. If a search result from one of them tells you
   something, say what it said, find the same fact on a page you may read
   (the company's own site, a press release, a filing) and cite that.
 - **Unknown stays unknown.** Leave fields empty rather than guessing. Mark

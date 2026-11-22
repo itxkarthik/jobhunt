@@ -126,7 +126,7 @@ func TestTools(t *testing.T) {
 	if got := names(newEnv(t, true)); !slices.Equal(got, read) {
 		t.Errorf("read-only tools = %v", got)
 	}
-	all := append(slices.Clone(read), "add_board", "add_contact", "add_note", "track_job", "upsert_company")
+	all := append(slices.Clone(read), "add_board", "add_contact", "add_note", "track_job", "track_url", "upsert_company")
 	slices.Sort(all)
 	if got := names(newEnv(t, false)); !slices.Equal(got, all) {
 		t.Errorf("tools = %v", got)
@@ -171,6 +171,18 @@ func TestSearchAndTrack(t *testing.T) {
 	}
 	if msg := e.call("track_job", map[string]any{"key": key, "status": "hired"}, nil); msg == "" {
 		t.Error("bad status accepted")
+	}
+	// track_url stores a job it never fetches; only http(s) links.
+	in := map[string]any{"url": "javascript:alert(1)", "title": "Go Intern", "company": "Acme"}
+	if msg := e.call("track_url", in, nil); !strings.Contains(msg, "http(s)") {
+		t.Errorf("non-http url: %q", msg)
+	}
+	in["url"], in["source_url"] = "https://www.linkedin.com/jobs/view/1", "https://www.google.com/search?q=acme"
+	if msg := e.call("track_url", in, &tr); msg != "" || tr.Status != store.Saved {
+		t.Errorf("track_url: %q %+v", msg, tr)
+	}
+	if msg := e.call("track_url", in, nil); !strings.Contains(msg, "already tracked") {
+		t.Errorf("duplicate: %q", msg)
 	}
 	evs, _ := e.st.Events(context.Background(), key)
 	if len(evs) != 1 || strings.ContainsRune(evs[0].Note, '‮') {

@@ -72,6 +72,7 @@ func newTrackerCmd() *cobra.Command {
 		Example: `  jobhunt tracker                         # list everything
   jobhunt tracker set 96ac applied --note "referral from Priya"
   jobhunt tracker set 96ac oa
+  jobhunt tracker add https://www.linkedin.com/jobs/view/123 -t "Backend Intern" -c Acme
   jobhunt tracker show 96ac
   jobhunt tracker list --status applied,interview`,
 		RunE: list,
@@ -162,7 +163,52 @@ func newTrackerCmd() *cobra.Command {
 			})
 		},
 	}
-	cmd.AddCommand(listCmd, set, show, rm)
+	var in app.ManualInput
+	var addStatus, addNote string
+	add := &cobra.Command{
+		Use:   "add <url>",
+		Short: "Track a job you found elsewhere (LinkedIn, Internshala, …) by its URL",
+		Long: `Track a job from any site. Copy the title and company from the page in
+your browser: jobhunt stores the link and what you typed, and never opens the
+URL itself (those sites forbid automated access). o in the TUI or "Open the
+posting" in the web UI opens it in your browser.
+
+A job added this way is never marked "not listed" unless the same job also
+turns up from one of jobhunt's sources.`,
+		Example: `  jobhunt tracker add https://www.linkedin.com/jobs/view/123 --title "Backend Intern" --company Acme
+  jobhunt tracker add https://internshala.com/internship/detail/xyz -t "Go Intern" -c Acme -l Bengaluru -s applied --note "applied via site"`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			st, err := store.ParseStatus(addStatus)
+			if err != nil {
+				return err
+			}
+			in.URL = args[0]
+			j, err := app.ManualJob(in)
+			if err != nil {
+				return err
+			}
+			a, err := app.Open()
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			if err := a.Store.TrackManual(cmd.Context(), &j, st, strings.TrimSpace(addNote)); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s — %s (%s) → %s\n", j.Title, j.Company, j.Key, st)
+			return nil
+		},
+	}
+	add.Flags().StringVarP(&in.Title, "title", "t", "", "job title, as the posting shows it (required)")
+	add.Flags().StringVarP(&in.Company, "company", "c", "", "company name (required)")
+	add.Flags().StringVarP(&in.Location, "location", "l", "", `where, e.g. "Bengaluru" or "India"`)
+	add.Flags().StringVarP(&addStatus, "status", "s", "saved", "saved, applied, oa, interview, offer or rejected")
+	add.Flags().StringVar(&addNote, "note", "", "note to attach")
+	_ = add.MarkFlagRequired("title")
+	_ = add.MarkFlagRequired("company")
+
+	cmd.AddCommand(listCmd, set, add, show, rm)
 	return cmd
 }
 
