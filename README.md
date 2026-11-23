@@ -1,5 +1,7 @@
 # jobhunt
 
+[![CI](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml/badge.svg)](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml)
+
 **Search every legal job source at once from your terminal, and track your applications in one place.**
 
 jobhunt is a single Go binary for students and early-career engineers looking for **internships, new-grad and entry-level roles**. It's tuned for India by default, and the US, Japan, Europe and remote jobs work too.

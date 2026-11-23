@@ -24,7 +24,7 @@ You need Go 1.27+ (see `go.mod`).
 ```sh
 git clone https://github.com/itxkarthik/jobhunt && cd jobhunt
 make          # fmt + vet + test + build → bin/jobhunt
-make lint     # golangci-lint v2 with the repo's .golangci.yml (installed on first run)
+make lint     # golangci-lint with the repo's .golangci.yml, at the version CI uses (installed into bin/ on first run)
 make install  # → ~/.local/bin/jobhunt
 ```
 

@@ -14,14 +14,14 @@ Instructions for AI coding agents (Claude Code, Codex, Copilot and others) worki
 ```sh
 make            # fmt + vet + test + build → bin/jobhunt
 make test       # go test -race -count=1 ./...
-make lint       # golangci-lint v2, config in .golangci.yml
+make lint       # golangci-lint, pinned to CI's version (LINT_VERSION in the Makefile), config in .golangci.yml
 make install    # → ~/.local/bin/jobhunt (PREFIX= to override)
 go fix -diff ./...   # must print nothing
 ./bin/jobhunt search -c IN -t internship -a backend   # end-to-end check (needs network)
 ./bin/jobhunt sources --check-boards                   # verify companies.yaml slugs live
 ```
 
-Before you say a change is done, run `make test`, `make lint`, `gofmt -l .` and `go fix -diff ./...`. All must be clean.
+Before you say a change is done, run `make test`, `make lint`, `gofmt -l .` and `go fix -diff ./...`. All must be clean. CI (`.github/workflows/ci.yml`) runs the same checks on every pull request.
 
 ## Layout
 
