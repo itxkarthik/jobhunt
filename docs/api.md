@@ -69,7 +69,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | Method and path | Does |
 |---|---|
 | `GET /api/health` | `{"ok": true}` |
-| `GET /api/meta` | API and feed versions, default filters, allowed values for each option |
+| `GET /api/meta` | `version` (`{version, commit, date, go}` of the running build), API and feed versions, default filters, allowed values for each option |
 | `POST /api/search` | Run a search: filters plus `refresh`, `new_only`, `show_hidden`, `sort` (`score` or `date`) and `limit` (0 means all) |
 | `GET /api/events?…` | The same search, streamed as Server-Sent Events (see below) |
 | `GET /api/links?…` | Pre-filled searches on sites jobhunt can't query, for the filters in the query string (same names as `/api/events`). Runs no search. |

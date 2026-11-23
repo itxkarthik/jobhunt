@@ -18,6 +18,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/sources"
 	"github.com/itxkarthik/jobhunt/internal/sources/links"
 	"github.com/itxkarthik/jobhunt/internal/store"
+	"github.com/itxkarthik/jobhunt/internal/version"
 )
 
 // APIVersion versions the /api request and response shapes.
@@ -137,6 +138,7 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) error {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
+		"version":      version.Get(),
 		"api_version":  APIVersion,
 		"feed_version": feed.Version,
 		"defaults":     app.InputOf(def),

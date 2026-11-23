@@ -1,6 +1,6 @@
 // Entry point: token handling, hash routing, the tab bar, the theme and
 // the keys that work on every tab (1–4, t, r).
-import { api, takeToken, token, setToken, whenUnauthorized } from "./api.js";
+import { api, meta, takeToken, token, setToken, whenUnauthorized } from "./api.js";
 import { h, icon, corners, replace, typing } from "./dom.js";
 import * as shell from "./shell.js";
 import * as runlog from "./runlog.js";
@@ -56,6 +56,7 @@ async function render() {
     return;
   }
   document.title = `jobhunt · ${views[name].label}`;
+  showVersion();
   shell.setSub(views[name].sub);
   refreshCounts();
   // Each mount gets its own container. If the route changes while it is
@@ -151,6 +152,19 @@ function initTheme() {
   paintThemeButton();
   systemDark.addEventListener("change", paintThemeButton);
   document.getElementById("theme").addEventListener("click", toggleTheme);
+}
+
+// showVersion puts the server's version in the status bar, so a serve left
+// running across a `make install` is easy to spot.
+function showVersion() {
+  const el = document.getElementById("version");
+  if (el.textContent) return;
+  meta().then((m) => {
+    const v = m.version;
+    if (!v) return;
+    el.textContent = `jobhunt ${v.version}`;
+    el.title = [v.version, v.commit, v.date, v.go].filter(Boolean).join(" · ");
+  }).catch(() => {});
 }
 
 function initFetch() {

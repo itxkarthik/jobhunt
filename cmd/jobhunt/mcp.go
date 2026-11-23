@@ -4,12 +4,12 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"runtime/debug"
 
 	"github.com/spf13/cobra"
 
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/mcpserver"
+	"github.com/itxkarthik/jobhunt/internal/version"
 )
 
 func newMCPCmd() *cobra.Command {
@@ -41,18 +41,11 @@ tool returns keys or tokens. Logs go to stderr.`,
 			return mcpserver.Run(ctx, mcpserver.Options{
 				App:      a,
 				ReadOnly: readOnly,
-				Version:  buildVersion(),
+				Version:  version.Get().Version,
 				Log:      slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
 			})
 		},
 	}
 	cmd.Flags().BoolVar(&readOnly, "read-only", false, "offer only the read tools")
 	return cmd
-}
-
-func buildVersion() string {
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" {
-		return bi.Main.Version
-	}
-	return "dev"
 }

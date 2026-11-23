@@ -327,7 +327,8 @@ main { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .statusbar .hints { display: flex; align-items: center; gap: 14px; padding: 0 12px; overflow: hidden; }
 .statusbar .hints b { color: var(--color-text); font-weight: 600; }
 .statusbar .context { margin-left: auto; display: flex; align-items: center; padding: 0 12px; }
-.statusbar .mode:empty { display: none; }
+.statusbar .version { display: flex; align-items: center; padding: 0 12px; border-left: 1px solid var(--color-divider); color: var(--color-neutral-600); }
+.statusbar .mode:empty, .statusbar .version:empty { display: none; }
 
 .toasts {
   position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 40;

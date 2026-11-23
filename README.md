@@ -100,9 +100,10 @@ jobhunt companies sync [--every 6h] | import edgar|mca|hn | links
 jobhunt serve [--open]
 jobhunt mcp [--read-only]
 
-# Sources and config
+# Sources, config and version
 jobhunt sources [--check-boards]
 jobhunt config init | path
+jobhunt version          # or --version: version, commit, build date
 ```
 
 Every command has `--help` with examples.
