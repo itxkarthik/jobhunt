@@ -30,13 +30,24 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 
 ## Install
 
-Needs Go 1.27+ on Linux, macOS or Windows.
+**Download a release** (no Go needed): pick the archive for your system from [Releases](https://github.com/itxkarthik/jobhunt/releases) (Linux, macOS and Windows, on amd64 and arm64), check it against `checksums.txt`, and put `jobhunt` somewhere on your PATH:
 
 ```sh
+tar -xzf jobhunt_*_linux_amd64.tar.gz
+mkdir -p ~/.local/bin && mv jobhunt ~/.local/bin/
+jobhunt version
+```
+
+**Or build it** with Go 1.27+:
+
+```sh
+go install github.com/itxkarthik/jobhunt/cmd/jobhunt@latest
+# or from a clone, which also stamps the version:
 git clone https://github.com/itxkarthik/jobhunt && cd jobhunt
 make install          # → ~/.local/bin/jobhunt  (PREFIX=/other/dir make install)
-jobhunt config init   # optional: writes ~/.config/jobhunt/config.yaml
 ```
+
+Then, optionally, `jobhunt config init` writes a starter `~/.config/jobhunt/config.yaml`.
 
 If you get `command not found: jobhunt`, add `~/.local/bin` to your PATH: `export PATH="$HOME/.local/bin:$PATH"`.
 

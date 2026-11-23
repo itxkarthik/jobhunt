@@ -1,0 +1,57 @@
+# Release binaries for every v* tag (.github/workflows/release.yml).
+# Check locally with: goreleaser check && goreleaser build --snapshot --clean
+version: 2
+project_name: jobhunt
+
+builds:
+  - id: jobhunt
+    main: ./cmd/jobhunt
+    binary: jobhunt
+    env:
+      - CGO_ENABLED=0 # modernc.org/sqlite is pure Go
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/itxkarthik/jobhunt/internal/version.Version={{ .Tag }}
+      - -X github.com/itxkarthik/jobhunt/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/itxkarthik/jobhunt/internal/version.Date={{ .Now.Format "2006-01-02" }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # The AGPL and NOTICE terms travel with every copy.
+    files: [LICENSE, NOTICE, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Performance
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: Other changes
+      order: 999
+  filters:
+    exclude:
+      - '^docs(\(.+\))?:'
+      - '^test(\(.+\))?:'
+      - '^Merge '
+
+release:
+  footer: |
+    Install: download the archive for your system, check it against `checksums.txt`, and put `jobhunt` on your PATH. Or `go install github.com/itxkarthik/jobhunt/cmd/jobhunt@{{ .Tag }}`.
