@@ -3,6 +3,7 @@ package server
 import (
 	"cmp"
 	"context"
+	"errors"
 	"net/http"
 	"regexp"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/sources"
 	"github.com/itxkarthik/jobhunt/internal/sources/links"
 	"github.com/itxkarthik/jobhunt/internal/store"
+	"github.com/itxkarthik/jobhunt/internal/version"
 )
 
 // APIVersion versions the /api request and response shapes.
@@ -116,6 +118,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/jobs/{key}/hide", s.handle(s.hide(true)))
 	mux.HandleFunc("DELETE /api/jobs/{key}/hide", s.handle(s.hide(false)))
 	mux.HandleFunc("GET /api/tracker", s.handle(s.trackerList))
+	mux.HandleFunc("POST /api/tracker", s.handle(s.trackerAdd))
 	mux.HandleFunc("PUT /api/tracker/{key}", s.handle(s.trackerSet))
 	mux.HandleFunc("DELETE /api/tracker/{key}", s.handle(s.trackerDelete))
 	mux.HandleFunc("PUT /api/tracker/{key}/notes", s.handle(s.trackerNotes))
@@ -135,6 +138,7 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) error {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
+		"version":      version.Get(),
 		"api_version":  APIVersion,
 		"feed_version": feed.Version,
 		"defaults":     app.InputOf(def),
@@ -355,6 +359,41 @@ func (s *Server) trackerSet(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return s.writeTracked(r.Context(), w, key)
+}
+
+// trackerAdd tracks a job found outside jobhunt's sources, from details
+// the user typed. The URL is stored, never requested.
+func (s *Server) trackerAdd(w http.ResponseWriter, r *http.Request) error {
+	var body struct {
+		app.ManualInput
+		Status string `json:"status,omitempty"`
+		Note   string `json:"note,omitempty"`
+	}
+	if err := decode(r, &body); err != nil {
+		return err
+	}
+	if body.Status == "" {
+		body.Status = string(store.Saved)
+	}
+	st, err := store.ParseStatus(body.Status)
+	if err != nil {
+		return badRequest("%v", err)
+	}
+	note := strings.TrimSpace(body.Note)
+	if utf8.RuneCountInString(note) > maxNoteLen {
+		return badRequest("note is longer than %d characters", maxNoteLen)
+	}
+	j, err := app.ManualJob(body.ManualInput)
+	if err != nil {
+		return badRequest("%v", err)
+	}
+	if err := s.opts.Store.TrackManual(r.Context(), &j, st, note); err != nil {
+		if errors.Is(err, store.ErrTracked) {
+			return conflict("this job is already tracked as %s", j.Key)
+		}
+		return err
+	}
+	return s.writeTracked(r.Context(), w, j.Key)
 }
 
 // trackerNotes replaces a tracked job's notes, e.g. after editing them in

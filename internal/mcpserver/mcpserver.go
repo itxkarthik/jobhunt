@@ -88,6 +88,10 @@ func New(o Options) *mcp.Server {
 		"The board is fetched once and refused if it is dead or empty; afterwards every search includes it."}, h.addBoard)
 	mcp.AddTool(s, &mcp.Tool{Name: "track_job", Description: "Set a job's tracker status (saved, applied, oa, interview, offer, rejected) with an optional note. " +
 		"Use saved for leads; only use applied when the user says they applied."}, h.trackJob)
+	mcp.AddTool(s, &mcp.Tool{Name: "track_url", Description: "Track a job jobhunt's searches don't cover (LinkedIn, Internshala, Naukri, a careers page…) by its URL. " +
+		"Never request that URL if the site forbids automated access: take the title, company and location from web search results, " +
+		"from text the user pasted, or from a careers page or job board that allows fetching, and give that page as source_url. " +
+		"Use saved unless the user says they applied."}, h.trackURL)
 	mcp.AddTool(s, &mcp.Tool{Name: "add_note", Description: "Append a dated note to a company's notes, e.g. a review summary or why it fits, with its source."}, h.addNote)
 	return s
 }
@@ -97,8 +101,11 @@ call list_companies or get_company to see what is known, then fill gaps.
 Every fact you store needs the URL you found it at. Store contacts only when
 the person published them; never guess or construct an email address. Do not
 crawl sites whose terms forbid automated access (LinkedIn, Crunchbase,
-Glassdoor, Wellfound): cite what search results show instead. Never apply,
-send email or contact anyone for the user; drafting is fine.`
+Glassdoor, Wellfound, Internshala, Naukri, Indeed), not with a fetch tool and
+not by driving a browser: cite what search results show instead. To track a
+job from such a site, use track_url with details from search results or text
+the user pasted. Never apply, send email or contact anyone for the user;
+drafting is fine.`
 
 // Run serves on stdin/stdout until ctx ends or the client disconnects.
 func Run(ctx context.Context, o Options) error {
@@ -455,6 +462,50 @@ type TrackInput struct {
 	Key    string `json:"key" jsonschema:"job key or unique prefix"`
 	Status string `json:"status" jsonschema:"saved, applied, oa, interview, offer or rejected"`
 	Note   string `json:"note,omitempty"`
+}
+
+type TrackURLInput struct {
+	URL       string `json:"url" jsonschema:"the posting's http(s) URL; jobhunt stores it and never requests it"`
+	Title     string `json:"title" jsonschema:"job title as the posting shows it"`
+	Company   string `json:"company"`
+	Location  string `json:"location,omitempty" jsonschema:"e.g. Bengaluru or India, if known"`
+	Status    string `json:"status,omitempty" jsonschema:"saved (default), applied, oa, interview, offer or rejected"`
+	Note      string `json:"note,omitempty"`
+	SourceURL string `json:"source_url,omitempty" jsonschema:"where the details came from (a search result or allowed page); omit when the user pasted them"`
+}
+
+func (h *handlers) trackURL(ctx context.Context, _ *mcp.CallToolRequest, in TrackURLInput) (*mcp.CallToolResult, TrackOutput, error) {
+	if in.Status == "" {
+		in.Status = string(store.Saved)
+	}
+	st, err := store.ParseStatus(in.Status)
+	if err != nil {
+		return nil, TrackOutput{}, invalid("%v", err)
+	}
+	note := sources.SafeText(strings.TrimSpace(in.Note), true)
+	if src := strings.TrimSpace(in.SourceURL); src != "" {
+		safe := sources.SafeURL(src)
+		if safe == "" {
+			return nil, TrackOutput{}, invalid("source_url must be an http(s) link")
+		}
+		note = strings.TrimSpace(note + "\nDetails from " + safe)
+	} else {
+		note = strings.TrimSpace(note + "\nDetails pasted by the user")
+	}
+	if utf8.RuneCountInString(note) > maxNote {
+		return nil, TrackOutput{}, invalid("note is longer than %d characters", maxNote)
+	}
+	j, err := app.ManualJob(app.ManualInput{URL: in.URL, Title: in.Title, Company: in.Company, Location: in.Location})
+	if err != nil {
+		return nil, TrackOutput{}, invalid("%v", err)
+	}
+	if err := h.o.App.Store.TrackManual(ctx, &j, st, note); err != nil {
+		if errors.Is(err, store.ErrTracked) {
+			return nil, TrackOutput{}, invalid("already tracked as %s; use track_job to change its status", j.Key)
+		}
+		return nil, TrackOutput{}, h.public("track_url", err)
+	}
+	return nil, TrackOutput{Key: j.Key, Status: st}, nil
 }
 
 type TrackOutput struct {

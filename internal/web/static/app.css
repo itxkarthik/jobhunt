@@ -327,7 +327,8 @@ main { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .statusbar .hints { display: flex; align-items: center; gap: 14px; padding: 0 12px; overflow: hidden; }
 .statusbar .hints b { color: var(--color-text); font-weight: 600; }
 .statusbar .context { margin-left: auto; display: flex; align-items: center; padding: 0 12px; }
-.statusbar .mode:empty { display: none; }
+.statusbar .version { display: flex; align-items: center; padding: 0 12px; border-left: 1px solid var(--color-divider); color: var(--color-neutral-600); }
+.statusbar .mode:empty, .statusbar .version:empty { display: none; }
 
 .toasts {
   position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 40;
@@ -491,6 +492,7 @@ main { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .pipeline-title h2 { font-size: 32px; }
 .pipeline-title .hint { font-size: 11px; color: var(--color-neutral-700); }
 .pipeline-title .input { margin-left: auto; width: 220px; }
+.add-form { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
 .funnel { display: grid; grid-template-columns: repeat(var(--stages, 6), minmax(0, 1fr)); border: 1px solid var(--color-divider); }
 .funnel-cell { padding: 10px 14px 12px; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .funnel-cell:last-child { border-right: 0; }
@@ -769,7 +771,9 @@ main { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
   /* Tracker: funnel scrolls, stage tabs pick the column. */
   .pipeline-head { padding: 0; border-bottom: 0; gap: 0; }
-  .pipeline-title { display: none; }
+  /* Phones show only the Add job button from the heading. */
+  .pipeline-title { padding: 12px 16px 0; }
+  .pipeline-title > :not(.add-job) { display: none; }
   .funnel { display: flex; overflow-x: auto; border: 0; border-bottom: 1px solid var(--color-divider); scrollbar-width: none; }
   .funnel-cell { flex: none; width: 104px; padding: 12px 14px; gap: 4px; }
   .funnel-cell .label span + span, .funnel-cell .rate { display: none; }

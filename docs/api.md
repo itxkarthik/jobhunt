@@ -69,7 +69,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | Method and path | Does |
 |---|---|
 | `GET /api/health` | `{"ok": true}` |
-| `GET /api/meta` | API and feed versions, default filters, allowed values for each option |
+| `GET /api/meta` | `version` (`{version, commit, date, go}` of the running build), API and feed versions, default filters, allowed values for each option |
 | `POST /api/search` | Run a search: filters plus `refresh`, `new_only`, `show_hidden`, `sort` (`score` or `date`) and `limit` (0 means all) |
 | `GET /api/events?…` | The same search, streamed as Server-Sent Events (see below) |
 | `GET /api/links?…` | Pre-filled searches on sites jobhunt can't query, for the filters in the query string (same names as `/api/events`). Runs no search. |
@@ -77,6 +77,7 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
 | `POST /api/jobs/{key}/hide` | Hide a job from future results (`204`) |
 | `DELETE /api/jobs/{key}/hide` | Unhide it (`204`) |
 | `GET /api/tracker[?status=applied,interview]` | Tracked jobs, most recently updated first. `listed_at` is when the posting last showed up in fetched results; `unlisted` is true once that's over 14 days ago, which usually means the company closed it |
+| `POST /api/tracker` | `{"url": "…", "title": "…", "company": "…", "location": "…", "status": "saved", "note": "…"}`: track a job found outside jobhunt's sources (LinkedIn, Internshala, …). The URL must be http(s) and is stored, never fetched. `location`, `status` (default `saved`) and `note` are optional. Returns the row; `409` if that job is already tracked |
 | `PUT /api/tracker/{key}` | `{"status": "applied", "note": "…"}`: set the status, append the note, return the row |
 | `PUT /api/tracker/{key}/notes` | `{"notes": "…"}`: replace the notes (up to 20,000 characters) and return the row. Unlike the `note` above, this isn't added to the history. |
 | `DELETE /api/tracker/{key}` | Stop tracking (`204`; the history is kept) |

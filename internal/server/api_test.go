@@ -468,6 +468,7 @@ func TestEveryRouteIsLocked(t *testing.T) {
 		{http.MethodPost, "/api/jobs/aaaa1111/hide", ""},
 		{http.MethodDelete, "/api/jobs/aaaa1111/hide", ""},
 		{http.MethodGet, "/api/tracker", ""},
+		{http.MethodPost, "/api/tracker", `{"url":"https://example.com/j/1","title":"Intern","company":"Acme"}`},
 		{http.MethodPut, "/api/tracker/aaaa1111", `{"status":"saved"}`},
 		{http.MethodPut, "/api/tracker/aaaa1111/notes", `{"notes":"x"}`},
 		{http.MethodDelete, "/api/tracker/aaaa1111", ""},

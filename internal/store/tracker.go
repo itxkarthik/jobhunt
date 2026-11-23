@@ -238,12 +238,71 @@ func (s *Store) ResolveKey(ctx context.Context, prefix string) (string, error) {
 
 // SetStatus moves key to status, appending note to the history.
 func (s *Store) SetStatus(ctx context.Context, key string, st Status, note string) error {
-	now := time.Now().Unix()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	now := time.Now().Unix()
+	if err := setStatus(ctx, tx, key, st, note, now, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// ErrTracked is returned by TrackManual for a job that's already tracked.
+var ErrTracked = errors.New("already tracked")
+
+// TrackManual tracks j, a posting the user found outside jobhunt's sources
+// and entered by hand. If a search has returned a job with the same key,
+// its stored record is kept and tracked as usual. Otherwise j is stored, and it has
+// no listed time until a fetched source shows it, so it's never flagged
+// as no longer listed on its own.
+func (s *Store) TrackManual(ctx context.Context, j *model.Job, st Status, note string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM tracker WHERE key = ?`, j.Key).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("job %s: %w", j.Key, ErrTracked)
+	}
+	now := time.Now().Unix()
+	var listed any = now
+	// seen holds only jobs that searches returned; a jobs row alone may be
+	// left over from a manual job that was tracked and then removed.
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM seen WHERE key = ?`, j.Key).Scan(&n)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		listed = nil
+		h, err := contentHash(j)
+		if err != nil {
+			return err
+		}
+		stmt, err := tx.PrepareContext(ctx, putJobSQL)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+		if err := putJob(ctx, stmt, j, h, now); err != nil {
+			return err
+		}
+	}
+	if err := setStatus(ctx, tx, j.Key, st, note, now, listed); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// setStatus upserts key's tracker row and records the change in its
+// history. listed is the listed time for a new row (nil for none).
+func setStatus(ctx context.Context, tx *sql.Tx, key string, st Status, note string, now int64, listed any) error {
 	var applied any
 	if st != Saved {
 		applied = now
@@ -257,14 +316,12 @@ func (s *Store) SetStatus(ctx context.Context, key string, st Status, note strin
 			             WHEN tracker.notes = '' THEN excluded.notes
 			             ELSE tracker.notes || char(10) || excluded.notes END,
 			applied_at = COALESCE(tracker.applied_at, excluded.applied_at)`,
-		key, st, note, now, now, applied, now); err != nil {
+		key, st, note, now, now, applied, listed); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO tracker_events (key, at, status, note) VALUES (?, ?, ?, ?)`, key, now, st, note); err != nil {
-		return err
-	}
-	return tx.Commit()
+	_, err := tx.ExecContext(ctx,
+		`INSERT INTO tracker_events (key, at, status, note) VALUES (?, ?, ?, ?)`, key, now, st, note)
+	return err
 }
 
 // SetNotes replaces key's tracker notes. SetStatus appends a note and

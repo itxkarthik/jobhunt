@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/itxkarthik/jobhunt/internal/config"
+	"github.com/itxkarthik/jobhunt/internal/version"
 )
 
 func newRootCmd() *cobra.Command {
@@ -16,10 +17,12 @@ func newRootCmd() *cobra.Command {
 		Short:         "Search many job & internship sources at once",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Version:       version.Get().String(),
 	}
+	root.SetVersionTemplate(versionText())
 	root.AddCommand(newSearchCmd(), newTUICmd(), newTrackerCmd(), newCompaniesCmd(),
 		newMCPCmd(), newPresetCmd(), newExportCmd(),
-		newWatchCmd(), newFeedCmd(), newDigestCmd(), newProfileCmd(), newServeCmd(), newSourcesCmd(), newConfigCmd())
+		newWatchCmd(), newFeedCmd(), newDigestCmd(), newProfileCmd(), newServeCmd(), newSourcesCmd(), newConfigCmd(), newVersionCmd())
 	root.AddCommand(newHideCmds()...)
 	return root
 }

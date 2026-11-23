@@ -28,6 +28,10 @@ func notFound(format string, args ...any) error {
 	return &apiError{http.StatusNotFound, fmt.Sprintf(format, args...)}
 }
 
+func conflict(format string, args ...any) error {
+	return &apiError{http.StatusConflict, fmt.Sprintf(format, args...)}
+}
+
 // handle adapts a handler that returns an error. Known errors map to
 // their status; anything else is logged and reported as a generic 500, so
 // internal details (paths, SQL) never reach the client.

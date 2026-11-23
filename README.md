@@ -1,5 +1,7 @@
 # jobhunt
 
+[![CI](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml/badge.svg)](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml)
+
 **Search every legal job source at once from your terminal, and track your applications in one place.**
 
 jobhunt is a single Go binary for students and early-career engineers looking for **internships, new-grad and entry-level roles**. It's tuned for India by default, and the US, Japan, Europe and remote jobs work too.
@@ -28,13 +30,24 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 
 ## Install
 
-Needs Go 1.27+ on Linux, macOS or Windows.
+**Download a release** (no Go needed): pick the archive for your system from [Releases](https://github.com/itxkarthik/jobhunt/releases) (Linux, macOS and Windows, on amd64 and arm64), check it against `checksums.txt`, and put `jobhunt` somewhere on your PATH:
 
 ```sh
+tar -xzf jobhunt_*_linux_amd64.tar.gz
+mkdir -p ~/.local/bin && mv jobhunt ~/.local/bin/
+jobhunt version
+```
+
+**Or build it** with Go 1.27+:
+
+```sh
+go install github.com/itxkarthik/jobhunt/cmd/jobhunt@latest
+# or from a clone, which also stamps the version:
 git clone https://github.com/itxkarthik/jobhunt && cd jobhunt
 make install          # → ~/.local/bin/jobhunt  (PREFIX=/other/dir make install)
-jobhunt config init   # optional: writes ~/.config/jobhunt/config.yaml
 ```
+
+Then, optionally, `jobhunt config init` writes a starter `~/.config/jobhunt/config.yaml`.
 
 If you get `command not found: jobhunt`, add `~/.local/bin` to your PATH: `export PATH="$HOME/.local/bin:$PATH"`.
 
@@ -75,6 +88,7 @@ jobhunt preset save <name> [filters] | list | show <name> | delete <name>
 # Tracker
 jobhunt tracker set <key> saved|applied|oa|interview|offer|rejected [--note "…"]
 jobhunt tracker [--status applied,interview] | show <key> | rm <key>
+jobhunt tracker add <url> --title "…" --company "…" [--location …] [--status applied]   # a job from LinkedIn, Internshala, …
 jobhunt hide <key> | unhide <key>
 
 # Export (csv, json or md, from the file extension)
@@ -99,9 +113,10 @@ jobhunt companies sync [--every 6h] | import edgar|mca|hn | links
 jobhunt serve [--open]
 jobhunt mcp [--read-only]
 
-# Sources and config
+# Sources, config and version
 jobhunt sources [--check-boards]
 jobhunt config init | path
+jobhunt version          # or --version: version, commit, build date
 ```
 
 Every command has `--help` with examples.
@@ -155,7 +170,7 @@ jobhunt serve --open    # http://127.0.0.1:7777
 The browser UI runs from the same binary, with no build step and nothing loaded from the internet. It has four tabs:
 
 - **Search:** the filters and results from the CLI, with live progress per source and a details panel for each job.
-- **Tracker:** your applications as a board from saved to offer, with notes and history.
+- **Tracker:** your applications as a board from saved to offer, with notes and history. **Add job** tracks a posting from any other site (LinkedIn, Internshala, …) from its URL plus the title and company you copy in; jobhunt never opens that URL itself.
 - **Companies:** the [companies list](#companies) with filters, details, notes and an outreach email draft.
 - **Sources:** what each source returned, its errors and its cache.
 
@@ -240,7 +255,7 @@ claude mcp add jobhunt-read-only -- jobhunt mcp --read-only   # read tools only
 or copy [`docs/examples/mcp.json`](docs/examples/mcp.json) into your MCP client's config.
 
 - **Read tools:** `search_jobs`, `get_job`, `list_companies`, `get_company`, `get_profile`, `check_fit`, `list_sources`. `check_fit` tells an agent how a company compares with your profile's companies section before it records anything: known mismatches (`misses`) apart from facts still `unknown`. `upsert_company` and `add_board` return the same `fit`.
-- **Write tools:** `upsert_company`, `add_contact`, `add_board`, `track_job`, `add_note`. `--read-only` leaves them out.
+- **Write tools:** `upsert_company`, `add_contact`, `add_board`, `track_job`, `track_url` (track a job from any site by URL, with details from search results or text you paste; the URL is never fetched), `add_note`. `--read-only` leaves them out.
 
 Everything an agent sends is validated and sanitized like your own input. Rounds and contacts are refused without a source URL, and no tool returns keys or tokens.
 

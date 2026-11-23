@@ -4,12 +4,12 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"runtime/debug"
 
 	"github.com/spf13/cobra"
 
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/mcpserver"
+	"github.com/itxkarthik/jobhunt/internal/version"
 )
 
 func newMCPCmd() *cobra.Command {
@@ -21,7 +21,7 @@ func newMCPCmd() *cobra.Command {
 agent host such as Claude Code to start. It opens no network port.
 
 Read tools: search_jobs, get_job, list_companies, get_company, get_profile, check_fit, list_sources.
-Write tools: upsert_company, add_contact, add_board, track_job, add_note.
+Write tools: upsert_company, add_contact, add_board, track_job, track_url, add_note.
 --read-only leaves the write tools out.
 
 Everything an agent sends is validated and sanitized before it is stored.
@@ -41,18 +41,11 @@ tool returns keys or tokens. Logs go to stderr.`,
 			return mcpserver.Run(ctx, mcpserver.Options{
 				App:      a,
 				ReadOnly: readOnly,
-				Version:  buildVersion(),
+				Version:  version.Get().Version,
 				Log:      slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
 			})
 		},
 	}
 	cmd.Flags().BoolVar(&readOnly, "read-only", false, "offer only the read tools")
 	return cmd
-}
-
-func buildVersion() string {
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" {
-		return bi.Main.Version
-	}
-	return "dev"
 }
