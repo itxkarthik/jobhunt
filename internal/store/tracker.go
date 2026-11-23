@@ -254,8 +254,8 @@ func (s *Store) SetStatus(ctx context.Context, key string, st Status, note strin
 var ErrTracked = errors.New("already tracked")
 
 // TrackManual tracks j, a posting the user found outside jobhunt's sources
-// and entered by hand. If a fetched job with the same key is stored, that
-// record is kept and tracked as usual. Otherwise j is stored, and it has
+// and entered by hand. If a search has returned a job with the same key,
+// its stored record is kept and tracked as usual. Otherwise j is stored, and it has
 // no listed time until a fetched source shows it, so it's never flagged
 // as no longer listed on its own.
 func (s *Store) TrackManual(ctx context.Context, j *model.Job, st Status, note string) error {
@@ -273,7 +273,9 @@ func (s *Store) TrackManual(ctx context.Context, j *model.Job, st Status, note s
 	}
 	now := time.Now().Unix()
 	var listed any = now
-	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM jobs WHERE key = ?`, j.Key).Scan(&n)
+	// seen holds only jobs that searches returned; a jobs row alone may be
+	// left over from a manual job that was tracked and then removed.
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM seen WHERE key = ?`, j.Key).Scan(&n)
 	if err != nil {
 		return err
 	}

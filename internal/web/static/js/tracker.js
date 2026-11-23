@@ -39,7 +39,7 @@ export async function mount(view, { live = () => true } = {}) {
   let drawer = null; // the open details drawer, if any
 
   const filter = h("input", { type: "search", class: "input", placeholder: "Filter cards", "aria-label": "Filter cards" });
-  const addBtn = h("button", { type: "button", class: "btn btn-secondary", title: "Track a job from LinkedIn, Internshala or any other site" }, icon("plus"), " Add job");
+  const addBtn = h("button", { type: "button", class: "btn btn-secondary add-job", title: "Track a job from LinkedIn, Internshala or any other site" }, icon("plus"), " Add job");
   const funnel = h("div", { class: "funnel" });
   const tabs = h("div", { class: "stage-tabs", role: "tablist", "aria-label": "Stages" });
   const board = h("div", { class: "board" });
@@ -309,7 +309,7 @@ export async function mount(view, { live = () => true } = {}) {
         const reply = await api("POST", "/api/tracker", {
           url: url.value, title: titleIn.value, company: companyIn.value, location: where.value, status: sel.value, note: note.value,
         });
-        closeDrawer();
+        if (drawer === formDrawer) closeDrawer(); // not a newer drawer opened meanwhile
         toast(`Tracking: ${title(reply)}`);
         await load();
         focusCard(reply.key);
@@ -329,7 +329,8 @@ export async function mount(view, { live = () => true } = {}) {
     document.body.append(el);
     setBackgroundInert(true);
     document.addEventListener("keydown", onDrawerKey);
-    drawer = { el, key: "", refresh: () => {} };
+    const formDrawer = { el, key: "", refresh: () => {} };
+    drawer = formDrawer;
     url.focus();
   }
   addBtn.addEventListener("click", openAdd);
