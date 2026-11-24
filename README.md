@@ -15,6 +15,7 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 - **One search, every source.** Queries about 90 company job boards, remote boards, HN "Who is Hiring" and optional APIs concurrently.
 - **Less noise.** Classifies each job's type, level, work mode, CS area and visa support, then filters out what you didn't ask for.
 - **Pay and stipends.** Shows what a job pays when the posting says (`₹15k/mo`, `$40/hr`, `₹6L–8L/yr`), and flags unpaid internships; `--paid-only` drops them.
+- **City filter.** `--city Bangalore,Kozhikode` keeps jobs in those cities under any spelling or case, plus remote jobs you can do from there.
 - **No duplicates.** Merges the same posting found on different sources.
 - **Ranked results.** Scores every job 0–100 for how well it fits your search.
 - **New-job tracking.** Marks jobs you haven't seen before with ★; `--new-only` shows just those.
@@ -144,7 +145,7 @@ Available on `search`, `tui`, `export`, `watch` and `preset save`.
 
 Countries, types, areas and modes left out take the defaults from your config; `any` (as in `-c any`) lifts the restriction instead.
 
-`--country IN` also includes remote jobs open worldwide or to a region containing India; `--strict-country` drops them. `--city` keeps jobs in those cities under any spelling or case (Bangalore = Bengaluru, Calicut = Kozhikode), plus remote jobs open across a country (location just "India" or "Remote"); `--strict-city` drops those too. Set `cities:` in your profile to make it the default. Jobs whose type, area or country is unclear are dropped unless you pass `--include-unknown`.
+`--country IN` also includes remote jobs open worldwide or to a region containing India; `--strict-country` drops them. `--city` keeps jobs in those cities under any spelling or case (Bangalore = Bengaluru, Calicut = Kozhikode), plus remote jobs open across a country or the city's state (location just "India", "Remote" or "Kerala"); remote jobs that name another town are dropped, and `--strict-city` drops all remote jobs. Set `cities:` in your profile to make it the default. Jobs whose type, area or country is unclear are dropped unless you pass `--include-unknown`.
 
 ### TUI keys
 
@@ -195,6 +196,7 @@ profile:
   stack: [go, rust, python]              # earlier ones score higher
   projects: [raft, kubernetes, rag]      # a job mentioning one gets a ranking bonus
   countries: [IN]
+  cities: [Bengaluru, Kochi]             # any spelling; country-wide remote jobs still show
   posted_within: 14d
   min_score: 50                          # the digest leaves out lower scores
   skip_requires_experience: true         # drop postings that ask for prior work or internships
