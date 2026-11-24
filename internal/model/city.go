@@ -158,18 +158,24 @@ func (m *CityMatcher) Allows(j *Job, strict bool) bool {
 // link or email address, or words that are all numbers ("120k", "2027")
 // or ones like "full-time", "visa" or "equity".
 func notPlace(part string) bool {
+	// Drop links and email addresses, then check what's left: "Sitamarhi
+	// https://acme.io" still names a town.
+	var rest []string
+	links := false
 	for f := range strings.FieldsSeq(part) {
 		if strings.Contains(f, "://") || strings.HasPrefix(strings.ToLower(f), "www.") || strings.Contains(f, "@") || domainRe.MatchString(f) {
-			return true
+			links = true
+			continue
 		}
+		rest = append(rest, f)
 	}
-	ws := strings.Fields(words(part))
+	ws := strings.Fields(words(strings.Join(rest, " ")))
 	for _, w := range ws {
 		if !strings.ContainsAny(w, "0123456789") && !slices.Contains(detailWords, w) {
 			return false
 		}
 	}
-	return len(ws) > 0
+	return links || len(ws) > 0
 }
 
 // domainRe matches a bare domain or URL like "acme.io" or "acme.com/jobs".
