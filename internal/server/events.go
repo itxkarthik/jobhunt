@@ -144,11 +144,11 @@ func searchRequestOf(q url.Values) (searchRequest, error) {
 	in := &req.FilterInput
 	lists := map[string]*[]string{
 		"countries": &in.Countries, "modes": &in.Modes, "types": &in.Types, "areas": &in.Areas,
-		"experience": &in.Experience, "keywords": &in.Keywords, "exclude": &in.Exclude,
+		"experience": &in.Experience, "keywords": &in.Keywords, "exclude": &in.Exclude, "cities": &in.Cities,
 	}
 	strs := map[string]*string{"posted_within": &in.PostedWithin, "currency": &in.Currency, "sort": &req.Sort}
 	bools := map[string]*bool{
-		"visa": &in.Visa, "paid_only": &in.PaidOnly, "strict_country": &in.StrictCountry, "include_unknown": &in.IncludeUnknown,
+		"visa": &in.Visa, "paid_only": &in.PaidOnly, "strict_country": &in.StrictCountry, "strict_city": &in.StrictCity, "include_unknown": &in.IncludeUnknown,
 		"refresh": &req.Refresh, "new_only": &req.NewOnly, "show_hidden": &req.ShowHidden,
 	}
 	for name, vals := range q {

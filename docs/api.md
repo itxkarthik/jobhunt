@@ -54,6 +54,8 @@ Searches and presets use the same filter object as the CLI flags. Empty fields t
   "min_salary": 0,
   "currency": "INR",
   "strict_country": false,
+  "cities": ["Bengaluru", "Kozhikode"],
+  "strict_city": false,
   "include_unknown": false,
   "company_stages": ["seed", "series-a"],
   "company_headcounts": ["1-10", "11-50"]

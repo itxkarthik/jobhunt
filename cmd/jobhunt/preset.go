@@ -116,6 +116,7 @@ func summary(f model.Filters) string {
 	add("", strs(f.Types))
 	add("", strs(f.Modes))
 	add("", strs(f.Areas))
+	add("in:", f.Cities)
 	add("level:", strs(f.Experience))
 	add("kw:", f.Keywords)
 	add("-", f.Exclude)
@@ -129,6 +130,9 @@ func summary(f model.Filters) string {
 	}
 	if f.PaidOnly {
 		parts = append(parts, "paid")
+	}
+	if f.StrictCity {
+		parts = append(parts, "strict city")
 	}
 	if f.MinSalary > 0 {
 		parts = append(parts, fmt.Sprintf("≥%.0f %s", f.MinSalary, f.Currency))

@@ -15,6 +15,7 @@ const OPTIONS = [
   ["new_only", "New only", "Only jobs no earlier search has seen"],
   ["include_unknown", "Include unknown", "Keep jobs whose country, type or area couldn't be worked out"],
   ["strict_country", "Strict country", "Don't count worldwide-remote jobs as matching a country"],
+  ["strict_city", "Strict city", "With cities set, drop remote jobs too: only jobs in those cities"],
   ["visa", "Visa sponsors", "Only jobs that say they sponsor visas"],
   ["paid_only", "Paid only", "Drop jobs and internships that say they're unpaid"],
   ["show_hidden", "Show hidden", "Include jobs you hid"],
@@ -335,6 +336,7 @@ export async function mount(view, { live = () => true } = {}) {
   const minSalary = h("input", { type: "number", class: "input", id: "min-salary", min: 0, step: "any", inputmode: "numeric", placeholder: "Min yearly salary", "aria-label": "Minimum yearly salary" });
   const currency = h("input", { type: "text", class: "input", id: "currency", maxlength: 3, placeholder: "INR", pattern: "[A-Za-z]{3}", autocomplete: "off", "aria-label": "Currency" });
   const exclude = h("input", { type: "text", class: "input", id: "exclude", placeholder: "senior, unpaid", autocomplete: "off" });
+  const cities = h("input", { type: "text", class: "input", id: "cities", placeholder: "Bengaluru, Kozhikode", autocomplete: "off" });
   const presetSel = h("select", { class: "input", id: "preset" });
   const presetName = h("input", { type: "text", class: "input", placeholder: "preset name", "aria-label": "Preset name", pattern: "[A-Za-z0-9][A-Za-z0-9._\\-]{0,63}", maxlength: 64, autocomplete: "off" });
   const presetSave = h("div", { class: "preset-save", hidden: true },
@@ -350,7 +352,9 @@ export async function mount(view, { live = () => true } = {}) {
         h("button", { type: "button", class: "btn btn-ghost close", "aria-label": "Close filters", onclick: () => setRail(false) }, icon("x")))),
     h("div", { class: "rail-body" },
       h("div", { class: "field" }, h("label", { for: "preset" }, "Preset"), presetSel, presetSave),
-      groups.countries.box, groups.modes.box, groups.types.box, groups.experience.box, groups.areas.box,
+      groups.countries.box,
+      h("div", { class: "field" }, h("label", { for: "cities", title: "Any spelling: Bangalore is Bengaluru, Calicut is Kozhikode. Remote jobs open across the country stay unless Strict city is on" }, "Cities"), cities),
+      groups.modes.box, groups.types.box, groups.experience.box, groups.areas.box,
       ageGroup.box, optGroup.box,
       h("div", { class: "field" },
         h("label", { for: "min-salary", title: "Jobs without salary info, or in another currency, are dropped unless Include unknown is on" }, "Minimum salary"),
@@ -439,6 +443,7 @@ export async function mount(view, { live = () => true } = {}) {
     set(kw, (inp.keywords || []).join(", "));
     set(where, S.where);
     set(exclude, (inp.exclude || []).join(", "));
+    set(cities, (inp.cities || []).join(", "));
     set(minSalary, inp.min_salary ? String(inp.min_salary) : "");
     set(currency, inp.currency || "");
     sortSel.value = S.sort;
@@ -450,6 +455,7 @@ export async function mount(view, { live = () => true } = {}) {
     for (const g of ["countries", "modes", "types", "experience", "areas"]) {
       for (const v of inp[g] || []) out.push([nameOf(v), () => toggleIn(g, v)]);
     }
+    for (const c of inp.cities || []) out.push([`in ${c}`, () => { inp.cities = inp.cities.filter((x) => x !== c); changed(); }]);
     if (inp.posted_within) out.push([`last ${ageName(inp.posted_within)}`, () => { inp.posted_within = ""; changed(); }]);
     for (const [k, l] of OPTIONS) if (inp[k]) out.push([l.toLowerCase(), () => { inp[k] = false; changed(); }]);
     if (inp.min_salary) out.push([`≥ ${count(inp.min_salary)}${inp.currency ? ` ${inp.currency}` : ""}`, () => { inp.min_salary = 0; changed(); }]);
@@ -738,6 +744,7 @@ export async function mount(view, { live = () => true } = {}) {
   kw.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); commitKeywords(); } });
   where.addEventListener("input", () => { S.where = where.value; renderHead(); renderList(); });
   exclude.addEventListener("change", () => { S.input.exclude = words(exclude.value); changed(); });
+  cities.addEventListener("change", () => { S.input.cities = words(cities.value); changed(); });
   minSalary.addEventListener("change", () => { S.input.min_salary = Math.max(0, Number(minSalary.value) || 0); changed(); });
   currency.addEventListener("change", () => {
     if (!currency.reportValidity()) return;
@@ -780,8 +787,8 @@ export async function mount(view, { live = () => true } = {}) {
     // A preset is stored with defaults already applied, so a field it
     // leaves out means "any", not "the config default".
     const blank = {
-      countries: [], modes: [], types: [], areas: [], experience: [], keywords: [], exclude: [], posted_within: "",
-      visa: false, paid_only: false, min_salary: 0, currency: "", strict_country: false, include_unknown: false,
+      countries: [], modes: [], types: [], areas: [], experience: [], keywords: [], exclude: [], cities: [], posted_within: "",
+      visa: false, paid_only: false, min_salary: 0, currency: "", strict_country: false, strict_city: false, include_unknown: false,
     };
     S.input = fromAPI({ ...blank, ...clone(p.filters), new_only: S.input.new_only, show_hidden: S.input.show_hidden });
     presetName.value = p.name;

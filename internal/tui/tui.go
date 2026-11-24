@@ -44,11 +44,13 @@ var sortModes = []string{"score", "date", "company"}
 
 // option is one toggle in the filter sidebar.
 type option struct {
-	group string // country | type | mode | area
+	group string // country | city | type | mode | area
 	value string
 }
 
-var sidebar = func() []option {
+// sidebarFor lists the filter toggles. Cities come from the filters and the
+// profile, since there are too many to list them all.
+func sidebarFor(f model.Filters, profileCities []string) []option {
 	var out []option
 	add := func(group string, vals ...string) {
 		for _, v := range vals {
@@ -56,12 +58,19 @@ var sidebar = func() []option {
 		}
 	}
 	add("country", "IN", "US", "JP", "GB", "DE", "SG", "remote-global")
+	var cities []string
+	for _, c := range append(slices.Clone(f.Cities), profileCities...) {
+		if c = model.CanonicalCity(c); c != "" && !slices.Contains(cities, c) {
+			cities = append(cities, c)
+		}
+	}
+	add("city", cities...)
 	add("type", "internship", "new-grad", "full-time", "part-time", "contract")
 	add("mode", "remote", "hybrid", "onsite")
 	add("area", "backend", "full-stack", "systems", "devops", "ml-ai", "data-engineering",
 		"frontend", "mobile", "hpc-gpu", "security", "embedded")
 	return out
-}()
+}
 
 type progressMsg struct {
 	gen int
@@ -78,6 +87,7 @@ type resultMsg struct {
 type Model struct {
 	app     *app.App
 	filters model.Filters
+	side    []option // the filter sidebar's toggles
 
 	all      []model.Job // the last search's results
 	jobs     []model.Job // the rows shown: all, or only the new ones
@@ -113,6 +123,13 @@ type Model struct {
 	search func(ctx context.Context, f model.Filters, refresh bool, progress func(search.Report)) (*search.Result, error)
 }
 
+func profileCities(a *app.App) []string {
+	if a == nil || a.Config == nil {
+		return nil
+	}
+	return a.Config.Profile.Cities
+}
+
 // New builds the initial model; the first fetch starts in Init.
 func New(a *app.App, f model.Filters) *Model {
 	t := table.New(table.WithFocused(true))
@@ -124,7 +141,7 @@ func New(a *app.App, f model.Filters) *Model {
 	in.Prompt = "keywords: "
 	in.Placeholder = "Go, Kubernetes, Rust"
 	return &Model{
-		app: a, filters: f, table: t, input: in, focus: paneTable,
+		app: a, filters: f, side: sidebarFor(f, profileCities(a)), table: t, input: in, focus: paneTable,
 		detail: viewport.New(viewport.WithWidth(40), viewport.WithHeight(10)), statuses: map[string]store.Status{}, fresh: map[string]bool{},
 		search: func(ctx context.Context, f model.Filters, refresh bool, progress func(search.Report)) (*search.Result, error) {
 			eng := a.Engine()
@@ -279,9 +296,9 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			m.cursor = max(0, m.cursor-1)
 		case "down", "j":
-			m.cursor = min(len(sidebar)-1, m.cursor+1)
+			m.cursor = min(len(m.side)-1, m.cursor+1)
 		case "space", "enter", "x":
-			m.toggle(sidebar[m.cursor])
+			m.toggle(m.side[m.cursor])
 			return m, m.fetch(false)
 		}
 		return m, nil
@@ -366,6 +383,8 @@ func (m *Model) toggle(o option) {
 	switch o.group {
 	case "country":
 		f.Countries = flip(f.Countries, o.value)
+	case "city":
+		f.Cities = flip(f.Cities, o.value)
 	case "type":
 		f.Types = flipT(f.Types, model.JobType(o.value))
 	case "mode":
@@ -380,6 +399,8 @@ func (m *Model) isOn(o option) bool {
 	switch o.group {
 	case "country":
 		return slices.Contains(f.Countries, o.value)
+	case "city":
+		return slices.Contains(f.Cities, o.value)
 	case "type":
 		return slices.Contains(f.Types, model.JobType(o.value))
 	case "mode":
@@ -511,7 +532,7 @@ func (m *Model) render() string {
 
 	var sb strings.Builder
 	group := ""
-	for i, o := range sidebar {
+	for i, o := range m.side {
 		if o.group != group {
 			if group != "" {
 				sb.WriteString("\n")
@@ -572,7 +593,7 @@ func (m *Model) footer() string {
 // separators included), for scrolling.
 func (m *Model) cursorLine() int {
 	line, group := 0, ""
-	for i, o := range sidebar {
+	for i, o := range m.side {
 		if o.group != group {
 			if group != "" {
 				line++

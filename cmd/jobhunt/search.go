@@ -38,6 +38,8 @@ func (ff *filterFlags) register(cmd *cobra.Command) {
 	fs.Float64Var(&ff.in.MinSalary, "min-salary", 0, "minimum advertised salary (annual, in --currency)")
 	fs.StringVar(&ff.in.Currency, "currency", "", "currency for --min-salary, e.g. INR, USD")
 	fs.BoolVar(&ff.in.StrictCountry, "strict-country", false, "exclude remote jobs that are open worldwide/regionally rather than to the country itself")
+	fs.StringSliceVar(&ff.in.Cities, "city", nil, "only jobs in these cities, any spelling (Bangalore = Bengaluru, Calicut = Kozhikode), or any; remote jobs open across the country are kept")
+	fs.BoolVar(&ff.in.StrictCity, "strict-city", false, "with --city, drop remote jobs too: only jobs in those cities")
 	fs.BoolVar(&ff.in.IncludeUnknown, "include-unknown", false, "keep jobs whose country/type/area couldn't be determined")
 	fs.StringSliceVar(&ff.in.CompanyStages, "company-stage", nil, "only jobs at listed companies (jobhunt companies) at these funding stages, e.g. seed,series-a, or any")
 	fs.StringSliceVar(&ff.in.CompanyHeadcounts, "company-headcount", nil, "only jobs at listed companies of these sizes, e.g. 1-10,11-50, or any")
@@ -71,6 +73,7 @@ func (ff *filterFlags) resolve(cmd *cobra.Command, a *app.App) (model.Filters, e
 			"country":       func() { prof.Countries = nil },
 			"mode":          func() { prof.Modes = nil },
 			"posted-within": func() { prof.PostedWithin = 0 },
+			"city":          func() { prof.Cities = nil },
 		} {
 			if set(flag) {
 				reset()
@@ -114,6 +117,8 @@ func (ff *filterFlags) resolveBase(cmd *cobra.Command, a *app.App) (model.Filter
 		{"currency", func() { base.Currency = f.Currency }},
 		{"strict-country", func() { base.StrictCountry = f.StrictCountry }},
 		{"include-unknown", func() { base.IncludeUnknown = f.IncludeUnknown }},
+		{"city", func() { base.Cities = f.Cities }},
+		{"strict-city", func() { base.StrictCity = f.StrictCity }},
 		{"company-stage", func() { base.CompanyStages = f.CompanyStages }},
 		{"company-headcount", func() { base.CompanyHeadcounts = f.CompanyHeadcounts }},
 	}

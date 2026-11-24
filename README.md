@@ -80,6 +80,7 @@ jobhunt serve --open                                            # web UI in your
 jobhunt search -c IN,remote-global -t new-grad -k Go,Kubernetes -x senior
 jobhunt search -c JP -t internship --visa
 jobhunt search -p india-backend -k Go   # flags override the preset
+jobhunt search --city Bangalore,Kozhikode   # any spelling or case; add --strict-city to drop remote jobs
 #   --new-only  --refresh  --include-unknown  --strict-country  --show-hidden  -n -1 (all rows)
 
 # Presets
@@ -143,7 +144,7 @@ Available on `search`, `tui`, `export`, `watch` and `preset save`.
 
 Countries, types, areas and modes left out take the defaults from your config; `any` (as in `-c any`) lifts the restriction instead.
 
-`--country IN` also includes remote jobs open worldwide or to a region containing India; `--strict-country` drops them. Jobs whose type, area or country is unclear are dropped unless you pass `--include-unknown`.
+`--country IN` also includes remote jobs open worldwide or to a region containing India; `--strict-country` drops them. `--city` keeps jobs in those cities under any spelling or case (Bangalore = Bengaluru, Calicut = Kozhikode), plus remote jobs open across a country (location just "India" or "Remote"); `--strict-city` drops those too. Set `cities:` in your profile to make it the default. Jobs whose type, area or country is unclear are dropped unless you pass `--include-unknown`.
 
 ### TUI keys
 
