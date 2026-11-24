@@ -29,6 +29,8 @@ type FilterInput struct {
 	Currency       string   `json:"currency,omitempty"`
 	StrictCountry  bool     `json:"strict_country,omitempty"`
 	IncludeUnknown bool     `json:"include_unknown,omitempty"`
+	Cities         []string `json:"cities,omitempty"` // any spelling; ["any"] for none
+	StrictCity     bool     `json:"strict_city,omitempty"`
 
 	CompanyStages     []string `json:"company_stages,omitempty"`     // seed, series-a, …
 	CompanyHeadcounts []string `json:"company_headcounts,omitempty"` // 1-10, 11-50, …
@@ -79,6 +81,7 @@ func ParseFilters(d config.Defaults, in FilterInput) (model.Filters, error) {
 	f.VisaOnly, f.PaidOnly, f.MinSalary = in.Visa, in.PaidOnly, in.MinSalary
 	f.Currency = strings.ToUpper(strings.TrimSpace(in.Currency))
 	f.StrictCountry, f.IncludeUnknown = in.StrictCountry, in.IncludeUnknown
+	f.Cities, f.StrictCity = parseCities(in.Cities), in.StrictCity
 	if f.CompanyStages, err = parseDefault(in.CompanyStages, nil, known(model.ParseStage, model.StageUnknown)); err != nil {
 		return f, err
 	}
@@ -108,10 +111,27 @@ func InputOf(f model.Filters) FilterInput {
 		Currency:       f.Currency,
 		StrictCountry:  f.StrictCountry,
 		IncludeUnknown: f.IncludeUnknown,
+		Cities:         f.Cities,
+		StrictCity:     f.StrictCity,
 
 		CompanyStages:     strs(f.CompanyStages),
 		CompanyHeadcounts: strs(f.CompanyHeadcounts),
 	}
+}
+
+// parseCities trims and deduplicates cities under their usual names
+// ("bangalore" is Bengaluru). "any" means no city filter.
+func parseCities(in []string) []string {
+	var out []string
+	for _, c := range in {
+		if strings.EqualFold(strings.TrimSpace(c), Any) {
+			return nil
+		}
+		if c = model.CanonicalCity(c); c != "" && !slices.Contains(out, c) {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // known wraps a parser so the unknown value (and an empty string) is an

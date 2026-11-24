@@ -105,6 +105,7 @@ importers:
 #   stack: [go, rust, node, python, java]   # earlier ones score higher
 #   projects: [microvm, firecracker, agent sandbox, kubernetes operator]
 #   countries: [IN]
+#   cities: [Bengaluru, Kochi]              # any spelling; country-wide remote jobs still show
 #   posted_within: 14d
 #   min_score: 50                           # the digest leaves out lower scores
 #   skip_requires_experience: true          # postings asking for prior work or internships

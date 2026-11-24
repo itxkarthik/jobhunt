@@ -53,6 +53,7 @@ type Profile struct {
 	Projects     []string `yaml:"projects,omitempty" json:"projects,omitempty"`           // keywords that add to the score
 	Countries    []string `yaml:"countries,omitempty" json:"countries,omitempty"`         // where you can work
 	Modes        []string `yaml:"modes,omitempty" json:"modes,omitempty"`                 // remote, hybrid, onsite
+	Cities       []string `yaml:"cities,omitempty" json:"cities,omitempty"`               // jobs in these cities, plus country-wide remote ones
 	PostedWithin string   `yaml:"posted_within,omitempty" json:"posted_within,omitempty"` // e.g. 7d
 	MinScore     float64  `yaml:"min_score,omitempty" json:"min_score,omitempty"`         // digest: jobs below this are left out
 
@@ -76,7 +77,7 @@ type ProfileCompanies struct {
 
 // IsZero reports whether no profile is set.
 func (p Profile) IsZero() bool {
-	return len(p.Types)+len(p.Experience)+len(p.Areas)+len(p.SkipAreas)+len(p.Stack)+len(p.Projects)+len(p.Countries)+len(p.Modes) == 0 &&
+	return len(p.Types)+len(p.Experience)+len(p.Areas)+len(p.SkipAreas)+len(p.Stack)+len(p.Projects)+len(p.Countries)+len(p.Modes)+len(p.Cities) == 0 &&
 		p.PostedWithin == "" && p.MinScore == 0 && !p.SkipRequiresExperience && !p.SkipOnsiteAbroad && !p.SkipUnpaid && p.Companies.IsZero()
 }
 

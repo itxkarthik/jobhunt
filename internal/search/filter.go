@@ -14,10 +14,11 @@ import (
 func Filter(jobs []model.Job, f model.Filters, c *classify.Classifier, now time.Time) []model.Job {
 	kw := classify.NewTermSet(f.Keywords)
 	ex := classify.NewTermSet(f.Exclude)
+	city := model.NewCityMatcher(f.Cities)
 	out := jobs[:0:0]
 	for i := range jobs {
 		j := &jobs[i]
-		if matches(j, f, c, kw, ex, now) {
+		if matches(j, f, c, kw, ex, now) && (city == nil || city.Allows(j, f.StrictCity)) {
 			out = append(out, *j)
 		}
 	}

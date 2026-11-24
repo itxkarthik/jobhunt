@@ -28,6 +28,7 @@ func ProfileInput(p config.Profile, in FilterInput) FilterInput {
 	fill(&in.Areas, p.Areas)
 	fill(&in.Countries, p.Countries)
 	fill(&in.Modes, p.Modes)
+	fill(&in.Cities, p.Cities)
 	if in.PostedWithin == "" {
 		in.PostedWithin = p.PostedWithin
 	}
@@ -54,6 +55,9 @@ func FillFromProfile(base *model.Filters, prof model.Filters) {
 	}
 	if base.PostedWithin == 0 {
 		base.PostedWithin = prof.PostedWithin
+	}
+	if len(base.Cities) == 0 {
+		base.Cities = prof.Cities
 	}
 }
 

@@ -144,6 +144,11 @@ type Filters struct {
 	MinSalary    float64       `json:"min_salary,omitempty" yaml:"min_salary,omitempty"`
 	Currency     string        `json:"currency,omitempty" yaml:"currency,omitempty"`
 
+	// Only jobs in these cities (any spelling: Bangalore is Bengaluru).
+	// Remote jobs open across a country pass too, unless StrictCity.
+	Cities     []string `json:"cities,omitempty" yaml:"cities,omitempty"`
+	StrictCity bool     `json:"strict_city,omitempty" yaml:"strict_city,omitempty"`
+
 	StrictCountry  bool `json:"strict_country,omitempty" yaml:"strict_country,omitempty"`
 	IncludeUnknown bool `json:"include_unknown,omitempty" yaml:"include_unknown,omitempty"`
 
@@ -169,6 +174,7 @@ type Filters struct {
 // they don't split the source cache.
 func (f Filters) Fetched() Filters {
 	f.SkipAreas, f.SkipRequiresExperience, f.SkipOnsiteAbroad, f.Stack, f.Projects = nil, false, false, nil, nil
+	f.Cities, f.StrictCity = nil, false
 	return f
 }
 
