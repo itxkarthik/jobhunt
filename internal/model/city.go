@@ -1,6 +1,7 @@
 package model
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 	"unicode"
@@ -28,46 +29,79 @@ var cityIndex = func() map[string]string {
 	return m
 }()
 
+// spelling is one way of writing a city, as padded words (" navi mumbai ")
+// or squashed (" navimumbai ").
+type spelling struct {
+	text, city string
+}
+
+// spellings lists every known city spelling, longest first, so "Navi
+// Mumbai" is read as itself before "Mumbai" can match inside it.
+var spellings = func() []spelling {
+	var out []spelling
+	for name, c := range cities {
+		out = append(out, spelling{" " + words(name) + " ", c[0]})
+		if sq := " " + squash(name) + " "; sq != out[len(out)-1].text {
+			out = append(out, spelling{sq, c[0]})
+		}
+	}
+	sortLongest(out, func(s spelling) string { return s.text })
+	return out
+}()
+
 // CityMatcher tells whether a job is in one of a set of cities, under any
 // of their spellings.
 type CityMatcher struct {
-	names []string // " bengaluru ", " bangalore ", …: lower-cased, padded words
+	want  map[string]bool // canonical names of known cities
+	other []string        // cities jobhunt doesn't know, as padded words
+	broad []string        // place words a remote job may name: see broadOnly
 }
 
 // NewCityMatcher matches the given cities; nil when there are none.
 func NewCityMatcher(want []string) *CityMatcher {
-	var m CityMatcher
+	m := CityMatcher{want: map[string]bool{}}
+	broad := slices.Clone(broadWords)
 	for _, w := range want {
 		canon := CanonicalCity(w)
-		if canon == "" {
-			continue
-		}
-		add := func(n string) {
-			if n = " " + n + " "; !slices.Contains(m.names, n) {
-				m.names = append(m.names, n)
-			}
-		}
-		add(words(canon))
-		add(squash(canon)) // "NaviMumbai" in a posting
-		for name, c := range cities {
-			if c[0] == canon {
-				add(words(name))
-				add(squash(name))
+		switch _, known := cityIndex[squash(canon)]; {
+		case canon == "":
+		case known:
+			m.want[canon] = true
+			broad = append(broad, cityStates[canon]...)
+		default:
+			for _, s := range []string{words(canon), squash(canon)} {
+				if s = " " + s + " "; !slices.Contains(m.other, s) {
+					m.other = append(m.other, s)
+				}
 			}
 		}
 	}
-	if len(m.names) == 0 {
+	if len(m.want)+len(m.other) == 0 {
 		return nil
 	}
+	for i, b := range broad {
+		broad[i] = " " + words(b) + " "
+	}
+	sortLongest(broad, func(s string) string { return s })
+	m.broad = slices.Compact(broad)
 	return &m
 }
 
 // In reports whether text (a job's city and location) names one of the
-// cities as whole words, e.g. "Bengaluru, Karnataka" or "Pune / Bangalore".
+// cities, e.g. "Bengaluru, Karnataka" or "Pune / Bangalore". Each place
+// is read whole: "Navi Mumbai" isn't Mumbai.
 func (m *CityMatcher) In(text string) bool {
 	t := " " + words(text) + " "
-	for _, n := range m.names {
-		if strings.Contains(t, n) {
+	for _, s := range spellings {
+		if strings.Contains(t, s.text) {
+			if m.want[s.city] {
+				return true
+			}
+			t = blank(t, s.text)
+		}
+	}
+	for _, o := range m.other {
+		if strings.Contains(t, o) {
 			return true
 		}
 	}
@@ -76,49 +110,89 @@ func (m *CityMatcher) In(text string) bool {
 
 // Allows reports whether j passes a city filter. A job in one of the
 // cities passes. Unless strict, so does a remote job whose location names
-// only a country or region ("India", "Remote", "Worldwide"), since you can
-// do it from any of the cities. A remote job that names another place
-// ("Sitamarhi", "London") doesn't, nor does one whose mode is unknown.
+// only a country, a region, or the state of one of the cities ("India",
+// "Remote", "Kerala, India" for Kochi), since you can do it from there. A
+// remote job that names another place ("Sitamarhi", "Karnataka" for Kochi)
+// doesn't, nor does one whose work mode is unknown.
 func (m *CityMatcher) Allows(j *Job, strict bool) bool {
 	if m.In(j.City + " " + j.Location) {
 		return true
 	}
-	return !strict && j.WorkMode == ModeRemote && j.City == "" && broadOnly(j.Location)
+	if strict || j.WorkMode != ModeRemote || !m.broadOnly(j.City) {
+		return false
+	}
+	// Some sources put more than the place in Location, e.g. HN's
+	// "Company | Role | Remote (India)": one broad part is enough, as
+	// long as no part names a city.
+	if _, city := ParseLocation(j.Location); city != "" {
+		return false
+	}
+	for part := range strings.SplitSeq(j.Location, "|") {
+		if m.broadOnly(part) {
+			return true
+		}
+	}
+	return false
 }
 
-// broadOnly reports whether loc names no place smaller than a country or a
-// region of one: every word is a country, region, Indian state or one of
-// the words postings put around them ("Remote - India", "IN; Worldwide").
-func broadOnly(loc string) bool {
+// broadOnly reports whether loc names no place smaller than a country, a
+// region, or the state of one of the cities: every word is one of those or
+// a word postings put around them ("Remote - India", "IN; Worldwide").
+func (m *CityMatcher) broadOnly(loc string) bool {
 	rest := " " + words(loc) + " "
-	for _, names := range [][]string{broadNames, keys(countryNames), keys(regionNames)} {
-		for _, n := range names {
-			if n = words(n); n != "" {
-				rest = strings.ReplaceAll(rest, " "+n+" ", "  ")
-			}
-		}
+	for _, b := range m.broad {
+		rest = blank(rest, b)
 	}
 	return strings.TrimSpace(rest) == ""
 }
 
-func keys(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
+// broadWords are country and region names and codes, and words that don't
+// name a place.
+var broadWords = func() []string {
+	out := []string{
+		"remote", "remotely", "job", "jobs", "work", "from", "home", "wfh", "anywhere", "only", "based", "first",
+		"distributed", "flexible", "fully", "100", "in", "and", "or", "the", "of", "within", "across", "time", "zone", "zones",
+		"us", "uk", "uae", "eu", "usa", "gb", "de", "jp", "sg", "nl", "au", "ca", "ae", "ie", "fr",
+	}
+	for k := range countryNames {
+		out = append(out, k)
+	}
+	for k := range regionNames {
 		out = append(out, k)
 	}
 	return out
+}()
+
+// cityStates maps Indian cities to their state (or union territory), so a
+// remote job open across Kerala counts for Kochi but not for Bengaluru.
+var cityStates = map[string][]string{
+	"Bengaluru": {"karnataka"}, "Mysuru": {"karnataka"}, "Mangaluru": {"karnataka"}, "Hubballi": {"karnataka"},
+	"Mumbai": {"maharashtra"}, "Navi Mumbai": {"maharashtra"}, "Thane": {"maharashtra"}, "Pune": {"maharashtra"}, "Nagpur": {"maharashtra"},
+	"Hyderabad": {"telangana"}, "Visakhapatnam": {"andhra pradesh"}, "Vijayawada": {"andhra pradesh"},
+	"Chennai": {"tamil nadu"}, "Coimbatore": {"tamil nadu"}, "Madurai": {"tamil nadu"}, "Tiruchirappalli": {"tamil nadu"},
+	"Kochi": {"kerala"}, "Thiruvananthapuram": {"kerala"}, "Kozhikode": {"kerala"}, "Thrissur": {"kerala"}, "Kannur": {"kerala"},
+	"Delhi": {"delhi ncr", "ncr"}, "Gurugram": {"haryana", "delhi ncr", "ncr"}, "Noida": {"uttar pradesh", "delhi ncr", "ncr"},
+	"Lucknow": {"uttar pradesh"}, "Kolkata": {"west bengal"}, "Ahmedabad": {"gujarat"}, "Vadodara": {"gujarat"}, "Surat": {"gujarat"},
+	"Jaipur": {"rajasthan"}, "Chandigarh": {"punjab", "haryana"}, "Indore": {"madhya pradesh"}, "Bhopal": {"madhya pradesh"},
+	"Bhubaneswar": {"odisha"}, "Patna": {"bihar"}, "Puducherry": {"puducherry", "pondicherry"},
 }
 
-// broadNames are words that don't name a place, plus country codes and
-// Indian states and union territories.
-var broadNames = []string{
-	"remote", "remotely", "job", "jobs", "work", "from", "home", "wfh", "anywhere", "only", "based", "first",
-	"distributed", "flexible", "fully", "100", "in", "and", "or", "the", "of", "within", "across", "time", "zone", "zones",
-	"us", "uk", "uae", "eu", "usa", "gb", "de", "jp", "sg", "nl", "au", "ca", "ae", "ie", "fr",
-	"andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh", "goa", "gujarat", "haryana",
-	"himachal pradesh", "jharkhand", "karnataka", "kerala", "madhya pradesh", "maharashtra", "manipur",
-	"meghalaya", "mizoram", "nagaland", "odisha", "punjab", "rajasthan", "sikkim", "tamil nadu", "telangana",
-	"tripura", "uttar pradesh", "uttarakhand", "west bengal", "jammu and kashmir", "ladakh", "delhi ncr", "ncr",
+// blank removes every padded word sequence p from padded text t. Matches
+// share their padding ("navi mumbai navi mumbai"), so one ReplaceAll pass
+// can miss every other one.
+func blank(t, p string) string {
+	for strings.Contains(t, p) {
+		t = strings.ReplaceAll(t, p, " ")
+	}
+	return t
+}
+
+// sortLongest sorts xs by key length, longest first, then by key.
+func sortLongest[T any](xs []T, key func(T) string) {
+	slices.SortFunc(xs, func(a, b T) int {
+		ka, kb := key(a), key(b)
+		return cmp.Or(len(kb)-len(ka), strings.Compare(ka, kb))
+	})
 }
 
 // squash lower-cases s and drops everything but letters and digits.
