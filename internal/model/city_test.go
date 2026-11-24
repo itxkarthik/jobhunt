@@ -30,6 +30,10 @@ func TestCityMatcher(t *testing.T) {
 		{[]string{"Kochi"}, Job{Location: "India"}, false, false},
 		{[]string{"Atlantis"}, onsite("", "Atlantis, Sea"), true, true},
 		{[]string{"South San Francisco"}, onsite("", "South San Francisco, CA"), true, true},
+		{[]string{"York"}, onsite("New York", "New York, NY"), true, false},
+		{[]string{"York"}, onsite("", "York, UK"), true, true},
+		{[]string{"Berlin"}, remote("", "Acme | Backend Engineer, SRE | Remote (EU) | €80k | https://acme.io"), false, true},
+		{[]string{"Berlin"}, remote("", "Acme | SRE | Remote (EU) | acme.io/jobs"), false, true},
 		{[]string{"Kochi"}, remote("", "Acme | Engineer | Remote (India) | Sitamarhi"), false, false},
 		{[]string{"Kochi"}, remote("", "Acme | Engineer | Remote (India) | Full-time | $120k"), false, true},
 	}

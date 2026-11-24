@@ -2,6 +2,7 @@ package model
 
 import (
 	"cmp"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -92,10 +93,17 @@ func NewCityMatcher(want []string) *CityMatcher {
 // is read whole: "Navi Mumbai" isn't Mumbai.
 func (m *CityMatcher) In(text string) bool {
 	t := " " + words(text) + " "
-	// Cities jobhunt doesn't know first: "South San Francisco" holds the
-	// known San Francisco, which the loop below would blank out.
+	// A city jobhunt doesn't know is matched once the known cities it
+	// isn't part of are blanked out: "South San Francisco" keeps the San
+	// Francisco inside it, but York doesn't match "New York".
 	for _, o := range m.other {
-		if strings.Contains(t, o) {
+		rest := t
+		for _, s := range spellings {
+			if !strings.Contains(o, s.text) {
+				rest = blank(rest, s.text)
+			}
+		}
+		if strings.Contains(rest, o) {
 			return true
 		}
 	}
@@ -146,10 +154,15 @@ func (m *CityMatcher) Allows(j *Job, strict bool) bool {
 	return ok
 }
 
-// notPlace reports whether a header part is job details, not a place:
-// every word is a number ("120k", "2027") or a word like "full-time",
-// "visa" or "equity".
+// notPlace reports whether a header part is job details, not a place: a
+// link or email address, or words that are all numbers ("120k", "2027")
+// or ones like "full-time", "visa" or "equity".
 func notPlace(part string) bool {
+	for f := range strings.FieldsSeq(part) {
+		if strings.Contains(f, "://") || strings.HasPrefix(strings.ToLower(f), "www.") || strings.Contains(f, "@") || domainRe.MatchString(f) {
+			return true
+		}
+	}
 	ws := strings.Fields(words(part))
 	for _, w := range ws {
 		if !strings.ContainsAny(w, "0123456789") && !slices.Contains(detailWords, w) {
@@ -158,6 +171,9 @@ func notPlace(part string) bool {
 	}
 	return len(ws) > 0
 }
+
+// domainRe matches a bare domain or URL like "acme.io" or "acme.com/jobs".
+var domainRe = regexp.MustCompile(`^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(/\S*)?$`)
 
 var detailWords = []string{
 	"full", "part", "time", "fulltime", "parttime", "intern", "interns", "internship", "internships", "contract",
