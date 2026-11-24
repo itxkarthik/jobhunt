@@ -92,17 +92,19 @@ func NewCityMatcher(want []string) *CityMatcher {
 // is read whole: "Navi Mumbai" isn't Mumbai.
 func (m *CityMatcher) In(text string) bool {
 	t := " " + words(text) + " "
+	// Cities jobhunt doesn't know first: "South San Francisco" holds the
+	// known San Francisco, which the loop below would blank out.
+	for _, o := range m.other {
+		if strings.Contains(t, o) {
+			return true
+		}
+	}
 	for _, s := range spellings {
 		if strings.Contains(t, s.text) {
 			if m.want[s.city] {
 				return true
 			}
 			t = blank(t, s.text)
-		}
-	}
-	for _, o := range m.other {
-		if strings.Contains(t, o) {
-			return true
 		}
 	}
 	return false
@@ -121,18 +123,47 @@ func (m *CityMatcher) Allows(j *Job, strict bool) bool {
 	if strict || j.WorkMode != ModeRemote || !m.broadOnly(j.City) {
 		return false
 	}
-	// Some sources put more than the place in Location, e.g. HN's
-	// "Company | Role | Remote (India)": one broad part is enough, as
-	// long as no part names a city.
 	if _, city := ParseLocation(j.Location); city != "" {
 		return false
 	}
-	for part := range strings.SplitSeq(j.Location, "|") {
-		if m.broadOnly(part) {
-			return true
+	// HN puts its whole "Company | Role | Location | …" header in
+	// Location. Past company and role, one part must be broad and every
+	// other one broad or plainly not a place ("$120k", "Full-time"), so
+	// "… | Remote (India) | Sitamarhi" still names another town.
+	parts := strings.Split(j.Location, "|")
+	if len(parts) >= 3 {
+		parts = parts[2:]
+	}
+	ok := false
+	for _, p := range parts {
+		switch {
+		case m.broadOnly(p):
+			ok = true
+		case !notPlace(p):
+			return false
 		}
 	}
-	return false
+	return ok
+}
+
+// notPlace reports whether a header part is job details, not a place:
+// every word is a number ("120k", "2027") or a word like "full-time",
+// "visa" or "equity".
+func notPlace(part string) bool {
+	ws := strings.Fields(words(part))
+	for _, w := range ws {
+		if !strings.ContainsAny(w, "0123456789") && !slices.Contains(detailWords, w) {
+			return false
+		}
+	}
+	return len(ws) > 0
+}
+
+var detailWords = []string{
+	"full", "part", "time", "fulltime", "parttime", "intern", "interns", "internship", "internships", "contract",
+	"contractor", "freelance", "permanent", "visa", "sponsorship", "equity", "salary", "usd", "inr", "eur", "gbp",
+	"lpa", "per", "year", "month", "hour", "ft", "pt", "new", "grad", "grads", "graduate", "junior", "entry", "level",
+	"and", "or", "plus", "a", "to", "k",
 }
 
 // broadOnly reports whether loc names no place smaller than a country, a

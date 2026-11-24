@@ -29,6 +29,9 @@ func TestCityMatcher(t *testing.T) {
 		{[]string{"Kochi"}, remote("United Kindom", "Remote job"), false, false},
 		{[]string{"Kochi"}, Job{Location: "India"}, false, false},
 		{[]string{"Atlantis"}, onsite("", "Atlantis, Sea"), true, true},
+		{[]string{"South San Francisco"}, onsite("", "South San Francisco, CA"), true, true},
+		{[]string{"Kochi"}, remote("", "Acme | Engineer | Remote (India) | Sitamarhi"), false, false},
+		{[]string{"Kochi"}, remote("", "Acme | Engineer | Remote (India) | Full-time | $120k"), false, true},
 	}
 	for _, tt := range tests {
 		if got := NewCityMatcher(tt.cities).Allows(&tt.j, tt.strict); got != tt.want {
