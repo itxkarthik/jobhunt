@@ -69,7 +69,7 @@ func (s *Source) CacheKey(f model.Filters) string {
 
 func (s *Source) Ready() error {
 	if s.APIKey == "" {
-		return sources.ErrNotConfigured{Msg: "missing jsearch api_key (OpenWeb Ninja or RapidAPI; set JOBHUNT_JSEARCH_API_KEY)"}
+		return sources.NotConfiguredError{Msg: "missing jsearch api_key (OpenWeb Ninja or RapidAPI; set JOBHUNT_JSEARCH_API_KEY)"}
 	}
 	return nil
 }

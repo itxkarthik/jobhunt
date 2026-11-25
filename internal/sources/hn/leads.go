@@ -76,17 +76,6 @@ func (t *Thread) Leads(seen func(postID int64) bool) []Lead {
 	return out
 }
 
-// Posts lists the IDs of the thread's live posts.
-func (t *Thread) Posts() []int64 {
-	var ids []int64
-	for _, c := range t.item.Children {
-		if c.Text != "" && c.Author != "" {
-			ids = append(ids, c.ID)
-		}
-	}
-	return ids
-}
-
 func lead(c item) (Lead, bool) {
 	header := c.Text
 	if i := strings.Index(header, "<p>"); i >= 0 {

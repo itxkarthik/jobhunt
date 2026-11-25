@@ -47,7 +47,7 @@ func (s *Source) Name() string { return "adzuna" }
 
 func (s *Source) Ready() error {
 	if s.AppID == "" || s.AppKey == "" {
-		return sources.ErrNotConfigured{Msg: "missing adzuna app_id/app_key (free at https://developer.adzuna.com/signup; set JOBHUNT_ADZUNA_APP_ID/APP_KEY)"}
+		return sources.NotConfiguredError{Msg: "missing adzuna app_id/app_key (free at https://developer.adzuna.com/signup; set JOBHUNT_ADZUNA_APP_ID/APP_KEY)"}
 	}
 	return nil
 }

@@ -44,7 +44,7 @@ func (s *Source) CacheKey(f model.Filters) string { return Query(f) }
 
 func (s *Source) Ready() error {
 	if s.BearerToken == "" {
-		return sources.ErrNotConfigured{Msg: "missing x bearer_token (developer.x.com, pay-per-use; set JOBHUNT_X_BEARER_TOKEN)"}
+		return sources.NotConfiguredError{Msg: "missing x bearer_token (developer.x.com, pay-per-use; set JOBHUNT_X_BEARER_TOKEN)"}
 	}
 	return nil
 }

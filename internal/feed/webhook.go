@@ -114,7 +114,7 @@ func (w *Webhook) SendAs(ctx context.Context, deliveryID, contentType string, bo
 	for attempt := range w.attempts {
 		if attempt > 0 {
 			wait := w.backoff(attempt - 1)
-			if ra, ok := errors.AsType[*retryAfter](err); ok && ra.after > 0 {
+			if ra, ok := errors.AsType[*retryAfterError](err); ok && ra.after > 0 {
 				wait = ra.after
 			}
 			select {
@@ -132,13 +132,13 @@ func (w *Webhook) SendAs(ctx context.Context, deliveryID, contentType string, bo
 			break
 		}
 	}
-	if ra, ok := errors.AsType[*retryAfter](err); ok {
+	if ra, ok := errors.AsType[*retryAfterError](err); ok {
 		return ra.StatusError
 	}
 	return err
 }
 
-type retryAfter struct {
+type retryAfterError struct {
 	*StatusError
 	after time.Duration
 }
@@ -174,7 +174,7 @@ func (w *Webhook) post(ctx context.Context, deliveryID, contentType string, body
 		return false, nil
 	case code == http.StatusRequestTimeout || code == http.StatusTooManyRequests || code >= 500:
 		se := &StatusError{Endpoint: w.display, Code: code}
-		return true, &retryAfter{StatusError: se, after: sources.ParseRetryAfter(resp.Header.Get("Retry-After"))}
+		return true, &retryAfterError{StatusError: se, after: sources.ParseRetryAfter(resp.Header.Get("Retry-After"))}
 	default:
 		return false, &StatusError{Endpoint: w.display, Code: code}
 	}
@@ -188,12 +188,6 @@ func Sign(secret []byte, ts string, body []byte) string {
 	m.Write([]byte{'.'})
 	m.Write(body)
 	return "sha256=" + hex.EncodeToString(m.Sum(nil))
-}
-
-// Verify checks a signature in constant time. Receivers written in Go can
-// use it; others reimplement Sign (see the README).
-func Verify(secret []byte, ts string, body []byte, signature string) bool {
-	return hmac.Equal([]byte(Sign(secret, ts, body)), []byte(signature))
 }
 
 func isLoopback(host string) bool {

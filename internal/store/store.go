@@ -207,7 +207,7 @@ func (s *Store) CachedJobs(ctx context.Context, source, key string, ttl time.Dur
 		return c, false, nil
 	}
 	if err := json.Unmarshal(blob, &c.Jobs); err != nil {
-		return c, false, nil //nolint:nilerr // a corrupt entry is just a cache miss
+		return c, false, nil // a corrupt entry is just a cache miss
 	}
 	return c, true, nil
 }

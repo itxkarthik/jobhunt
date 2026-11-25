@@ -57,7 +57,7 @@ func TestEngineIsolatesFailures(t *testing.T) {
 	}}
 	broken := &fakeSource{name: "broken", supports: true, err: errors.New("HTTP 500")}
 	slow := &fakeSource{name: "slow", supports: true, delay: time.Second}
-	nokey := &fakeSource{name: "nokey", supports: true, notReady: sources.ErrNotConfigured{Msg: "missing key"}}
+	nokey := &fakeSource{name: "nokey", supports: true, notReady: sources.NotConfiguredError{Msg: "missing key"}}
 	nojp := &fakeSource{name: "nojp", supports: false}
 
 	eng := &Engine{

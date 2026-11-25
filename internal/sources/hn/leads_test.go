@@ -104,9 +104,6 @@ func TestLeads(t *testing.T) {
 	if l := th.Leads(func(id int64) bool { return id != 103 }); len(l) != 1 || l[0].PostID != 103 {
 		t.Errorf("seen filter: %+v", l)
 	}
-	if ids := th.Posts(); !slices.Equal(ids, []int64{101, 102, 103}) {
-		t.Errorf("posts = %v", ids)
-	}
 }
 
 func TestLeadName(t *testing.T) {
