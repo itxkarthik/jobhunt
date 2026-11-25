@@ -446,29 +446,97 @@ func (m *Model) widths() (side, detail, tbl int) {
 
 func (m *Model) bodyHeight() int { return max(5, m.height-2) }
 
+// column is one results-table column; cell gives its text for a job.
+type column struct {
+	title       string
+	width, min  int
+	drop        int // order in which narrow terminals drop it; 0 = always shown
+	cell        func(m *Model, j *model.Job, now time.Time) string
+	isTitleCell bool
+}
+
+// tableColumns lists the results-table columns, left to right. Title takes
+// whatever width the others leave.
+var tableColumns = []column{
+	{title: "", width: 1, min: 1, cell: func(_ *Model, j *model.Job, _ time.Time) string {
+		if j.New {
+			return "★"
+		}
+		return ""
+	}},
+	{title: "Scr", width: 3, min: 3, cell: func(_ *Model, j *model.Job, _ time.Time) string { return fmt.Sprintf("%.0f", j.Score) }},
+	{title: "Title", isTitleCell: true, cell: func(_ *Model, j *model.Job, _ time.Time) string { return j.Title }},
+	{title: "Company", width: 16, min: 10, drop: 5, cell: func(_ *Model, j *model.Job, _ time.Time) string { return j.Company }},
+	{title: "Location", width: 12, min: 9, drop: 4, cell: func(m *Model, j *model.Job, _ time.Time) string { return model.ShortLocation(j, m.filters.Countries) }},
+	{title: "Pay", width: 10, min: 10, drop: 3, cell: func(_ *Model, j *model.Job, _ time.Time) string { return j.Pay() }},
+	{title: "Age", width: 4, min: 4, drop: 2, cell: func(_ *Model, j *model.Job, now time.Time) string { return app.Since(j.PostedAt, now) }},
+	{title: "Status", width: 9, min: 9, drop: 1, cell: func(m *Model, j *model.Job, _ time.Time) string { return string(m.statuses[j.Key]) }},
+}
+
+// minTitle is the narrowest Title column before other columns shrink or drop.
+const minTitle = 16
+
+// fitColumns returns the width of each of tableColumns for inner cells of
+// table width. A shown column costs its width plus 2 cells of padding. When
+// Title would be narrower than minTitle, Company and Location shrink to their
+// minimums, then columns are hidden (width 0) in their drop order: Status,
+// Age, Pay, Location, Company. The details pane still shows all of them, and
+// the header never wraps. Hidden columns keep their place, because the table
+// indexes columns by row cell and skips width-0 ones.
+func fitColumns(inner int) []int {
+	widths := make([]int, len(tableColumns))
+	titleAt := 0
+	for i, c := range tableColumns {
+		widths[i] = c.width
+		if c.isTitleCell {
+			titleAt = i
+		}
+	}
+	used := func() int {
+		n := 0
+		for i, w := range widths {
+			if i == titleAt {
+				n += 2
+			} else if w > 0 {
+				n += w + 2
+			}
+		}
+		return n
+	}
+	if inner-used() < minTitle {
+		for i, c := range tableColumns {
+			widths[i] = c.min
+		}
+	}
+	for d := 1; inner-used() < minTitle && d <= 5; d++ {
+		for i, c := range tableColumns {
+			if c.drop == d {
+				widths[i] = 0
+			}
+		}
+	}
+	widths[titleAt] = max(4, inner-used())
+	return widths
+}
+
 func (m *Model) refreshRows() {
 	_, _, tw := m.widths()
-	inner := tw - 2
-	fixed := []int{1, 3, 16, 12, 10, 4, 9} // ★ score company loc pay age status
-	used := 0
-	for _, w := range fixed {
-		used += w + 2
+	widths := fitColumns(tw - 2) // table width inside the pane border
+	tcols := make([]table.Column, len(tableColumns))
+	for i, c := range tableColumns {
+		tcols[i] = table.Column{Title: c.title, Width: widths[i]}
 	}
-	title := max(12, inner-used-4)
-	m.table.SetColumns([]table.Column{
-		{Title: "", Width: 1}, {Title: "Scr", Width: 3}, {Title: "Title", Width: title},
-		{Title: "Company", Width: 16}, {Title: "Location", Width: 12}, {Title: "Pay", Width: 10}, {Title: "Age", Width: 4},
-		{Title: "Status", Width: 9},
-	})
+	m.table.SetColumns(tcols)
 	now := time.Now()
 	rows := make([]table.Row, len(m.jobs))
-	for i, j := range m.jobs {
-		star := ""
-		if j.New {
-			star = "★"
+	for i := range m.jobs {
+		row := make(table.Row, len(tableColumns))
+		for k, c := range tableColumns {
+			if widths[k] > 0 {
+				row[k] = trunc(c.cell(m, &m.jobs[i], now), widths[k])
+			}
 		}
-		rows[i] = table.Row{star, fmt.Sprintf("%.0f", j.Score), trunc(j.Title, title), trunc(j.Company, 16),
-			trunc(location(&j), 12), trunc(j.Pay(), 10), app.Since(j.PostedAt, now), string(m.statuses[j.Key])}
+		rows[i] = row
 	}
 	m.table.SetRows(rows)
 	if c := m.table.Cursor(); c < 0 || c >= len(rows) {
@@ -496,7 +564,7 @@ func (m *Model) updateDetail() {
 			b.WriteString(label.Render(fmt.Sprintf("%-9s", k)) + " " + v + "\n")
 		}
 	}
-	row("Location", location(j))
+	row("Location", model.FullLocation(j))
 	row("Mode", string(j.WorkMode))
 	row("Type", string(j.JobType))
 	row("Level", string(j.Experience))
@@ -655,17 +723,6 @@ func box(focused bool, w, h int) lipgloss.Style {
 	}
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(c).
 		Width(w).Height(h).MaxHeight(h)
-}
-
-func location(j *model.Job) string {
-	switch {
-	case j.City != "":
-		return j.City
-	case j.Location != "":
-		return j.Location
-	default:
-		return strings.Join(j.Countries, ",")
-	}
 }
 
 func joinAreas(as []model.Area) string {

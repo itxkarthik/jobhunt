@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/itxkarthik/jobhunt/internal/app"
 	"github.com/itxkarthik/jobhunt/internal/model"
@@ -145,5 +146,50 @@ func TestSidebarSpaceToggles(t *testing.T) {
 	}
 	if !slices.Contains(got.Countries, "US") || m.loading {
 		t.Errorf("search got %v, loading=%v", got.Countries, m.loading)
+	}
+}
+
+// The results table must fit its pane at any terminal width: a header wider
+// than the pane wraps "Status" onto a second line and pushes the view past
+// the terminal's right edge.
+func TestTableFitsTerminalWidth(t *testing.T) {
+	m, _ := testModel(t)
+	keys(m, "down") // the cursor must survive resizes
+	tests := []struct {
+		width      int
+		show, hide []string
+	}{
+		{200, []string{"Status", "Age", "Pay", "Location", "Company"}, nil},
+		{160, []string{"Status", "Company"}, nil},
+		{148, []string{"Status", "Age", "Pay", "Location", "Company"}, nil},
+		{130, []string{"Age", "Pay", "Location", "Company"}, []string{"Status"}},
+		{120, []string{"Company"}, []string{"Status", "Age", "Pay"}},
+		{80, []string{"Scr", "Title"}, []string{"Status", "Location", "Company"}},
+	}
+	for _, tt := range tests {
+		m.Update(tea.WindowSizeMsg{Width: tt.width, Height: 30})
+		header, _, _ := strings.Cut(m.table.View(), "\n")
+		if w := lipgloss.Width(header); w > m.table.Width() {
+			t.Errorf("width %d: header is %d cells, table is %d: %q", tt.width, w, m.table.Width(), header)
+		}
+		for line := range strings.SplitSeq(m.render(), "\n") {
+			if w := lipgloss.Width(line); w > tt.width {
+				t.Errorf("width %d: view line is %d cells wide", tt.width, w)
+				break
+			}
+		}
+		for _, s := range tt.show {
+			if !strings.Contains(header, s) {
+				t.Errorf("width %d: header %q lacks %q", tt.width, header, s)
+			}
+		}
+		for _, s := range tt.hide {
+			if strings.Contains(header, s) {
+				t.Errorf("width %d: header %q should hide %q", tt.width, header, s)
+			}
+		}
+		if c := m.table.Cursor(); c != 1 {
+			t.Errorf("width %d: cursor = %d, want 1", tt.width, c)
+		}
 	}
 }
