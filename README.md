@@ -8,7 +8,7 @@ jobhunt is a single Go binary for students and early-career engineers looking fo
 
 Use it from the terminal, a TUI, or a local web UI. It also keeps a list of startups worth contacting directly, and gives AI agents tools to research them with a source for every fact.
 
-![jobhunt TUI](docs/images/tui.png)
+![jobhunt TUI demo: search India backend internships, save one, filter by keyword, add the US, then list the tracker](docs/images/demo.gif)
 
 ## Features
 
@@ -70,6 +70,7 @@ jobhunt serve --open                                            # web UI in your
 - **★**: you haven't seen this job in an earlier search.
 - **SCORE**: 0–100 fit for this search ([how it's scored](#scoring)).
 - **KEY**: stable job ID for `tracker`, `hide` and `unhide`.
+- **LOCATION**: the city, or the location text the posting gives. A remote job open in several countries shows the one you searched for plus a count, like `India +17`; `Worldwide` means open anywhere.
 - **PAY**: the pay the posting states, per year, month, week, day or hour; `unpaid` or `paid` when it says so without an amount; blank when it doesn't say.
 - **Sources** (below the table): what each source did: `ok`, `cached`, `skipped` or `error`. A failing source falls back to its last cached results.
 - **Also search**: links to sites jobhunt can't query, pre-filled with your filters.
@@ -82,7 +83,7 @@ jobhunt search -c IN,remote-global -t new-grad -k Go,Kubernetes -x senior
 jobhunt search -c JP -t internship --visa
 jobhunt search -p india-backend -k Go   # flags override the preset
 jobhunt search --city Bangalore,Kozhikode   # any spelling or case; add --strict-city to drop remote jobs
-#   --new-only  --refresh  --include-unknown  --strict-country  --show-hidden  -n -1 (all rows)
+#   --new-only  --refresh  --include-unknown  --strict-country  --show-hidden  --sort date  --no-links  -n -1 (all rows)
 
 # Presets
 jobhunt preset save <name> [filters] | list | show <name> | delete <name>
@@ -153,7 +154,7 @@ Countries, types, areas and modes left out take the defaults from your config; `
 |---|---|
 | `tab` / `shift+tab` | switch pane: filters → results → detail |
 | `↑↓` / `jk` | move or scroll |
-| `space` / `enter` | toggle a filter (re-searches) |
+| `space` / `enter` / `x` | toggle a filter (re-searches) |
 | `/` | edit keywords |
 | `s` | cycle sort: score → date → company |
 | `o` | open in browser |
@@ -162,6 +163,8 @@ Countries, types, areas and modes left out take the defaults from your config; `
 | `r` | refetch, bypassing the cache |
 | `n` | show only new (★) jobs, or all again; `jobhunt tui --new-only` starts that way |
 | `?` / `q` | help / quit |
+
+In a narrow terminal the results table hides columns instead of wrapping them, in this order: Status, Age, Pay, Location, Company. The details pane always shows every field.
 
 ## Web UI
 
@@ -306,7 +309,7 @@ The server listens on loopback only and requires the token on every `/api` reque
 | JSearch | `JOBHUNT_JSEARCH_API_KEY` | **opt-in**, freemium. LinkedIn and Indeed listings via Google Jobs. Accepts [OpenWeb Ninja](https://www.openwebninja.com) or RapidAPI keys |
 | X recent search | `JOBHUNT_X_BEARER_TOKEN` | **opt-in**, pay-per-use |
 | Adzuna | `JOBHUNT_ADZUNA_APP_ID` / `_APP_KEY` | **opt-in** |
-| LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Wellfound, YC, Cutshort, Instahyre, TokyoDev, Japan Dev | – | **browser links only**, never fetched |
+| LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Wellfound, YC, Work at a Startup, Cutshort, Instahyre, TokyoDev, Japan Dev, Google Jobs, X search | – | **browser links only**, never fetched |
 
 To enable an opt-in source, set `sources.<name>.enabled: true` in the config and provide its key in the config or the env var. The company importers (SEC EDGAR, MCA, HN leads) are listed under [Companies](#companies).
 
