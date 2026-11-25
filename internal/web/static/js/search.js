@@ -3,7 +3,7 @@
 // and a job opens full screen.
 import { api, meta, enc } from "./api.js";
 import { h, icon, corners, replace, extLink, openURL, safeURL, toast, typing } from "./dom.js";
-import { since, dateTime, location, place, pay, visa, statusLabel, count } from "./format.js";
+import { since, dateTime, location, shortLocation, place, pay, visa, statusLabel, count } from "./format.js";
 import * as shell from "./shell.js";
 import * as runlog from "./runlog.js";
 
@@ -506,7 +506,7 @@ export async function mount(view, { live = () => true } = {}) {
           j.new && h("span", { class: "badge new", title: "New since your last search" }, "new"),
           t && h("span", { class: "badge" }, statusLabel[t] || t)),
         h("div", { class: "job-title" }, j.title || "(untitled)"),
-        h("div", { class: "job-loc", title: location(j) }, location(j), h("span", { class: "extra" }, ` · ${j.work_mode} · ${j.job_type}`)),
+        h("div", { class: "job-loc", title: location(j) }, shortLocation(j, S.input?.countries || []) || "unknown", h("span", { class: "extra" }, ` · ${j.work_mode} · ${j.job_type}`)),
         h("div", { class: "job-tags" },
           h("span", { class: "tag tag-neutral" }, j.work_mode),
           h("span", { class: "tag tag-neutral" }, j.job_type),

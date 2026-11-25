@@ -67,6 +67,49 @@ func TestStatusErrorRedactsKeys(t *testing.T) {
 	}
 }
 
+// A redirect must not carry key headers to another host (or port); one
+// that stays on the same host keeps them.
+func TestRedirectKeepsKeysOnOrigin(t *testing.T) {
+	var got http.Header
+	record := func(w http.ResponseWriter, r *http.Request) {
+		if to := r.URL.Query().Get("to"); to != "" {
+			http.Redirect(w, r, to, http.StatusFound)
+			return
+		}
+		got = r.Header.Clone()
+		_, _ = w.Write([]byte("{}"))
+	}
+	api := httptest.NewServer(http.HandlerFunc(record))
+	defer api.Close()
+	other := httptest.NewServer(http.HandlerFunc(record))
+	defer other.Close()
+	keys := map[string]string{"x-api-key": "k1", "X-RapidAPI-Key": "k2", "Authorization": "Bearer k3"}
+	tests := []struct {
+		name, to string
+		keep     bool
+	}{
+		{"same host", api.URL + "/final", true},
+		{"other port", other.URL + "/final", false},
+		{"other host", strings.Replace(other.URL, "127.0.0.1", "localhost", 1) + "/final", false},
+	}
+	for _, tt := range tests {
+		got = nil
+		var v any
+		if err := testClient().GetJSON(context.Background(), api.URL+"/?to="+tt.to, keys, &v); err != nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		if kept := got.Get("x-api-key") != "" || got.Get("X-RapidAPI-Key") != ""; kept != tt.keep {
+			t.Errorf("%s: key headers kept = %v, want %v", tt.name, kept, tt.keep)
+		}
+		if !tt.keep && got.Get("Authorization") != "" {
+			t.Errorf("%s: Authorization reached another host", tt.name)
+		}
+		if got.Get("User-Agent") == "" {
+			t.Errorf("%s: User-Agent was dropped", tt.name)
+		}
+	}
+}
+
 func TestErrorsRedactKeys(t *testing.T) {
 	ctx := context.Background()
 	q := "?app_id=secret1&app_key=secret2&q=go"

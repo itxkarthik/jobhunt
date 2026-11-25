@@ -62,10 +62,10 @@ type CacheKeyer interface {
 	CacheKey(f model.Filters) string
 }
 
-// ErrNotConfigured is returned by Ready when credentials are missing.
-type ErrNotConfigured struct{ Msg string }
+// NotConfiguredError is returned by Ready when credentials are missing.
+type NotConfiguredError struct{ Msg string }
 
-func (e ErrNotConfigured) Error() string { return e.Msg }
+func (e NotConfiguredError) Error() string { return e.Msg }
 
 // PartialError reports that some sub-requests failed (e.g. a few company
 // boards are down) while others succeeded. Fetch returns it alongside the

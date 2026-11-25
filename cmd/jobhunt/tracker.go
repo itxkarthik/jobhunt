@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/itxkarthik/jobhunt/internal/app"
+	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/store"
 )
 
@@ -114,7 +115,7 @@ func newTrackerCmd() *cobra.Command {
 					return err
 				}
 				if j != nil {
-					fmt.Fprintf(w, "%s — %s\n%s\n%s · %s · %s\n", j.Title, j.Company, j.URL, location(j), j.WorkMode, j.JobType)
+					fmt.Fprintf(w, "%s — %s\n%s\n%s · %s · %s\n", j.Title, j.Company, j.URL, model.FullLocation(j), j.WorkMode, j.JobType)
 				}
 				rows, err := a.Store.TrackedJobs(cmd.Context())
 				if err != nil {

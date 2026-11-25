@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -27,13 +28,35 @@ type Client struct {
 // NewClient returns a client allowing r requests/second (burst 1).
 func NewClient(ua string, r rate.Limit) *Client {
 	return &Client{
-		HTTP:      &http.Client{Timeout: 30 * time.Second},
+		HTTP:      &http.Client{Timeout: 30 * time.Second, CheckRedirect: keepKeysOnOrigin},
 		UserAgent: ua,
 		Limiter:   rate.NewLimiter(r, 1),
 		Retries:   2,
 		Backoff:   500 * time.Millisecond,
 		MaxBody:   32 << 20,
 	}
+}
+
+// keepKeysOnOrigin is the redirect policy. When a redirect leaves the
+// original host, or drops from https to http, it removes every header the
+// request was given except User-Agent and Accept. Go already strips
+// Authorization there, but not custom key headers such as JSearch's
+// x-api-key or X-RapidAPI-Key, which would otherwise reach the other host.
+// Keys sent in the query string (Adzuna, MCA) aren't carried by a redirect.
+func keepKeysOnOrigin(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	first := via[0].URL
+	if strings.EqualFold(req.URL.Host, first.Host) && (first.Scheme != "https" || req.URL.Scheme == "https") {
+		return nil
+	}
+	for k := range req.Header {
+		if k != "User-Agent" && k != "Accept" {
+			req.Header.Del(k)
+		}
+	}
+	return nil
 }
 
 // StatusError is returned for non-2xx responses after retries are exhausted.

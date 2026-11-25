@@ -34,6 +34,16 @@ func Open(path string) (*Store, error) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return nil, err
 		}
+		// SQLite would create the file with the umask's 0644, readable by
+		// other users; its -wal and -shm files copy the main file's mode.
+		// Tighten an existing file too, best effort: it may belong to
+		// someone else and still be usable.
+		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600) //nolint:gosec // G304: the configured DB path
+		if err != nil {
+			return nil, err
+		}
+		_ = f.Close()
+		_ = os.Chmod(path, 0o600)
 	}
 	// _txlock=immediate: every transaction here reads then writes. Taking
 	// the write lock at BEGIN lets busy_timeout queue concurrent writers
@@ -197,7 +207,7 @@ func (s *Store) CachedJobs(ctx context.Context, source, key string, ttl time.Dur
 		return c, false, nil
 	}
 	if err := json.Unmarshal(blob, &c.Jobs); err != nil {
-		return c, false, nil //nolint:nilerr // a corrupt entry is just a cache miss
+		return c, false, nil // a corrupt entry is just a cache miss
 	}
 	return c, true, nil
 }

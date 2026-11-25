@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"crypto/hmac"
 	"errors"
 	"io"
 	"net/http"
@@ -65,7 +66,7 @@ func TestWebhookSignedDelivery(t *testing.T) {
 			t.Errorf("%s = %q, want %q", k, h.Get(k), want)
 		}
 	}
-	if !Verify(secret, h.Get(HeaderTimestamp), gotBody, h.Get(HeaderSignature)) {
+	if !verify(secret, h.Get(HeaderTimestamp), gotBody, h.Get(HeaderSignature)) {
 		t.Error("signature does not verify")
 	}
 }
@@ -200,6 +201,12 @@ func TestNewWebhook(t *testing.T) {
 	}
 }
 
+// verify checks a signature the way a receiver should: recompute it with
+// Sign and compare in constant time.
+func verify(secret []byte, ts string, body []byte, signature string) bool {
+	return hmac.Equal([]byte(Sign(secret, ts, body)), []byte(signature))
+}
+
 func TestVerify(t *testing.T) {
 	body := []byte("x\n")
 	sig := Sign(secret, "100", body)
@@ -218,8 +225,8 @@ func TestVerify(t *testing.T) {
 		{"missing", secret, "100", "x\n", "", false},
 	}
 	for _, tt := range tests {
-		if got := Verify(tt.secret, tt.ts, []byte(tt.body), tt.sig); got != tt.ok {
-			t.Errorf("%s: Verify = %v, want %v", tt.name, got, tt.ok)
+		if got := verify(tt.secret, tt.ts, []byte(tt.body), tt.sig); got != tt.ok {
+			t.Errorf("%s: verify = %v, want %v", tt.name, got, tt.ok)
 		}
 	}
 }

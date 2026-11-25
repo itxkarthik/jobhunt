@@ -32,6 +32,29 @@ export function place(code) {
   return code;
 }
 
+// SHORT and placeLabel mirror placeLabel in internal/model/where.go.
+const SHORT = {
+  IN: "India", US: "USA", JP: "Japan", GB: "UK", DE: "Germany",
+  CA: "Canada", SG: "Singapore", NL: "Netherlands", AU: "Australia", AE: "UAE",
+  "remote-global": "Worldwide",
+};
+
+function placeLabel(code) {
+  if (SHORT[code]) return SHORT[code];
+  if (code.startsWith("region:")) return code.slice(7).toUpperCase();
+  return code;
+}
+
+// shortLocation mirrors model.ShortLocation: a job open in several countries
+// reads "India +17", naming the first searched country (want) it lists,
+// instead of a long alphabetical list that hides that country.
+export function shortLocation(job, want = []) {
+  const cs = job.countries || [];
+  if (job.city) return job.city;
+  if (cs.length > 1) return `${placeLabel(want.find((w) => cs.includes(w)) || cs[0])} +${cs.length - 1}`;
+  return job.location || cs.map(placeLabel).join(", ");
+}
+
 export function location(job) {
   return job.location || job.city || (job.countries || []).map(place).join(", ") || "unknown";
 }

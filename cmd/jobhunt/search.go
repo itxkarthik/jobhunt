@@ -162,7 +162,7 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printResults(cmd.OutOrStdout(), res, limit, time.Now())
+			printResults(cmd.OutOrStdout(), res, f.Countries, limit, time.Now())
 			if !noLinks {
 				printLinks(cmd.OutOrStdout(), links.For(f))
 			}
@@ -196,7 +196,9 @@ func (o *searchOpts) run(ctx context.Context, a *app.App, f model.Filters) (*sea
 	return eng.Run(ctx, f)
 }
 
-func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
+// printResults prints the results table; want (the searched countries) picks
+// which country a multi-country job shows (see model.ShortLocation).
+func printResults(w io.Writer, res *search.Result, want []string, limit int, now time.Time) {
 	jobs := res.Jobs
 	shown := len(jobs)
 	if limit > 0 && shown > limit {
@@ -208,7 +210,7 @@ func printResults(w io.Writer, res *search.Result, limit int, now time.Time) {
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "#\tSCORE\tKEY\tAGE\tTITLE\tCOMPANY\tLOCATION\tMODE\tTYPE\tPAY\tAREAS\tSOURCE\tURL")
 		for i, j := range jobs[:shown] {
-			loc := location(&j)
+			loc := model.ShortLocation(&j, want)
 			mark := ""
 			if j.New {
 				mark = "★"
@@ -270,14 +272,4 @@ func trunc(s string, n int) string {
 		return s
 	}
 	return string(r[:n-1]) + "…"
-}
-
-func location(j *model.Job) string {
-	switch {
-	case j.City != "":
-		return j.City
-	case j.Location != "":
-		return j.Location
-	}
-	return strings.Join(j.Countries, ",")
 }

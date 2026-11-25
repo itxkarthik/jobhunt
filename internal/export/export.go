@@ -13,9 +13,6 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/model"
 )
 
-// Formats lists supported formats.
-var Formats = []string{"csv", "json", "md"}
-
 // Row is a job plus its tracker status (may be empty).
 type Row struct {
 	Job    model.Job
