@@ -2,11 +2,41 @@ package store
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/model"
 )
+
+// The database holds the tracker and notes, so Open keeps it private: a new
+// file is created 0600 and an existing 0644 one is tightened.
+func TestOpenKeepsDatabasePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file modes")
+	}
+	dir := t.TempDir()
+	existing := filepath.Join(dir, "old.db")
+	if err := os.WriteFile(existing, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{filepath.Join(dir, "new", "jobhunt.db"), existing} {
+		s, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = s.Close()
+		st, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m := st.Mode().Perm(); m != 0o600 {
+			t.Errorf("%s: mode %o, want 600", filepath.Base(path), m)
+		}
+	}
+}
 
 func TestCacheTTL(t *testing.T) {
 	s, err := Open(":memory:")
