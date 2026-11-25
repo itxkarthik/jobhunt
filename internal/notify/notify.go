@@ -36,10 +36,17 @@ func command(goos, title, body string) (string, []string, error) {
 		script := "display notification " + quote(body) + " with title " + quote(title)
 		return "osascript", []string{"-e", script}, nil
 	case "linux", "freebsd", "openbsd", "netbsd":
-		return "notify-send", []string{"--app-name=jobhunt", "--icon=dialog-information", title, body}, nil
+		// Job titles reach the body, so "--" keeps one starting with "-"
+		// from being read as an option, and markup is escaped: servers
+		// render <b>, <a> and sometimes <img> in the body.
+		return "notify-send", []string{"--app-name=jobhunt", "--icon=dialog-information", "--", markup.Replace(title), markup.Replace(body)}, nil
 	}
 	return "", nil, ErrUnsupported
 }
+
+// markup escapes text for the notification body's markup (freedesktop
+// notification spec).
+var markup = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
 // quote makes an AppleScript string literal.
 func quote(s string) string {
