@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -58,21 +59,27 @@ func TestPruneReclaimsSpace(t *testing.T) {
 	}
 	defer s.Close()
 	ctx := context.Background()
-	big := []model.Job{{Description: strings.Repeat("x", 1<<20)}}
-	if err := s.PutCache(ctx, "src", "k", big, "v", nil); err != nil {
+	// Random text stays big after gzip, so the row takes many pages.
+	var desc strings.Builder
+	for desc.Len() < 1<<20 {
+		desc.WriteString(rand.Text())
+	}
+	if err := s.PutCache(ctx, "src", "k", []model.Job{{Description: desc.String()}}, "v", nil); err != nil {
 		t.Fatal(err)
 	}
+	pragma := func(p string) int {
+		var n int
+		if err := s.db.QueryRowContext(ctx, "PRAGMA "+p).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := pragma("page_count")
 	if err := s.Prune(ctx, time.Now().Add(StaleCache+time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	var mode, pages, free int
-	for p, v := range map[string]*int{"auto_vacuum": &mode, "page_count": &pages, "freelist_count": &free} {
-		if err := s.db.QueryRowContext(ctx, "PRAGMA "+p).Scan(v); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if mode != 2 || free != 0 || pages > 100 {
-		t.Errorf("auto_vacuum=%d, %d pages, %d free; want 2 and the cache's pages freed", mode, pages, free)
+	if mode, pages, free := pragma("auto_vacuum"), pragma("page_count"), pragma("freelist_count"); mode != 2 || free != 0 || pages > before-100 {
+		t.Errorf("auto_vacuum=%d, pages %d -> %d, %d free; want 2 and the cache's pages returned", mode, before, pages, free)
 	}
 }
 
