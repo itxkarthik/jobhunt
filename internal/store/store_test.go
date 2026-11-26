@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +37,42 @@ func TestOpenKeepsDatabasePrivate(t *testing.T) {
 		if m := st.Mode().Perm(); m != 0o600 {
 			t.Errorf("%s: mode %o, want 600", filepath.Base(path), m)
 		}
+	}
+}
+
+// Prune hands the space it frees back to the file system, also in a
+// database made before incremental vacuum was on.
+func TestPruneReclaimsSpace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec("CREATE TABLE t (x)"); err != nil { // auto_vacuum stays 0
+		t.Fatal(err)
+	}
+	_ = old.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	big := []model.Job{{Description: strings.Repeat("x", 1<<20)}}
+	if err := s.PutCache(ctx, "src", "k", big, "v", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Prune(ctx, time.Now().Add(StaleCache+time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	var mode, pages, free int
+	for p, v := range map[string]*int{"auto_vacuum": &mode, "page_count": &pages, "freelist_count": &free} {
+		if err := s.db.QueryRowContext(ctx, "PRAGMA "+p).Scan(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if mode != 2 || free != 0 || pages > 100 {
+		t.Errorf("auto_vacuum=%d, %d pages, %d free; want 2 and the cache's pages freed", mode, pages, free)
 	}
 }
 
