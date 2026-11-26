@@ -190,8 +190,14 @@ func (s *Store) Prune(ctx context.Context, now time.Time) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, "PRAGMA incremental_vacuum")
-	return err
+	if _, err := s.db.ExecContext(ctx, "PRAGMA incremental_vacuum"); err != nil {
+		return err
+	}
+	// The vacuum moves pages through the WAL, which keeps its size while
+	// any connection is open (a long-running serve or mcp), so truncate it.
+	// Best effort: a reader in the middle of a query blocks it.
+	_, _ = s.db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
+	return nil
 }
 
 // Cached is a fetch cache entry: a source's jobs for one query, and the
