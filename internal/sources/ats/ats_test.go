@@ -238,8 +238,8 @@ func TestBoardsAdded(t *testing.T) {
 	srv := sourcetest.Serve(t, map[string]string{"/stripe/jobs": "testdata/greenhouse.json", "/acme/jobs": "testdata/greenhouse.json"})
 	s := NewShared("greenhouse", NewBoards(base), sourcetest.Client(), srv.URL)
 	s.list.SetAdded([]Company{{Name: "Acme", ATS: "greenhouse", Slug: "acme", Countries: []string{"IN"}}})
-	if got := s.CacheKey(model.Filters{Countries: []string{"IN"}, StrictCountry: true}); got != "acme" {
-		t.Errorf("IN boards = %q, want acme", got)
+	if got := s.Parts(model.Filters{Countries: []string{"IN"}, StrictCountry: true}); !slices.Equal(got, []string{"acme"}) {
+		t.Errorf("IN boards = %q, want [acme]", got)
 	}
 	jobs, err := s.Fetch(context.Background(), model.Filters{Countries: []string{"IN"}, StrictCountry: true})
 	if err != nil || len(jobs) == 0 {
