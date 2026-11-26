@@ -72,7 +72,7 @@ jobhunt serve --open                                            # web UI in your
 - **KEY**: stable job ID for `tracker`, `hide` and `unhide`.
 - **LOCATION**: the city, or the location text the posting gives. A remote job open in several countries shows the one you searched for plus a count, like `India +17`; `Worldwide` means open anywhere.
 - **PAY**: the pay the posting states, per year, month, week, day or hour; `unpaid` or `paid` when it says so without an amount; blank when it doesn't say.
-- **Sources** (below the table): what each source did: `ok`, `cached`, `skipped` or `error`. A failing source falls back to its last cached results.
+- **Sources** (below the table): what each source did: `ok`, `cached`, `skipped` or `error`. A failing source falls back to its last cached results, up to 3 days old.
 - **Also search**: links to sites jobhunt can't query, pre-filled with your filters.
 
 ## Usage
@@ -359,7 +359,7 @@ To target your own companies, copy [`companies.yaml`](internal/sources/ats/compa
      table │ TUI │ web UI │ export │ feed │ digest │ MCP
 ```
 
-Results are cached in SQLite per source, already cleaned and classified, so a repeat search takes about half a second. When the classifier's rules change, cached jobs are classified again without refetching. A slow or broken source never breaks the search.
+Results are cached in SQLite per source, already cleaned, classified and gzipped, so a repeat search takes about half a second. Company boards are cached one by one, so a search for other countries only fetches the boards it doesn't have yet. When the classifier's rules change, cached jobs are classified again without refetching. A slow or broken source never breaks the search.
 
 ### Scoring
 
@@ -391,6 +391,7 @@ Weights are configurable under `ranking:`. Each job in `jobhunt feed` and the lo
 | First search takes 20–60s | Normal: all company boards are fetched once, then cached |
 | Few or no results | Try `--include-unknown`, widen `-a`, add `-c remote-global`, or use the **Also search** links |
 | A source shows `error` | `jobhunt sources` shows recent errors; `--check-boards` finds stale company slugs |
+| `jobhunt.db` is hundreds of MB | Builds before v0.9.1 kept 30 days of cache and never shrank the file. `make install`; the next run shrinks it once (a few seconds) |
 | No desktop notification | Install `libnotify` (`notify-send`) on Linux |
 | `companies --profile` shows nothing | The profile's stage, size and funding filters leave out companies where those are unknown. Record them with `companies set`, or ask the `company-scout` agent |
 | The web UI asks for a token every time | Set `serve.token` or `JOBHUNT_SERVE_TOKEN` |
