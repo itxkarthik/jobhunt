@@ -95,6 +95,7 @@ internal/mcpserver/ `jobhunt mcp`: tools for agents (docs/examples/mcp.json)
   - `MinTTLer`: a hard minimum from the source's terms; even `--refresh` honours it.
   - `DefaultTTLer`: a suggestion that `--refresh` and config `ttl` override.
   - `Timeouter`, `CacheKeyer`.
+  - `Splitter`: parts (ATS boards) the engine fetches and caches one by one.
   - Return `*sources.PartialError` when some pages failed but some jobs came back.
 - Unknown values stay `unknown`; don't guess. Filters drop unknowns unless `--include-unknown`.
 - Pay: `SalaryMin`/`SalaryMax` are per `PayPeriod` (empty means a year). Sources keep every period they're given; `Paid` is false only when a posting says it's unpaid. Show pay with `Job.Pay()` (and `pay()` in `internal/web/static/js/format.js`, which must match it).

@@ -62,6 +62,15 @@ type CacheKeyer interface {
 	CacheKey(f model.Filters) string
 }
 
+// Splitter is a source made of parts fetched on their own, like an ATS's
+// company boards. The engine caches each part separately, so searches
+// that need different sets of parts share the cached ones, and calls
+// FetchPart instead of Fetch.
+type Splitter interface {
+	Parts(f model.Filters) []string
+	FetchPart(ctx context.Context, part string) ([]model.Job, error)
+}
+
 // NotConfiguredError is returned by Ready when credentials are missing.
 type NotConfiguredError struct{ Msg string }
 

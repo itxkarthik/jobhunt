@@ -376,7 +376,7 @@ Weights are configurable under `ranking:`. Each job in `jobhunt feed` and the lo
 ## Privacy and security
 
 - All data stays local in `~/.local/share/jobhunt/jobhunt.db`, in a folder only you can read. The only network traffic is requests to the sources above.
-- jobhunt cleans up after itself once a day: it drops cached fetches older than 30 days and jobs that haven't shown up in a search for 90 days. Tracked jobs are always kept.
+- jobhunt cleans up after itself once a day: it drops cached fetches older than 3 days and jobs that haven't shown up in a search for 90 days, then shrinks the database file. Tracked jobs are always kept.
 - Fetched text is untrusted: terminal escapes, control and bidi characters are stripped, and only `http(s)` URLs are kept.
 - CSV exports neutralise spreadsheet formulas; Markdown links are escaped.
 - API keys live in your config (mode 0600) or env vars and are redacted from errors.

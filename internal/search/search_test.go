@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -400,5 +401,72 @@ func TestEngineCacheClassification(t *testing.T) {
 	}
 	if after, _, _ := st.CachedJobs(ctx, "src", key, time.Hour); after.ClassVersion != eng.prepVersion() || !after.FetchedAt.Equal(before.FetchedAt) {
 		t.Errorf("entry after redo: version %q, fetched %v (was %v)", after.ClassVersion, after.FetchedAt, before.FetchedAt)
+	}
+}
+
+// splitSource has one job per board; Keywords name the boards a search
+// needs.
+type splitSource struct {
+	mu      sync.Mutex
+	down    map[string]bool
+	fetched []string
+}
+
+func (s *splitSource) Name() string                   { return "split" }
+func (s *splitSource) Supports(model.Filters) bool    { return true }
+func (s *splitSource) Parts(f model.Filters) []string { return f.Keywords }
+func (s *splitSource) Fetch(context.Context, model.Filters) ([]model.Job, error) {
+	return nil, errors.New("the engine should call FetchPart")
+}
+func (s *splitSource) FetchPart(_ context.Context, board string) ([]model.Job, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fetched = append(s.fetched, board)
+	if s.down[board] {
+		return nil, errors.New("HTTP 500")
+	}
+	return []model.Job{job("split:"+board, "Backend Intern", "Pune")}, nil
+}
+
+// Each board is cached on its own: searches share cached boards and fetch
+// only the missing ones. Stale copies stand in only when every board fails.
+func TestEngineCachesEachPart(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	src := &splitSource{}
+	eng := &Engine{Store: st, Classifier: classify.Default(), CacheTTL: time.Hour}
+	for _, tc := range []struct {
+		name          string
+		boards, down  string
+		refresh       bool
+		status        Status
+		fetched, jobs string
+	}{
+		{"first search", "a,b", "", false, StatusOK, "a,b", "a,b"},
+		{"same boards", "a,b", "", false, StatusCached, "", "a,b"},
+		{"one new board", "b,c", "", false, StatusOK, "c", "b,c"},
+		{"one board down", "c,d", "d", false, StatusOK, "d", "c"},
+		{"down, no stale copy", "d", "d", false, StatusError, "d", ""},
+		{"refresh, all down", "a,b", "a,b", true, StatusError, "a,b", "a,b"},
+		{"refresh, up", "a,b", "", true, StatusOK, "a,b", "a,b"},
+	} {
+		src.down, src.fetched, eng.Refresh = map[string]bool{}, nil, tc.refresh
+		for b := range strings.SplitSeq(tc.down, ",") {
+			src.down[b] = true
+		}
+		r, jobs := eng.runOne(context.Background(), src, model.Filters{Keywords: strings.Split(tc.boards, ",")})
+		var got []string
+		for _, j := range jobs {
+			got = append(got, strings.TrimPrefix(j.ID, "split:"))
+		}
+		slices.Sort(got)
+		slices.Sort(src.fetched)
+		if r.Status != tc.status || strings.Join(src.fetched, ",") != tc.fetched || strings.Join(got, ",") != tc.jobs {
+			t.Errorf("%s: %s (%s), fetched %v, jobs %v; want %s, fetched %s, jobs %s",
+				tc.name, r.Status, r.Err, src.fetched, got, tc.status, tc.fetched, tc.jobs)
+		}
 	}
 }

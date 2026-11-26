@@ -3,6 +3,8 @@
 package store
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"embed"
@@ -49,9 +51,11 @@ func Open(path string) (*Store, error) {
 	// the write lock at BEGIN lets busy_timeout queue concurrent writers
 	// (the server, an agent, a watch loop); a deferred transaction would
 	// fail with SQLITE_BUSY when it tries to upgrade its read lock.
-	dsn := "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_txlock=immediate"
+	// auto_vacuum comes first: it only applies to a new file if it's set
+	// before anything is written.
+	dsn := "file:" + path + "?_pragma=auto_vacuum(incremental)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_txlock=immediate"
 	if path == ":memory:" {
-		dsn = "file::memory:?_pragma=foreign_keys(1)"
+		dsn = "file::memory:?_pragma=auto_vacuum(incremental)&_pragma=foreign_keys(1)"
 	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -65,7 +69,23 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	s.enableVacuum(context.Background())
 	return s, nil
+}
+
+// enableVacuum switches a database made before incremental vacuum was on,
+// so Prune can hand freed pages back to the file system. That takes one
+// full VACUUM, and in WAL mode it writes the whole database into the -wal
+// file, so that's truncated after. Best effort: if another process holds
+// the database, the next Open tries again.
+func (s *Store) enableVacuum(ctx context.Context) {
+	var mode int
+	if err := s.db.QueryRowContext(ctx, "PRAGMA auto_vacuum").Scan(&mode); err != nil || mode == 2 { // 2 = incremental
+		return
+	}
+	if _, err := s.db.ExecContext(ctx, "VACUUM"); err == nil {
+		_, _ = s.db.ExecContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
+	}
 }
 
 func (s *Store) Close() error { return s.db.Close() }
@@ -116,8 +136,9 @@ func (s *Store) migrate(ctx context.Context) error {
 
 const (
 	// StaleCache is how old a cache entry may be and still stand in for a
-	// source that fails; Prune deletes older ones.
-	StaleCache = 30 * 24 * time.Hour
+	// source that fails; Prune deletes older ones. Entries are tens of MB on
+	// the big boards, and a fallback rarely needs older jobs.
+	StaleCache = 3 * 24 * time.Hour
 	// KeepSeen is how long Prune keeps the record of a job that stopped
 	// showing up in results (unless it's tracked).
 	KeepSeen = 90 * 24 * time.Hour
@@ -144,7 +165,8 @@ func (s *Store) PruneDaily(ctx context.Context, now time.Time) error {
 
 // Prune deletes what searches no longer use: cache entries older than
 // StaleCache, and stored jobs and seen records not in results for KeepSeen,
-// except tracked ones. A pruned job that comes back counts as new.
+// except tracked ones. A pruned job that comes back counts as new. The
+// freed pages are then returned to the file system.
 func (s *Store) Prune(ctx context.Context, now time.Time) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -165,7 +187,11 @@ func (s *Store) Prune(ctx context.Context, now time.Time) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, "PRAGMA incremental_vacuum")
+	return err
 }
 
 // Cached is a fetch cache entry: a source's jobs for one query, and the
@@ -206,16 +232,42 @@ func (s *Store) CachedJobs(ctx context.Context, source, key string, ttl time.Dur
 	if time.Since(c.FetchedAt) > ttl {
 		return c, false, nil
 	}
-	if err := json.Unmarshal(blob, &c.Jobs); err != nil {
+	if err := decodeJobs(blob, &c.Jobs); err != nil {
 		return c, false, nil // a corrupt entry is just a cache miss
 	}
 	return c, true, nil
 }
 
+// encodeJobs stores jobs as gzipped JSON; job descriptions compress well.
+func encodeJobs(jobs []model.Job) ([]byte, error) {
+	var b bytes.Buffer
+	zw := gzip.NewWriter(&b)
+	if err := json.NewEncoder(zw).Encode(jobs); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+// decodeJobs reads what encodeJobs wrote, or plain JSON from before jobs
+// were compressed: gzip starts with 1f 8b, and JSON never does.
+func decodeJobs(blob []byte, jobs *[]model.Job) error {
+	if !bytes.HasPrefix(blob, []byte{0x1f, 0x8b}) {
+		return json.Unmarshal(blob, jobs)
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(blob))
+	if err != nil {
+		return err
+	}
+	return json.NewDecoder(zr).Decode(jobs)
+}
+
 // PutCache stores jobs fetched now for (source, key), with the caller's
 // classification of them (class, made by classifier version classVersion).
 func (s *Store) PutCache(ctx context.Context, source, key string, jobs []model.Job, classVersion string, class []byte) error {
-	blob, err := json.Marshal(jobs)
+	blob, err := encodeJobs(jobs)
 	if err != nil {
 		return err
 	}
@@ -232,7 +284,7 @@ func (s *Store) PutCache(ctx context.Context, source, key string, jobs []model.J
 // expires when it would have. It changes the entry only if it's still the
 // one read as from: a fetch stored meanwhile is newer and stays.
 func (s *Store) RedoCache(ctx context.Context, source, key string, from Cached, jobs []model.Job, classVersion string, class []byte) error {
-	blob, err := json.Marshal(jobs)
+	blob, err := encodeJobs(jobs)
 	if err != nil {
 		return err
 	}

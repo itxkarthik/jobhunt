@@ -213,13 +213,24 @@ func (s *Source) Timeout() time.Duration    { return 2 * time.Minute }
 
 func (s *Source) Supports(f model.Filters) bool { return len(s.boards(f)) > 0 }
 
-func (s *Source) CacheKey(f model.Filters) string {
+// Parts returns the slugs of the boards a search needs; the engine caches
+// each board on its own (see sources.Splitter).
+func (s *Source) Parts(f model.Filters) []string {
 	var slugs []string
 	for _, c := range s.boards(f) {
 		slugs = append(slugs, c.Slug)
 	}
-	sort.Strings(slugs)
-	return strings.Join(slugs, ",")
+	return slugs
+}
+
+// FetchPart fetches the board with this slug.
+func (s *Source) FetchPart(ctx context.Context, slug string) ([]model.Job, error) {
+	for _, c := range s.Companies() {
+		if c.Slug == slug {
+			return s.prov.fetchBoard(ctx, s.Client, c)
+		}
+	}
+	return nil, fmt.Errorf("no %s board %q", s.ATS, slug)
 }
 
 // boards returns companies hiring in any requested country. Remote-friendly

@@ -2,9 +2,12 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +41,48 @@ func TestOpenKeepsDatabasePrivate(t *testing.T) {
 	}
 }
 
+// Prune hands the space it frees back to the file system, also in a
+// database made before incremental vacuum was on.
+func TestPruneReclaimsSpace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec("CREATE TABLE t (x)"); err != nil { // auto_vacuum stays 0
+		t.Fatal(err)
+	}
+	_ = old.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	// Random text stays big after gzip, so the row takes many pages.
+	var desc strings.Builder
+	for desc.Len() < 1<<20 {
+		desc.WriteString(rand.Text())
+	}
+	if err := s.PutCache(ctx, "src", "k", []model.Job{{Description: desc.String()}}, "v", nil); err != nil {
+		t.Fatal(err)
+	}
+	pragma := func(p string) int {
+		var n int
+		if err := s.db.QueryRowContext(ctx, "PRAGMA "+p).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := pragma("page_count")
+	if err := s.Prune(ctx, time.Now().Add(StaleCache+time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if mode, pages, free := pragma("auto_vacuum"), pragma("page_count"), pragma("freelist_count"); mode != 2 || free != 0 || pages > before-100 {
+		t.Errorf("auto_vacuum=%d, pages %d -> %d, %d free; want 2 and the cache's pages returned", mode, before, pages, free)
+	}
+}
+
 func TestCacheTTL(t *testing.T) {
 	s, err := Open(":memory:")
 	if err != nil {
@@ -57,6 +102,14 @@ func TestCacheTTL(t *testing.T) {
 	if err != nil || !ok || len(got.Jobs) != 1 || got.Jobs[0].Title != "Backend Intern" || got.Jobs[0].Countries[0] != "IN" ||
 		got.ClassVersion != "v1" || string(got.Class) != `[{}]` {
 		t.Fatalf("cache hit: %+v %v %v", got, ok, err)
+	}
+	// Rows from before jobs were gzipped still read.
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO fetch_cache (source, query_key, fetched_at, jobs_json, class_version, class_json)
+		VALUES ('src', 'plain', ?, '[{"title":"Old Intern"}]', '', NULL)`, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if old, ok, _ := s.CachedJobs(ctx, "src", "plain", time.Hour); !ok || len(old.Jobs) != 1 || old.Jobs[0].Title != "Old Intern" {
+		t.Errorf("plain JSON row: %+v %v", old, ok)
 	}
 	if _, ok, _ := s.CachedJobs(ctx, "src", "other", time.Hour); ok {
 		t.Error("different key should miss")

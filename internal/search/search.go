@@ -241,16 +241,6 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 		return r, nil
 	}
 
-	key := cacheKey(src, f)
-	ttl := e.ttlFor(src)
-	if e.Store != nil && ttl > 0 {
-		c, ok, err := e.Store.CachedJobs(ctx, r.Source, key, ttl)
-		if err == nil && ok {
-			r.Status, r.Count = StatusCached, len(c.Jobs)
-			return r, e.fromCache(ctx, r.Source, key, c)
-		}
-	}
-
 	timeout := e.Timeout
 	if timeout <= 0 {
 		timeout = 20 * time.Second
@@ -260,35 +250,109 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 	}
 	fctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	jobs, err := src.Fetch(fctx, f)
-	var partial *sources.PartialError
-	if err != nil && len(jobs) > 0 && errors.As(err, &partial) {
-		r.Err = "partial: " + partial.Error()
-		err = nil
+	keys := []string{cacheKey(src, f)}
+	fetch := func(ctx context.Context, _ string) ([]model.Job, error) { return src.Fetch(ctx, f) }
+	if sp, ok := src.(sources.Splitter); ok {
+		keys, fetch = sp.Parts(f), sp.FetchPart
 	}
-	if err != nil {
+	jobs, cached, err := e.load(ctx, fctx, r.Source, keys, e.ttlFor(src), fetch)
+	r.Count = len(jobs)
+	switch {
+	case err == nil && cached:
+		r.Status = StatusCached
+	case err == nil:
+		r.Status = StatusOK
+	case len(jobs) > 0:
+		r.Status, r.Err = StatusOK, "partial: "+err.Error()
+	default:
 		r.Status, r.Err = StatusError, errMessage(err, timeout)
 		// Serve stale cache rather than nothing.
-		if e.Store != nil {
-			if stale, ok, _ := e.Store.CachedJobs(ctx, r.Source, key, store.StaleCache); ok {
-				r.Err += fmt.Sprintf(" (showing %d stale cached results)", len(stale.Jobs))
-				r.Count = len(stale.Jobs)
-				return r, e.fromCache(ctx, r.Source, key, stale)
-			}
+		if jobs = e.stale(ctx, r.Source, keys); len(jobs) > 0 {
+			r.Err += fmt.Sprintf(" (showing %d stale cached results)", len(jobs))
+			r.Count = len(jobs)
 		}
-		return r, nil
+	}
+	return r, jobs
+}
+
+// partConcurrency is how many parts of a sources.Splitter load at once.
+const partConcurrency = 4
+
+// load returns a source's jobs for each cache key: cached ones if fetched
+// within ttl, else from fetch, cleaned, classified and cached. cached is
+// true if none were fetched. If some keys failed, err is a
+// *sources.PartialError (with one key, its error) and the jobs are the
+// other keys'.
+func (e *Engine) load(ctx, fctx context.Context, source string, keys []string, ttl time.Duration,
+	fetch func(context.Context, string) ([]model.Job, error)) (jobs []model.Job, cached bool, err error) {
+	var (
+		mu     sync.Mutex
+		failed []string
+		g      errgroup.Group
+	)
+	cached = true
+	g.SetLimit(partConcurrency)
+	for _, key := range keys {
+		g.Go(func() error {
+			js, hit, kerr := e.loadKey(ctx, fctx, source, key, ttl, fetch)
+			mu.Lock()
+			defer mu.Unlock()
+			jobs, cached = append(jobs, js...), cached && hit
+			if kerr != nil {
+				failed = append(failed, key)
+				if err == nil {
+					err = kerr
+				}
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+	if len(keys) > 1 && err != nil {
+		sort.Strings(failed)
+		err = &sources.PartialError{Failed: failed, Total: len(keys), Err: err}
+	}
+	return jobs, cached, err
+}
+
+// loadKey loads one cache key for load. A fetch that fails outright
+// returns no jobs; a *sources.PartialError comes back with its jobs.
+func (e *Engine) loadKey(ctx, fctx context.Context, source, key string, ttl time.Duration,
+	fetch func(context.Context, string) ([]model.Job, error)) ([]model.Job, bool, error) {
+	if e.Store != nil && ttl > 0 {
+		if c, ok, err := e.Store.CachedJobs(ctx, source, key, ttl); err == nil && ok {
+			return e.fromCache(ctx, source, key, c), true, nil
+		}
+	}
+	jobs, err := fetch(fctx, key)
+	if _, partial := errors.AsType[*sources.PartialError](err); err != nil && (!partial || len(jobs) == 0) {
+		return nil, false, err
 	}
 	for i := range jobs {
 		if len(jobs[i].Sources) == 0 {
 			jobs[i].Sources = []string{jobs[i].Source}
 		}
 	}
-	r.Status, r.Count = StatusOK, len(jobs)
 	raw, class := e.prepare(jobs)
 	if e.Store != nil {
-		_ = e.Store.PutCache(ctx, r.Source, key, raw, e.prepVersion(), class)
+		_ = e.Store.PutCache(ctx, source, key, raw, e.prepVersion(), class)
 	}
-	return r, jobs
+	return jobs, false, err
+}
+
+// stale returns the jobs cached for keys within store.StaleCache, to stand
+// in for a source that failed.
+func (e *Engine) stale(ctx context.Context, source string, keys []string) []model.Job {
+	if e.Store == nil {
+		return nil
+	}
+	var jobs []model.Job
+	for _, key := range keys {
+		if c, ok, _ := e.Store.CachedJobs(ctx, source, key, store.StaleCache); ok {
+			jobs = append(jobs, e.fromCache(ctx, source, key, c)...)
+		}
+	}
+	return jobs
 }
 
 // ttlFor picks the cache TTL: config per-source > source default > global,
