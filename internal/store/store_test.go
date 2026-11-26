@@ -42,7 +42,8 @@ func TestOpenKeepsDatabasePrivate(t *testing.T) {
 }
 
 // Prune hands the space it frees back to the file system, also in a
-// database made before incremental vacuum was on.
+// database made before incremental vacuum was on, and leaves no big -wal
+// file behind while another process (a running serve or mcp) has it open.
 func TestPruneReclaimsSpace(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "old.db")
 	old, err := sql.Open("sqlite", "file:"+path)
@@ -58,6 +59,11 @@ func TestPruneReclaimsSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
+	other, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
 	ctx := context.Background()
 	// Random text stays big after gzip, so the row takes many pages.
 	var desc strings.Builder
@@ -80,6 +86,13 @@ func TestPruneReclaimsSpace(t *testing.T) {
 	}
 	if mode, pages, free := pragma("auto_vacuum"), pragma("page_count"), pragma("freelist_count"); mode != 2 || free != 0 || pages > before-100 {
 		t.Errorf("auto_vacuum=%d, pages %d -> %d, %d free; want 2 and the cache's pages returned", mode, before, pages, free)
+	}
+	wal, err := os.Stat(path + "-wal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wal.Size() != 0 {
+		t.Errorf("-wal is %d bytes after prune; want it truncated", wal.Size())
 	}
 }
 
