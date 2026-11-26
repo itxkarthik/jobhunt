@@ -96,6 +96,14 @@ func TestCacheTTL(t *testing.T) {
 		got.ClassVersion != "v1" || string(got.Class) != `[{}]` {
 		t.Fatalf("cache hit: %+v %v %v", got, ok, err)
 	}
+	// Rows from before jobs were gzipped still read.
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO fetch_cache (source, query_key, fetched_at, jobs_json, class_version, class_json)
+		VALUES ('src', 'plain', ?, '[{"title":"Old Intern"}]', '', NULL)`, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if old, ok, _ := s.CachedJobs(ctx, "src", "plain", time.Hour); !ok || len(old.Jobs) != 1 || old.Jobs[0].Title != "Old Intern" {
+		t.Errorf("plain JSON row: %+v %v", old, ok)
+	}
 	if _, ok, _ := s.CachedJobs(ctx, "src", "other", time.Hour); ok {
 		t.Error("different key should miss")
 	}

@@ -3,6 +3,8 @@
 package store
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"embed"
@@ -230,16 +232,42 @@ func (s *Store) CachedJobs(ctx context.Context, source, key string, ttl time.Dur
 	if time.Since(c.FetchedAt) > ttl {
 		return c, false, nil
 	}
-	if err := json.Unmarshal(blob, &c.Jobs); err != nil {
+	if err := decodeJobs(blob, &c.Jobs); err != nil {
 		return c, false, nil // a corrupt entry is just a cache miss
 	}
 	return c, true, nil
 }
 
+// encodeJobs stores jobs as gzipped JSON; job descriptions compress well.
+func encodeJobs(jobs []model.Job) ([]byte, error) {
+	var b bytes.Buffer
+	zw := gzip.NewWriter(&b)
+	if err := json.NewEncoder(zw).Encode(jobs); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+// decodeJobs reads what encodeJobs wrote, or plain JSON from before jobs
+// were compressed: gzip starts with 1f 8b, and JSON never does.
+func decodeJobs(blob []byte, jobs *[]model.Job) error {
+	if !bytes.HasPrefix(blob, []byte{0x1f, 0x8b}) {
+		return json.Unmarshal(blob, jobs)
+	}
+	zr, err := gzip.NewReader(bytes.NewReader(blob))
+	if err != nil {
+		return err
+	}
+	return json.NewDecoder(zr).Decode(jobs)
+}
+
 // PutCache stores jobs fetched now for (source, key), with the caller's
 // classification of them (class, made by classifier version classVersion).
 func (s *Store) PutCache(ctx context.Context, source, key string, jobs []model.Job, classVersion string, class []byte) error {
-	blob, err := json.Marshal(jobs)
+	blob, err := encodeJobs(jobs)
 	if err != nil {
 		return err
 	}
@@ -256,7 +284,7 @@ func (s *Store) PutCache(ctx context.Context, source, key string, jobs []model.J
 // expires when it would have. It changes the entry only if it's still the
 // one read as from: a fetch stored meanwhile is newer and stays.
 func (s *Store) RedoCache(ctx context.Context, source, key string, from Cached, jobs []model.Job, classVersion string, class []byte) error {
-	blob, err := json.Marshal(jobs)
+	blob, err := encodeJobs(jobs)
 	if err != nil {
 		return err
 	}
