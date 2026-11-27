@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml/badge.svg)](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/itxkarthik/jobhunt)](https://github.com/itxkarthik/jobhunt/releases/latest)
-[![Go Report Card](https://goreportcard.com/badge/github.com/itxkarthik/jobhunt)](https://goreportcard.com/report/github.com/itxkarthik/jobhunt)
+[![Go Reference](https://pkg.go.dev/badge/github.com/itxkarthik/jobhunt.svg)](https://pkg.go.dev/github.com/itxkarthik/jobhunt)
 
 **Search every legal job source at once from your terminal, and track your applications in one place.**
 
