@@ -1,6 +1,8 @@
 # jobhunt
 
 [![CI](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml/badge.svg)](https://github.com/itxkarthik/jobhunt/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/itxkarthik/jobhunt)](https://github.com/itxkarthik/jobhunt/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/itxkarthik/jobhunt)](https://goreportcard.com/report/github.com/itxkarthik/jobhunt)
 
 **Search every legal job source at once from your terminal, and track your applications in one place.**
 
@@ -10,9 +12,11 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 
 ![jobhunt TUI demo: search India backend internships, save one, filter by keyword, add the US, then list the tracker](docs/images/demo.gif)
 
+**Legal by design.** jobhunt uses only public APIs, ATS job-board APIs and RSS feeds, and respects their terms and rate limits. Sites that forbid automation (LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Crunchbase, Wellfound) get pre-filled browser links instead. jobhunt never guesses email addresses and never sends anything for you.
+
 ## Features
 
-- **One search, every source.** Queries about 90 company job boards, remote boards, HN "Who is Hiring" and optional APIs concurrently.
+- **One search, every source.** Queries about 95 company career boards (Greenhouse, Lever, Ashby, Workable, Recruitee), HN "Who is Hiring", 5 remote job boards and optional paid APIs concurrently. Add any company's board with one command.
 - **Less noise.** Classifies each job's type, level, work mode, CS area and visa support, then filters out what you didn't ask for.
 - **Pay and stipends.** Shows what a job pays when the posting says (`₹15k/mo`, `$40/hr`, `₹6L–8L/yr`), and flags unpaid internships; `--paid-only` drops them.
 - **City filter.** `--city Bangalore,Kozhikode` keeps jobs in those cities under any spelling or case, plus remote jobs you can do from there.
@@ -27,7 +31,6 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 - **Agent tools.** `jobhunt mcp` lets Claude Code and other MCP clients search jobs and research companies; the `company-scout` agent ships with the repo.
 - **Headless mode.** `jobhunt feed` streams versioned NDJSON events for queues, databases and agents, with at-least-once cursors and a signed webhook.
 - **Local API.** The web UI runs on a token-protected JSON API on localhost that you can use too.
-- **Legal by design.** Uses only public APIs, ATS job-board APIs and RSS feeds, and respects their terms and rate limits. Sites that forbid automation (LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Crunchbase, Wellfound) get pre-filled browser links instead. jobhunt never guesses email addresses and never sends anything for you.
 
 ## Install
 
