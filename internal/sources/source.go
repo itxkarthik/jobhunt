@@ -97,3 +97,12 @@ func firstN(xs []string, n int) []string {
 	}
 	return xs
 }
+
+// StaleError comes back from Fetch, with the jobs, when the source's data
+// is known to be out of date (a local file nobody has refreshed). The
+// engine shows the jobs as stale results: the source counts as failed, so
+// they don't mark tracked jobs as still listed, and they aren't cached.
+type StaleError struct{ Err error }
+
+func (e *StaleError) Error() string { return e.Err.Error() }
+func (e *StaleError) Unwrap() error { return e.Err }

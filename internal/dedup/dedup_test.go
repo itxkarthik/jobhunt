@@ -66,3 +66,26 @@ func TestKeyStable(t *testing.T) {
 		t.Error("equivalent postings should share a key")
 	}
 }
+
+func TestMergeByURL(t *testing.T) {
+	jobs := []model.Job{
+		{Source: "greenhouse", Company: "Fam", Title: "Backend Engineer Intern", URL: "https://job-boards.greenhouse.io/fam/jobs/1"},
+		{Source: "linkedin", Company: "FamPay", Title: "Backend Engineering Intern", URL: "https://boards.greenhouse.io/fam/jobs/1/?utm_source=linkedin&gh_src=x#apply"},
+		// Two listings from one source on the same careers page are two
+		// jobs, and so are other sources' jobs linking to it.
+		{Source: "hn", Company: "Acme", Title: "Go Developer", URL: "https://acme.example/careers/open"},
+		{Source: "hn", Company: "Acme", Title: "Designer", URL: "https://acme.example/careers/open"},
+		{Source: "wwr", Company: "Acme", Title: "Data Engineer", URL: "https://acme.example/careers/open"},
+		{Source: "remoteok", Company: "Acme", Title: "Product Manager", URL: "https://acme.example/careers/open/"},
+		// A one-segment path doesn't name a posting.
+		{Source: "a", Company: "Beta", Title: "Data Engineer", URL: "https://beta.example/careers"},
+		{Source: "b", Company: "Beta", Title: "Data Analyst", URL: "https://beta.example/careers"},
+	}
+	got := Merge(jobs)
+	if len(got) != 7 || !slices.Equal(got[0].Sources, []string{"greenhouse", "linkedin"}) {
+		t.Fatalf("got %d jobs, first from %v", len(got), got[0].Sources)
+	}
+	if postingURL("https://news.ycombinator.com/item?id=1") == postingURL("https://news.ycombinator.com/item?id=2") {
+		t.Error("query parameters that name the posting must be kept")
+	}
+}

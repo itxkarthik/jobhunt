@@ -8,6 +8,7 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/sources/adzuna"
 	"github.com/itxkarthik/jobhunt/internal/sources/arbeitnow"
 	"github.com/itxkarthik/jobhunt/internal/sources/ats"
+	"github.com/itxkarthik/jobhunt/internal/sources/file"
 	"github.com/itxkarthik/jobhunt/internal/sources/himalayas"
 	"github.com/itxkarthik/jobhunt/internal/sources/hn"
 	"github.com/itxkarthik/jobhunt/internal/sources/jsearch"
@@ -71,6 +72,9 @@ var Catalog = []SourceInfo{
 	{"x", "X recent-search API (pay-per-use)", false, "bearer_token", func(_ *config.Config, sc config.SourceConfig, c *sources.Client, _ *ats.Boards) sources.Source {
 		return xposts.New(sc.BearerToken, sc.MaxResults, c)
 	}},
+	{"file", "Jobs from local NDJSON files, one per line (sources.file.paths)", false, "", func(_ *config.Config, sc config.SourceConfig, _ *sources.Client, _ *ats.Boards) sources.Source {
+		return file.New(sc.Paths)
+	}},
 }
 
 // BuildSources constructs every enabled source with its own HTTP client and
@@ -88,6 +92,15 @@ func BuildSources(cfg *config.Config, boards *ats.Boards) []sources.Source {
 			c.Limiter = rate.NewLimiter(rl.Rate(), 1)
 		}
 		out = append(out, src)
+	}
+	for _, src := range out {
+		if fs, ok := src.(*file.Source); ok {
+			for _, info := range Catalog {
+				if info.Name != fs.Name() {
+					fs.Reserved = append(fs.Reserved, info.Name)
+				}
+			}
+		}
 	}
 	return out
 }
