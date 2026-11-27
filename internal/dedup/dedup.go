@@ -154,8 +154,9 @@ var trackingParams = []string{"ref", "refid", "ref_src", "referrer", "src", "sou
 
 // postingURLs returns each job's URL normalized for matching, or "" when
 // it can't name one posting: a site's front page or a one-segment path
-// like /careers, or a URL a single source gives for several of its jobs
-// (a careers page every listing links to).
+// like /careers, or a URL some source gives for several of its jobs (a
+// careers page every listing links to). Such a URL is dropped for every
+// source, since it doesn't tell their jobs apart either.
 func postingURLs(jobs []model.Job) []string {
 	out := make([]string, len(jobs))
 	perSource := map[[2]string]int{}
@@ -165,8 +166,14 @@ func postingURLs(jobs []model.Job) []string {
 			perSource[[2]string{jobs[i].Source, out[i]}]++
 		}
 	}
-	for i := range jobs {
-		if out[i] != "" && perSource[[2]string{jobs[i].Source, out[i]}] > 1 {
+	shared := map[string]bool{}
+	for k, n := range perSource {
+		if n > 1 {
+			shared[k[1]] = true
+		}
+	}
+	for i := range out {
+		if shared[out[i]] {
 			out[i] = ""
 		}
 	}

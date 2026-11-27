@@ -27,8 +27,12 @@ import (
 	"github.com/itxkarthik/jobhunt/internal/sources"
 )
 
-// maxLine bounds one job's line; real postings are a few KB.
-const maxLine = 4 << 20
+// maxLine bounds one job's line; real postings are a few KB. maxFile
+// bounds a whole file (a few thousand jobs are a few MB).
+const (
+	maxLine = 4 << 20
+	maxFile = 256 << 20
+)
 
 // MaxAge is how long a file may go unchanged before its jobs count as
 // stale, as long as a failed source's cache may stand in for it.
@@ -132,7 +136,11 @@ func (s *Source) Fetch(ctx context.Context, _ model.Filters) ([]model.Job, error
 	switch {
 	case len(stale) > 0 && len(jobs) > 0:
 		// One stale file is enough: the source can only answer as a whole.
-		return jobs, &sources.StaleError{Err: errors.New(strings.Join(stale, "; "))}
+		msg := strings.Join(stale, "; ")
+		if first != nil {
+			msg += "; " + (&sources.PartialError{Failed: failed, Total: total, Err: first}).Error()
+		}
+		return jobs, &sources.StaleError{Err: errors.New(msg)}
 	case first == nil:
 		return jobs, nil
 	case len(jobs) == 0:
@@ -148,21 +156,29 @@ func (s *Source) age(mod time.Time) string {
 
 // readFile returns the jobs in path and the line numbers that weren't jobs.
 func readFile(ctx context.Context, path string, reserved []string) (jobs []model.Job, bad []int, err error) {
+	name := filepath.Base(path)
+	// Only regular files: opening a FIFO blocks until a writer comes, and
+	// a device like /dev/zero never ends, so either would hang the search.
+	fi, err := os.Stat(path)
+	switch {
+	case err != nil:
+		return nil, nil, fmt.Errorf("open %s: %w", name, bare(err))
+	case !fi.Mode().IsRegular():
+		return nil, nil, fmt.Errorf("open %s: not a regular file", name)
+	case fi.Size() > maxFile:
+		return nil, nil, fmt.Errorf("open %s: larger than %d MB", name, maxFile>>20)
+	}
 	f, err := os.Open(path) //nolint:gosec // G304: a file the user listed in config
 	if err != nil {
-		// Name only the file, not the whole path, in errors shown in the UI.
-		if pe, ok := errors.AsType[*os.PathError](err); ok {
-			err = pe.Err
-		}
-		return nil, nil, fmt.Errorf("open %s: %w", filepath.Base(path), err)
+		return nil, nil, fmt.Errorf("open %s: %w", name, bare(err))
 	}
 	defer func() { _ = f.Close() }() // read-only
-	r := bufio.NewReader(f)
+	r := bufio.NewReader(io.LimitReader(f, maxFile))
 	for n := 1; ; n++ {
 		if n%1000 == 0 && ctx.Err() != nil {
 			return jobs, bad, ctx.Err()
 		}
-		line, rerr := readLine(r)
+		line, rerr := readLine(ctx, r)
 		if len(line) > 0 {
 			if j, ok := parse(line, reserved); ok {
 				jobs = append(jobs, j)
@@ -174,17 +190,20 @@ func readFile(ctx context.Context, path string, reserved []string) (jobs []model
 			return jobs, bad, nil
 		}
 		if rerr != nil {
-			return jobs, bad, fmt.Errorf("read %s: %w", filepath.Base(path), rerr)
+			return jobs, bad, fmt.Errorf("read %s: %w", name, bare(rerr))
 		}
 	}
 }
 
 // readLine returns one trimmed line. A line over maxLine comes back as
 // "-", so it counts as a bad line instead of ending the file.
-func readLine(r *bufio.Reader) ([]byte, error) {
+func readLine(ctx context.Context, r *bufio.Reader) ([]byte, error) {
 	var line []byte
 	long := false
-	for {
+	for i := 1; ; i++ {
+		if i%256 == 0 && ctx.Err() != nil { // a 1 MB stretch with no newline
+			return nil, ctx.Err()
+		}
 		chunk, err := r.ReadSlice('\n')
 		if !long && len(line)+len(chunk) > maxLine {
 			long, line = true, nil
@@ -254,7 +273,13 @@ func parse(line []byte, reserved []string) (model.Job, bool) {
 	if j.PayPeriod == model.PerYear {
 		j.PayPeriod = "" // empty means a year
 	}
-	j.Areas = slices.DeleteFunc(j.Areas, func(a model.Area) bool { _, err := model.ParseArea(string(a)); return err != nil })
+	areas := j.Areas[:0]
+	for _, a := range j.Areas {
+		if a, err := model.ParseArea(string(a)); err == nil && !slices.Contains(areas, a) { // "sre" -> devops
+			areas = append(areas, a)
+		}
+	}
+	j.Areas = areas
 
 	// Country and city go into the dedup key, so fill them the way the
 	// other sources do; otherwise the same posting from a board with a
@@ -278,6 +303,15 @@ func parse(line []byte, reserved []string) (model.Job, bool) {
 	}
 	j.Description = sources.Truncate(j.Description, 6000)
 	return j, true
+}
+
+// bare drops the path from an *os.PathError, so errors shown in the UI
+// name only the file.
+func bare(err error) error {
+	if pe, ok := errors.AsType[*os.PathError](err); ok {
+		return pe.Err
+	}
+	return err
 }
 
 func expand(p string) string {

@@ -81,7 +81,7 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 	}
 	var (
 		mu       sync.Mutex
-		all      []model.Job
+		bySource = make([][]model.Job, len(e.Sources))
 		reports  = make([]Report, len(e.Sources))
 		answered = map[string]bool{} // source names fresh results came from
 	)
@@ -93,8 +93,7 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		g.Go(func() error {
 			r, jobs := e.runOne(gctx, src, f)
 			mu.Lock()
-			reports[i] = r
-			all = append(all, jobs...)
+			reports[i], bySource[i] = r, jobs
 			if r.Status == StatusOK || r.Status == StatusCached {
 				// Usually just r.Source, but a file source's jobs carry
 				// the names of the sources they came from.
@@ -113,6 +112,14 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 	_ = g.Wait()
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	// In source order, not finish order: a merged job keeps the key of
+	// its first copy, which must be the same every search, or hidden and
+	// seen jobs would come back. Built-in sources come before the file
+	// source, so adding a file doesn't change the keys you already have.
+	var all []model.Job
+	for _, js := range bySource {
+		all = append(all, js...)
 	}
 
 	// runOne has cleaned every job (sources are untrusted: terminal

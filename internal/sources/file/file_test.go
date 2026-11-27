@@ -15,8 +15,14 @@ import (
 )
 
 func TestFetch(t *testing.T) {
-	s := New([]string{"testdata/jobs.ndjson"})
+	const fixture = "testdata/jobs.ndjson"
+	fi, err := os.Stat(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New([]string{fixture})
 	s.Reserved = []string{"greenhouse"}
+	s.Now = func() time.Time { return fi.ModTime().Add(time.Hour) } // however old the checkout is
 	jobs, err := s.Fetch(context.Background(), model.Filters{})
 	if pe, ok := errors.AsType[*sources.PartialError](err); !ok || len(pe.Failed) != 2 {
 		t.Fatalf("want a partial error for 2 bad lines, got %v", err)
@@ -37,7 +43,7 @@ func TestFetch(t *testing.T) {
 	is := jobs[1]
 	if is.Source != "internshala" || is.ID != "internshala:https://internshala.com/internship/detail/ds-1" ||
 		is.Company != "unknown" || is.WorkMode != model.ModeRemote || is.Experience != model.ExpUnknown ||
-		len(is.Areas) != 1 {
+		!slices.Equal(is.Areas, []model.Area{model.AreaDataSci, model.AreaDevOps}) {
 		t.Errorf("internshala job: %+v", is)
 	}
 	if c := jobs[3].Countries; !slices.Equal(c, []string{"IN", "region:apac"}) {
@@ -54,7 +60,7 @@ func TestFetch(t *testing.T) {
 func TestMissingFileAndCacheKey(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "jobs.ndjson")
 	s := New([]string{path})
-	before := s.CacheKey(model.Filters{})
+	missing := s.CacheKey(model.Filters{})
 	if _, err := s.Fetch(context.Background(), model.Filters{}); err == nil {
 		t.Fatal("missing file should fail")
 	} else if !strings.HasPrefix(err.Error(), "open jobs.ndjson: ") {
@@ -63,19 +69,38 @@ func TestMissingFileAndCacheKey(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"title":"A","url":"https://a.example/jobs/1"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if s.CacheKey(model.Filters{}) == before {
+	if s.CacheKey(model.Filters{}) == missing {
 		t.Error("cache key should change when the file does")
 	}
 	if jobs, err := s.Fetch(context.Background(), model.Filters{}); err != nil || len(jobs) != 1 {
 		t.Errorf("got %v, %v", jobs, err)
 	}
+	fresh := s.CacheKey(model.Filters{})
 	s.Now = func() time.Time { return time.Now().Add(MaxAge + 24*time.Hour) }
-	if s.CacheKey(model.Filters{}) == before {
+	if s.CacheKey(model.Filters{}) == fresh {
 		t.Error("cache key should change when the file goes stale")
 	}
 	jobs, err := s.Fetch(context.Background(), model.Filters{})
 	if se, ok := errors.AsType[*sources.StaleError](err); !ok || len(jobs) != 1 || !strings.Contains(se.Error(), "not updated for 4d") {
 		t.Errorf("stale file: got %d jobs, %v", len(jobs), err)
+	}
+	// A stale result still says which lines were bad.
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.WriteString("\njunk\n")
+	_ = f.Close()
+	if _, err := s.Fetch(context.Background(), model.Filters{}); err == nil || !strings.Contains(err.Error(), "not a job") {
+		t.Errorf("stale result hid a bad line: %v", err)
+	}
+
+	// Directories, FIFOs and devices aren't read (see file_unix_test.go),
+	// and errors never show the directory they're in.
+	dir := t.TempDir()
+	if _, err := New([]string{dir}).Fetch(context.Background(), model.Filters{}); err == nil ||
+		!strings.Contains(err.Error(), "not a regular file") || strings.Contains(err.Error(), filepath.Dir(dir)) {
+		t.Errorf("directory: %v", err)
 	}
 	if New(nil).Ready() == nil {
 		t.Error("no paths should not be ready")

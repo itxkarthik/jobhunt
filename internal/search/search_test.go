@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/itxkarthik/jobhunt/internal/classify"
+	"github.com/itxkarthik/jobhunt/internal/dedup"
 	"github.com/itxkarthik/jobhunt/internal/model"
 	"github.com/itxkarthik/jobhunt/internal/sources"
 	"github.com/itxkarthik/jobhunt/internal/store"
@@ -520,5 +521,24 @@ func TestEngineListedByJobSource(t *testing.T) {
 	}
 	if rows, _ := st.TrackedJobs(ctx); rows[0].ListedAt.After(old) {
 		t.Error("stale jobs marked a tracked job listed")
+	}
+}
+
+// A merged job keeps the key of the copy from the earlier source in the
+// list, whichever finishes first, so hidden and seen jobs stay matched.
+func TestEngineMergeKeyStable(t *testing.T) {
+	a := job("a:1", "Backend Engineer Intern", "Pune")
+	a.Source, a.Company, a.URL = "a", "Fam", "https://boards.greenhouse.io/fam/jobs/1"
+	b := job("b:1", "Backend Engineering Intern", "Pune")
+	b.Source, b.Company, b.URL = "b", "FamPay", "https://boards.greenhouse.io/fam/jobs/1"
+	slow := &fakeSource{name: "a", supports: true, jobs: []model.Job{a}, delay: 50 * time.Millisecond}
+	fast := &fakeSource{name: "b", supports: true, jobs: []model.Job{b}}
+	eng := &Engine{Sources: []sources.Source{slow, fast}, Classifier: classify.Default(), Timeout: time.Second}
+	res, err := eng.Run(context.Background(), model.Filters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Jobs) != 1 || res.Jobs[0].Key != dedup.Key(&a) {
+		t.Fatalf("want one job with the first source's key %s, got %+v", dedup.Key(&a), res.Jobs)
 	}
 }
