@@ -470,3 +470,55 @@ func TestEngineCachesEachPart(t *testing.T) {
 		}
 	}
 }
+
+// A source whose jobs carry other sources' names (the file source) answers
+// for those names: tracked jobs it returns are still listed.
+func TestEngineListedByJobSource(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	j := job("linkedin:1", "Backend Intern", "Pune")
+	j.Source, j.URL, j.Key = "linkedin", "https://www.linkedin.com/jobs/view/1", "k1"
+	if err := st.SaveJob(ctx, &j); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetStatus(ctx, "k1", store.Applied, ""); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-30 * 24 * time.Hour)
+	if err := st.MarkListed(ctx, []string{"k1"}, old); err != nil {
+		t.Fatal(err)
+	}
+	src := &fakeSource{name: "file", supports: true, jobs: []model.Job{j}}
+	eng := &Engine{Sources: []sources.Source{src}, Store: st, Classifier: classify.Default()}
+	if _, err := eng.Run(ctx, model.Filters{}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := st.TrackedJobs(ctx)
+	if err != nil || len(rows) != 1 || !rows[0].ListedAt.After(old) {
+		t.Fatalf("tracked job not marked listed: %+v %v", rows, err)
+	}
+
+	// Stale jobs are shown but say nothing about what's still listed,
+	// and aren't cached as fresh.
+	if err := st.MarkListed(ctx, []string{"k1"}, old); err != nil {
+		t.Fatal(err)
+	}
+	src.err = &sources.StaleError{Err: errors.New("jobs.ndjson not updated for 5d")}
+	eng.CacheTTL = time.Hour
+	for range 2 { // a cached first run would make the second one "cached"
+		res, err := eng.Run(ctx, model.Filters{Countries: []string{"IN"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := res.Reports[0]; r.Status != StatusError || len(res.Jobs) != 1 || !strings.Contains(r.Err, "stale") {
+			t.Fatalf("stale: %+v, %d jobs", r, len(res.Jobs))
+		}
+	}
+	if rows, _ := st.TrackedJobs(ctx); rows[0].ListedAt.After(old) {
+		t.Error("stale jobs marked a tracked job listed")
+	}
+}

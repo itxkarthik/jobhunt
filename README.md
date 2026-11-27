@@ -20,7 +20,7 @@ Use it from the terminal, a TUI, or a local web UI. It also keeps a list of star
 - **Less noise.** Classifies each job's type, level, work mode, CS area and visa support, then filters out what you didn't ask for.
 - **Pay and stipends.** Shows what a job pays when the posting says (`₹15k/mo`, `$40/hr`, `₹6L–8L/yr`), and flags unpaid internships; `--paid-only` drops them.
 - **City filter.** `--city Bangalore,Kozhikode` keeps jobs in those cities under any spelling or case, plus remote jobs you can do from there.
-- **No duplicates.** Merges the same posting found on different sources.
+- **No duplicates.** Merges the same posting found on different sources: the same link, or the same company with a near-identical title.
 - **Ranked results.** Scores every job 0–100 for how well it fits your search.
 - **New-job tracking.** Marks jobs you haven't seen before with ★; `--new-only` shows just those.
 - **Application tracker.** saved → applied → OA → interview → offer / rejected, with notes and history. A posting that hasn't shown up in your searches for 2 weeks is marked "not listed": it has probably closed.
@@ -312,6 +312,7 @@ The server listens on loopback only and requires the token on every `/api` reque
 | JSearch | `JOBHUNT_JSEARCH_API_KEY` | **opt-in**, freemium. LinkedIn and Indeed listings via Google Jobs. Accepts [OpenWeb Ninja](https://www.openwebninja.com) or RapidAPI keys |
 | X recent search | `JOBHUNT_X_BEARER_TOKEN` | **opt-in**, pay-per-use |
 | Adzuna | `JOBHUNT_ADZUNA_APP_ID` / `_APP_KEY` | **opt-in** |
+| Local files | – | **opt-in**. NDJSON files you list in `sources.file.paths`, one job per line in the `job` shape of [`docs/feed.schema.json`](docs/feed.schema.json). Each job keeps its own `source` name (built-in names become `file`), `key`/`score` are recomputed, and a file is read again when it changes. A file unchanged for 3 days is shown as stale results and stops marking tracked jobs as still listed |
 | LinkedIn, Indeed, Naukri, Internshala, Glassdoor, Wellfound, YC, Work at a Startup, Cutshort, Instahyre, TokyoDev, Japan Dev, Google Jobs, X search | – | **browser links only**, never fetched |
 
 To enable an opt-in source, set `sources.<name>.enabled: true` in the config and provide its key in the config or the env var. The company importers (SEC EDGAR, MCA, HN leads) are listed under [Companies](#companies).

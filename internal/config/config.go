@@ -142,6 +142,7 @@ type SourceConfig struct {
 	MaxPages    int           `yaml:"max_pages,omitempty"`
 	MaxResults  int           `yaml:"max_results,omitempty"`
 	TTL         time.Duration `yaml:"ttl,omitempty"`
+	Paths       []string      `yaml:"paths,omitempty"` // the file source's NDJSON files
 }
 
 // IsEnabled returns the configured value or def when unset.

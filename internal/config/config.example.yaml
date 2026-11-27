@@ -64,6 +64,9 @@ sources:
     enabled: false # pay-per-use (~$0.005 per post read)
     bearer_token: ""
     max_results: 25
+  file:
+    enabled: false # jobs from local NDJSON files, one job per line (model.Job JSON)
+    paths: []      # e.g. [~/jobs/extra.ndjson]; read again whenever a file changes, stale after 3 days unchanged
 
 # Headless mode: `jobhunt feed --webhook` (or with webhook_url set) POSTs
 # each run's NDJSON batch here. Prefer the env vars for both values.

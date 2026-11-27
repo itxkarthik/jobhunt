@@ -80,9 +80,10 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		_ = e.Prepare(ctx) // a stale board list is better than no search
 	}
 	var (
-		mu      sync.Mutex
-		all     []model.Job
-		reports = make([]Report, len(e.Sources))
+		mu       sync.Mutex
+		all      []model.Job
+		reports  = make([]Report, len(e.Sources))
+		answered = map[string]bool{} // source names fresh results came from
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	if e.Concurrency > 0 {
@@ -94,6 +95,14 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 			mu.Lock()
 			reports[i] = r
 			all = append(all, jobs...)
+			if r.Status == StatusOK || r.Status == StatusCached {
+				// Usually just r.Source, but a file source's jobs carry
+				// the names of the sources they came from.
+				answered[r.Source] = true
+				for j := range jobs {
+					answered[jobs[j].Source] = true
+				}
+			}
 			mu.Unlock()
 			if e.Progress != nil {
 				e.Progress(r)
@@ -131,7 +140,7 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 		if err := e.track(ctx, res, now); err != nil {
 			return nil, err
 		}
-		if err := e.listed(ctx, all, res.Jobs, reports, now); err != nil {
+		if err := e.listed(ctx, all, res.Jobs, answered, now); err != nil {
 			return nil, fmt.Errorf("record listed jobs: %w", err)
 		}
 		_ = e.Store.PruneDaily(ctx, now) // housekeeping: a failure must not fail the search
@@ -142,15 +151,12 @@ func (e *Engine) Run(ctx context.Context, f model.Filters) (*Result, error) {
 // listed records which tracked jobs showed up in this search's fetched
 // results, before filtering: a posting that matched by URL, or by key after
 // merging. Only sources that answered count: a failed source's stale
-// fallback says nothing about whether a posting is still open.
-func (e *Engine) listed(ctx context.Context, all, merged []model.Job, reports []Report, now time.Time) error {
+// fallback says nothing about whether a posting is still open. answered
+// holds the source names of jobs from sources that answered.
+func (e *Engine) listed(ctx context.Context, all, merged []model.Job, answered map[string]bool, now time.Time) error {
 	keys, byURL, err := e.Store.TrackedKeys(ctx)
 	if err != nil || len(keys) == 0 {
 		return err
-	}
-	answered := map[string]bool{}
-	for _, r := range reports {
-		answered[r.Source] = r.Status == StatusOK || r.Status == StatusCached
 	}
 	var found []string
 	for i := range all {
@@ -262,6 +268,8 @@ func (e *Engine) runOne(ctx context.Context, src sources.Source, f model.Filters
 		r.Status = StatusCached
 	case err == nil:
 		r.Status = StatusOK
+	case len(jobs) > 0 && isStale(err):
+		r.Status, r.Err = StatusError, fmt.Sprintf("%v (showing %d stale results)", err, len(jobs))
 	case len(jobs) > 0:
 		r.Status, r.Err = StatusOK, "partial: "+err.Error()
 	default:
@@ -325,7 +333,8 @@ func (e *Engine) loadKey(ctx, fctx context.Context, source, key string, ttl time
 		}
 	}
 	jobs, err := fetch(fctx, key)
-	if _, partial := errors.AsType[*sources.PartialError](err); err != nil && (!partial || len(jobs) == 0) {
+	_, partial := errors.AsType[*sources.PartialError](err)
+	if err != nil && (!(partial || isStale(err)) || len(jobs) == 0) {
 		return nil, false, err
 	}
 	for i := range jobs {
@@ -334,7 +343,7 @@ func (e *Engine) loadKey(ctx, fctx context.Context, source, key string, ttl time
 		}
 	}
 	raw, class := e.prepare(jobs)
-	if e.Store != nil {
+	if e.Store != nil && !isStale(err) { // cached, they'd come back as fresh
 		_ = e.Store.PutCache(ctx, source, key, raw, e.prepVersion(), class)
 	}
 	return jobs, false, err
@@ -373,6 +382,11 @@ func (e *Engine) ttlFor(src sources.Source) time.Duration {
 		ttl = m.MinTTL()
 	}
 	return ttl
+}
+
+func isStale(err error) bool {
+	_, ok := errors.AsType[*sources.StaleError](err)
+	return ok
 }
 
 func errMessage(err error, timeout time.Duration) string {

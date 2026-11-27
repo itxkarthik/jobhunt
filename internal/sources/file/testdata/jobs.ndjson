@@ -1,0 +1,7 @@
+{"id":"linkedin:4123","source":"linkedin","title":"Backend Engineering Intern","company":"Fam","url":"https://www.linkedin.com/jobs/view/4123","location":"Bengaluru, Karnataka, India","job_type":"internship","work_mode":"unknown","salary_min":20000,"currency":"INR","pay_period":"monthly","key":"forged","score":99,"new":true}
+not json
+
+{"source":"Internshala","title":"Data Science Internship","company":"","url":"https://internshala.com/internship/detail/ds-1","location":"Remote, India","work_mode":"Remote","experience":"wizard","areas":["data-science","nonsense"]}
+{"source":"greenhouse","title":"Platform Intern","company":"Acme","url":"https://boards.greenhouse.io/acme/jobs/1"}
+{"source":"bad name!","title":"Click me","company":"Evil","url":"javascript:alert(1)"}
+{"id":"\u001b]8;;evil\u0007","title":"No source","company":"Plain","url":"https://plain.example/jobs/7","countries":["india","\u001b[31m","region:apac","IN"]}
