@@ -5,6 +5,7 @@ package dedup
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -95,16 +96,20 @@ func mayMatch(m, n int) bool {
 const Threshold = 0.85
 
 // Merge deduplicates jobs, keeping the richest record of each group and
-// listing every source it came from. Input order is preserved for the
-// surviving records.
+// listing every source it came from. Two jobs are one when they link to
+// the same posting (see postingURLs), or are at the same company with
+// similar titles and compatible locations. Input order is preserved for
+// the surviving records.
 func Merge(jobs []model.Job) []model.Job {
 	type entry struct {
 		job  model.Job
 		toks []string // tokenSet of the normalized title
 	}
 	byCompany := map[string][]int{} // normalized company -> indices into out
+	byURL := map[string]int{}       // postingURLs -> index into out
+	urls := postingURLs(jobs)
 	var out []entry
-	for _, j := range jobs {
+	for i, j := range jobs {
 		if j.Key == "" {
 			j.Key = Key(&j)
 		}
@@ -112,20 +117,27 @@ func Merge(jobs []model.Job) []model.Job {
 			j.Sources = []string{j.Source}
 		}
 		co, toks := NormCompany(j.Company), tokenSet(NormTitle(j.Title))
-		merged := false
-		if co != "" {
+		at := -1
+		if idx, ok := byURL[urls[i]]; ok && urls[i] != "" {
+			at = idx
+		} else if co != "" {
 			for _, idx := range byCompany[co] {
 				e := &out[idx]
 				if mayMatch(len(e.toks), len(toks)) && jaccard(e.toks, toks) >= Threshold && compatible(&e.job, &j) {
-					e.job = combine(e.job, j)
-					merged = true
+					at = idx
 					break
 				}
 			}
 		}
-		if !merged {
-			byCompany[co] = append(byCompany[co], len(out))
+		if at >= 0 {
+			out[at].job = combine(out[at].job, j)
+		} else {
+			at = len(out)
+			byCompany[co] = append(byCompany[co], at)
 			out = append(out, entry{job: j, toks: toks})
+		}
+		if _, ok := byURL[urls[i]]; !ok && urls[i] != "" {
+			byURL[urls[i]] = at
 		}
 	}
 	res := make([]model.Job, len(out))
@@ -133,6 +145,56 @@ func Merge(jobs []model.Job) []model.Job {
 		res[i] = e.job
 	}
 	return res
+}
+
+// trackingParams are query parameters that say where a click came from,
+// not which posting it is.
+var trackingParams = []string{"ref", "refid", "ref_src", "referrer", "src", "source", "trk", "trackingid",
+	"gh_src", "lever-source", "lever-origin", "lever-via", "fbclid", "gclid"}
+
+// postingURLs returns each job's URL normalized for matching, or "" when
+// it can't name one posting: a site's front page or a one-segment path
+// like /careers, or a URL a single source gives for several of its jobs
+// (a careers page every listing links to).
+func postingURLs(jobs []model.Job) []string {
+	out := make([]string, len(jobs))
+	perSource := map[[2]string]int{}
+	for i := range jobs {
+		out[i] = postingURL(jobs[i].URL)
+		if out[i] != "" {
+			perSource[[2]string{jobs[i].Source, out[i]}]++
+		}
+	}
+	for i := range jobs {
+		if out[i] != "" && perSource[[2]string{jobs[i].Source, out[i]}] > 1 {
+			out[i] = ""
+		}
+	}
+	return out
+}
+
+// postingURL lowercases the host and drops "www.", the fragment, a
+// trailing slash or /apply, and tracking parameters.
+func postingURL(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ""
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	if host == "job-boards.greenhouse.io" {
+		host = "boards.greenhouse.io"
+	}
+	path := strings.TrimSuffix(strings.TrimRight(u.EscapedPath(), "/"), "/apply")
+	q := u.Query()
+	for k := range q {
+		if lk := strings.ToLower(k); strings.HasPrefix(lk, "utm_") || slices.Contains(trackingParams, lk) {
+			q.Del(k)
+		}
+	}
+	if strings.Count(path, "/") < 2 && len(q) == 0 {
+		return ""
+	}
+	return host + path + "?" + q.Encode()
 }
 
 // compatible: same city, or overlapping countries, or one side unknown.
