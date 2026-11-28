@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/itxkarthik/jobhunt/internal/classify"
 	"github.com/itxkarthik/jobhunt/internal/model"
@@ -47,6 +48,45 @@ func NormTitle(s string) string {
 	return strings.Join(out, " ")
 }
 
+// titleForms maps word forms that name the same role to one form, so
+// "Backend Engineering Intern" matches "Backend Engineer Intern". Level
+// markers keep their number: "SDE I" and "SDE 2" are different jobs.
+var titleForms = map[string]string{
+	"engineering": "engineer", "engineers": "engineer",
+	"development": "developer", "developers": "developer",
+	"i": "1", "l1": "1", "ii": "2", "l2": "2", "iii": "3", "l3": "3",
+}
+
+// titleFiller are words that never tell two roles apart.
+var titleFiller = map[string]bool{"the": true, "and": true, "for": true, "of": true, "a": true, "an": true}
+
+// devFields are words after which "development" is a field of its own
+// ("business development", "research and development"), not software.
+var devFields = map[string]bool{"business": true, "research": true}
+
+// matchTokens is the set of words Merge compares titles by: NormTitle's,
+// with word forms merged and filler dropped. Key keeps using NormTitle
+// alone, since stored tracker and hidden keys depend on it.
+func matchTokens(title string) []string {
+	toks := strings.Fields(NormTitle(title))
+	out := toks[:0]
+	prev := ""
+	for _, t := range toks {
+		if titleFiller[t] || !strings.ContainsFunc(t, isAlnum) {
+			continue
+		}
+		w := t
+		if f, ok := titleForms[t]; ok && !(t == "development" && devFields[prev]) {
+			w = f
+		}
+		prev = t
+		out = append(out, w)
+	}
+	return tokenSet(out)
+}
+
+func isAlnum(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+
 // Key is a stable identity for a posting: company + title + primary country.
 func Key(j *model.Job) string {
 	country := ""
@@ -57,9 +97,8 @@ func Key(j *model.Job) string {
 	return hex.EncodeToString(sum[:6])
 }
 
-// tokenSet is a normalized title's distinct words, sorted.
-func tokenSet(title string) []string {
-	ts := strings.Fields(title)
+// tokenSet is the distinct words, sorted.
+func tokenSet(ts []string) []string {
 	slices.Sort(ts)
 	return slices.Compact(ts)
 }
@@ -103,7 +142,7 @@ const Threshold = 0.85
 func Merge(jobs []model.Job) []model.Job {
 	type entry struct {
 		job  model.Job
-		toks []string // tokenSet of the normalized title
+		toks []string // matchTokens of the title
 	}
 	byCompany := map[string][]int{} // normalized company -> indices into out
 	byURL := map[string]int{}       // postingURLs -> index into out
@@ -116,7 +155,7 @@ func Merge(jobs []model.Job) []model.Job {
 		if len(j.Sources) == 0 {
 			j.Sources = []string{j.Source}
 		}
-		co, toks := NormCompany(j.Company), tokenSet(NormTitle(j.Title))
+		co, toks := NormCompany(j.Company), matchTokens(j.Title)
 		at := -1
 		if idx, ok := byURL[urls[i]]; ok && urls[i] != "" {
 			at = idx
