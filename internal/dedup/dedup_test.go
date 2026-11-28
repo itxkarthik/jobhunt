@@ -89,3 +89,62 @@ func TestMergeByURL(t *testing.T) {
 		t.Error("query parameters that name the posting must be kept")
 	}
 }
+
+// TestMergeTitlePairs checks title pairs as two sources list them for one
+// company: word forms, filler and level markers vary for the same job,
+// while different roles at the same company must stay apart.
+func TestMergeTitlePairs(t *testing.T) {
+	for _, tc := range []struct {
+		a, b string
+		same bool
+	}{
+		// The same posting, worded differently.
+		{"Backend Engineer Intern", "Backend Engineering Intern", true},
+		{"Software Developer Intern", "Software Development Intern", true},
+		{"SDE 1", "Software Engineer I", true},
+		{"SDE-II", "Software Engineer 2", true},
+		{"Software Engineer L1", "Software Engineer I", true},
+		{"Intern - Backend", "Backend Intern", true},
+		{"Intern, Software Engineering", "Software Engineer Intern", true},
+		{"Engineer, Machine Learning", "Machine Learning Engineering", true},
+		{"Frontend Developers / Interns", "Frontend Developer Intern", true},
+		{"Intern for the Data Engineering Team", "Data Engineer Intern Team", true},
+		{"Research & Development Intern", "Research and Development Intern", true},
+
+		// Different roles at the same company.
+		{"SDE 1", "SDE 2", false},
+		{"Software Engineer II", "Software Engineer III", false},
+		{"Backend Engineer Intern", "Frontend Engineer Intern", false},
+		{"Software Engineer", "Senior Software Engineer", false},
+		{"Data Engineer", "Data Engineering Manager", false},
+		{"Machine Learning Engineer", "Machine Learning Engineering Manager", false},
+		{"Business Development Intern", "Business Developer Intern", false},
+		{"Research and Development Intern", "Research Developer Intern", false},
+		{"Product Manager", "Product Designer", false},
+		{"Software Engineer Intern", "Software Engineer Intern, Data", false},
+	} {
+		jobs := []model.Job{
+			{Source: "greenhouse", Company: "Razorpay", Title: tc.a, Countries: []string{"IN"}},
+			{Source: "himalayas", Company: "Razorpay", Title: tc.b, Countries: []string{"IN"}},
+		}
+		if got := len(Merge(jobs)) == 1; got != tc.same {
+			t.Errorf("%q vs %q: merged = %v, want %v (tokens %v, %v)", tc.a, tc.b, got, tc.same, matchTokens(tc.a), matchTokens(tc.b))
+		}
+	}
+}
+
+func TestKeyUnchanged(t *testing.T) {
+	// Tracker entries and hidden jobs are stored by Key, so the extra
+	// normalization Merge uses for titles must not change it.
+	for title, want := range map[string]string{
+		"Backend Engineering Intern":  "322141b8b20b",
+		"Software Development Intern": "ff74e497d5c9",
+		"Software Engineer I":         "4f6799235703",
+		"Intern for the Data Team":    "b24bcaaadfaf",
+	} {
+		j := model.Job{Company: "Razorpay", Title: title, Countries: []string{"IN"}, City: "Bengaluru"}
+		if got := Key(&j); got != want {
+			t.Errorf("Key(%q) = %s, want %s", title, got, want)
+		}
+	}
+}
